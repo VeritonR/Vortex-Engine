@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<TextureAtlas imagePath="lilbf.png">
+<SubTexture name="lilbf idle0000" x="263" y="0" width="90" height="96" frameX="-160" frameY="-108" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf idle0001" x="0" y="222" width="91" height="96" frameX="-159" frameY="-108" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf left0000" x="175" y="318" width="91" height="94" frameX="-143" frameY="-112" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf left0001" x="263" y="96" width="88" height="96" frameX="-148" frameY="-110" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf left0002" x="353" y="96" width="85" height="95" frameX="-149" frameY="-111" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf down0000" x="181" y="413" width="100" height="86" frameX="-148" frameY="-121" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf down0001" x="266" y="318" width="86" height="94" frameX="-156" frameY="-113" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf down0002" x="352" y="318" width="87" height="93" frameX="-155" frameY="-114" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf up0000" x="0" y="0" width="85" height="113" frameX="-166" frameY="-93" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf up0001" x="0" y="113" width="91" height="109" frameX="-163" frameY="-96" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf up0002" x="85" y="0" width="89" height="110" frameX="-164" frameY="-96" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf right0000" x="444" y="0" width="95" height="94" frameX="-165" frameY="-112" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf right0001" x="444" y="94" width="92" height="94" frameX="-164" frameY="-111" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf right0002" x="353" y="191" width="90" height="95" frameX="-165" frameY="-111" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf hey0000" x="179" y="222" width="91" height="96" frameX="-160" frameY="-108" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf hey0001" x="87" y="413" width="94" height="93" frameX="-158" frameY="-112" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilbf hey0002" x="353" y="0" width="91" height="96" frameX="-160" frameY="-108" frameWidth="300" frameHeight="256" />
+</TextureAtlas>

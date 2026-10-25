@@ -1,0 +1,13 @@
+{
+  "title": "Friday Night Funkin' - Erect, Pico Mixes and LE SSERAFIM",
+  "description": "The songs of the base game the engine doesn't have in Psych's format: the Erect remixes, the Pico and Boyfriend mixes and the LE SSERAFIM week. Kept in V-Slice's own format.",
+  "contributors": [
+    {
+      "name": "The Funkin' Crew Inc."
+    }
+  ],
+  "api_version": "0.8.0",
+  "mod_version": "1.0.0",
+  "id": "funkin-vslice-base",
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<TextureAtlas imagePath="portal.png">
+<SubTexture name="base0000" x="0" y="0" width="1850" height="1698" frameX="-167" frameY="-65" frameWidth="2266" frameHeight="1888" />
+<SubTexture name="middle0000" x="1850" y="0" width="1617" height="1571" frameX="-306" frameY="-197" frameWidth="2266" frameHeight="1888" />
+<SubTexture name="front0000" x="0" y="1698" width="1237" height="1150" frameX="-464" frameY="-329" frameWidth="2266" frameHeight="1888" />
+</TextureAtlas>

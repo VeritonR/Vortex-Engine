@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<TextureAtlas imagePath="lilOpp.png">
+<SubTexture name="lilOpp idle0000" x="0" y="256" width="78" height="102" frameX="-12" frameY="-107" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp idle0001" x="78" y="256" width="79" height="102" frameX="-11" frameY="-107" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp left0000" x="415" y="0" width="74" height="98" frameX="-8" frameY="-110" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp left0001" x="157" y="256" width="73" height="101" frameX="-11" frameY="-108" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp left0002" x="230" y="256" width="70" height="99" frameX="-12" frameY="-109" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp down0000" x="321" y="358" width="91" height="82" frameX="-7" frameY="-127" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp down0001" x="240" y="358" width="81" height="88" frameX="-12" frameY="-121" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp down0002" x="161" y="358" width="79" height="89" frameX="-13" frameY="-120" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp up0000" x="300" y="0" width="55" height="122" frameX="-25" frameY="-87" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp up0001" x="355" y="0" width="60" height="119" frameX="-23" frameY="-90" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp up0002" x="355" y="119" width="59" height="119" frameX="-23" frameY="-90" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp right0000" x="79" y="358" width="82" height="97" frameX="-9" frameY="-111" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp right0001" x="300" y="256" width="80" height="99" frameX="-8" frameY="-109" frameWidth="300" frameHeight="256" />
+<SubTexture name="lilOpp right0002" x="0" y="358" width="79" height="98" frameX="-9" frameY="-110" frameWidth="300" frameHeight="256" />
+</TextureAtlas>
