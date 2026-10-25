@@ -307,7 +307,7 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 
 			// keeps the art where it is when the main timeline is played as a whole
 			if(added.instance.matrix != null && anim.stageInstance.matrix != null && labelsOnDocument)
-				added.instance.matrix.copyFrom(anim.stageInstance.matrix);
+				copyStageMatrix(added.instance.matrix);
 
 			anim.animsMap.remove(symbolName);
 			anim.animsMap.set(name, added);
@@ -342,6 +342,35 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 	}
 
 	/**
+	 * V-Slice 0.8's texture atlas library (flixel-animate) puts the atlas' place on its file ("applyStageMatrix") after the sprite's
+	 * origin is taken away, and gives it back after: a stage matrix that scales or turns the art does it around the origin. The origin
+	 * is the middle of the sprite's size, which for an atlas placed by its file is the area its main timeline takes there
+	 * (V-Slice's Richard: 1920x1080 made 0.6 times smaller, 1152x648, the origin at 576,324).
+	 * A matrix that only moves the art (most of them) puts it in the same place either way; one that scales it doesn't
+	 * (Character Select's Richard, made 0.6 times smaller, ended up up and to the left of where V-Slice has him).
+	 */
+	public var stageAroundOrigin:Bool = false;
+	var _stageOrigin:FlxPoint = null;
+
+	function copyStageMatrix(target:FlxMatrix):Void
+	{
+		var stage:FlxMatrix = anim.stageInstance.matrix;
+		target.copyFrom(stage);
+		if(!stageAroundOrigin || anim.stageInstance.symbol == null) return;
+
+		if(_stageOrigin == null)
+		{
+			var box:FlxRect = getTimelineBounds(anim.stageInstance.symbol.name, stage);
+			_stageOrigin = FlxPoint.get(box.width / 2, box.height / 2);
+			box.put();
+		}
+		var originX:Float = _stageOrigin.x;
+		var originY:Float = _stageOrigin.y;
+		target.tx += originX - (stage.a * originX + stage.c * originY);
+		target.ty += originY - (stage.b * originX + stage.d * originY);
+	}
+
+	/**
 	 * If the animations made out of frame labels are drawn where the atlas' file puts its main timeline (the place it has on Adobe Animate's stage),
 	 * which is how they're added. V-Slice only does that when asked to ("applyStageMatrix"): without it they're the timeline as it is.
 	 */
@@ -357,7 +386,7 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 			var added = (anim.animsMap != null) ? anim.animsMap.get(name) : null;
 			if(added == null || added.instance == null || added.instance.matrix == null) continue;
 
-			if(value && anim.stageInstance != null && anim.stageInstance.matrix != null) added.instance.matrix.copyFrom(anim.stageInstance.matrix);
+			if(value && anim.stageInstance != null && anim.stageInstance.matrix != null) copyStageMatrix(added.instance.matrix);
 			else added.instance.matrix.identity();
 		}
 		_boxes = [];

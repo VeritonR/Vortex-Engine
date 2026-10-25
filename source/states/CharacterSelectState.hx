@@ -838,6 +838,7 @@ class CharSelectAtlas extends FlxAnimate
 		antialiasing = ClientPrefs.data.antialiasing;
 
 		Paths.loadAnimateAtlas(this, key);
+		stageAroundOrigin = true; //(V-Slice's Character Select atlases are all placed by their files: see PsychFlxAnimate)
 		if(anim.curSymbol != null)
 		{
 			for (label in anim.curSymbol.getFrameLabelNames())

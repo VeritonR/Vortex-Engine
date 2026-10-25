@@ -942,6 +942,7 @@ class FunkinLua {
 			tag = tag.replace('.', '');
 			LuaUtils.destroyObject(tag);
 			var leSprite:ModchartSprite = new ModchartSprite(x, y);
+			leSprite.cameraBlends = true;
 			if(image != null && image.length > 0)
 			{
 				leSprite.loadGraphic(Paths.image(image));
@@ -953,6 +954,7 @@ class FunkinLua {
 			tag = tag.replace('.', '');
 			LuaUtils.destroyObject(tag);
 			var leSprite:ModchartSprite = new ModchartSprite(x, y);
+			leSprite.cameraBlends = true;
 
 			if(image != null && image.length > 0)
 			{

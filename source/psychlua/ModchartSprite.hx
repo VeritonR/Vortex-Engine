@@ -41,9 +41,16 @@ class ModchartSprite extends FlxSprite
 	 * Overlay, hard light, difference and invert are blend modes the game can't draw by itself: they're done like on V-Slice's
 	 * cameras (`backend.CameraBlend`), drawn on a camera of their own first and then mixed with what's under them.
 	 */
+	/**
+	 * If those blend modes are done (see `draw()`). On for the sprites Lua scripts make, the ones it was made for: the props of
+	 * V-Slice stages are sprites of this class too, and one with "hardlight" (Hazier Hiver's alleyway) made the whole stage black.
+	 * HScript can turn it on for its own.
+	 */
+	public var cameraBlends:Bool = false;
+
 	override function draw()
 	{
-		var mode:Int = (blend != null) ? cast blend : -1;
+		var mode:Int = (blend != null && cameraBlends) ? cast blend : -1;
 		if(mode < 0 || !backend.CameraBlend.supports(mode))
 		{
 			super.draw();

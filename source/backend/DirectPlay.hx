@@ -182,6 +182,8 @@ class DirectPlay
 			case 'charselect': () -> new states.CharacterSelectState();
 			case 'charselecteditor': () -> new states.editors.CharSelectEditorState();
 			case 'editors': () -> new states.editors.MasterEditorMenu();
+			case 'gallery': () -> new states.GalleryState();
+			case 'multiplayer': () -> new states.MultiplayerMenuState();
 			case 'stageeditor': () -> new states.editors.StageEditorState();
 			case 'chareditor': () -> new states.editors.CharacterEditorState(objects.Character.DEFAULT_CHARACTER, false);
 			case 'portraiteditor': () -> new states.editors.DialogueCharacterEditorState();
@@ -516,7 +518,7 @@ class DirectPlay
 			}
 			mouseActions.sort((a, b) -> Reflect.compare(a.time, b.time));
 		}
-		if(shotTimes.length > 0 || quitAfter >= 0 || keyPresses.length > 0 || mouseActions.length > 0) FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
+		if(shotTimes.length > 0 || quitAfter >= 0 || keyPresses.length > 0 || mouseActions.length > 0 || options.exists('freezeatlas') || options.exists('members')) FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
 
 		// what the current state is doing, once a second (a menu that stopped updating, a substate over it...)
 		if(options.exists('stateinfo'))
@@ -613,6 +615,32 @@ class DirectPlay
 			}
 		}
 		runMouse(elapsed);
+		// "--members=SECONDS": what's on the state at that time, in its order (what covers what)
+		if(options.exists('members') && !membersListed && elapsed >= number('members', 0))
+		{
+			membersListed = true;
+			var lines:Array<String> = [];
+			for (index => member in FlxG.state.members)
+			{
+				if(member == null) { lines.push('$index: null'); continue; }
+				var line:String = '$index: ' + Type.getClassName(Type.getClass(member)) + (member.visible ? '' : ' hidden') + (member.exists ? '' : ' gone');
+				var sprite:FlxSprite = Std.downcast(member, FlxSprite);
+				if(sprite != null) line += ' a=' + FlxMath.roundDecimal(sprite.alpha, 2) + ' c=' + StringTools.hex(sprite.color & 0xFFFFFF, 6) + ' size ' + Math.round(sprite.width) + 'x' + Math.round(sprite.height) + ' at ' + Math.round(sprite.x) + ',' + Math.round(sprite.y);
+				var cams:Array<String> = [for (camera in member.cameras) (FlxG.cameras.list.indexOf(camera) + '')];
+				line += ' cams=' + cams.join('/');
+				lines.push(line);
+			}
+			trace('MEMBERS at ' + elapsed + 's (cameras: ' + [for (i => c in FlxG.cameras.list) '$i a=' + c.alpha + (c.visible ? '' : ' hidden')].join(', ') + ')
+' + lines.join('
+'));
+		}
+		// "--freezeatlas=SECONDS": every texture atlas on the screen stops on the first frame of what it's playing then
+		// (to compare one with V-Slice on the very same frame)
+		if(options.exists('freezeatlas') && !atlasesFrozen && elapsed >= number('freezeatlas', 0))
+		{
+			atlasesFrozen = true;
+			freezeAtlases(FlxG.state);
+		}
 		if(options.exists('log')) logCharacters(elapsed);
 		if(options.exists('skipdialogue') && PlayState.instance != null)
 		{
@@ -641,6 +669,30 @@ class DirectPlay
 				Sys.println('Music when closed: ' + (music.playing ? 'playing' : 'not playing') + ' at ' + Std.int(music.time) + ' of ' + Std.int(music.length)
 					+ ' ms, volume ' + FlxMath.roundDecimal(music.volume, 2));
 			Sys.exit(0);
+		}
+	}
+
+	static var atlasesFrozen:Bool = false;
+	static var membersListed:Bool = false;
+	static function freezeAtlases(group:flixel.group.FlxGroup.FlxTypedGroup<flixel.FlxBasic>):Void
+	{
+		if(group == null) return;
+		for (member in group.members)
+		{
+			var atlas:flxanimate.FlxAnimate = Std.downcast(member, flxanimate.FlxAnimate);
+			if(atlas != null && atlas.anim != null)
+			{
+				atlas.anim.curFrame = 0;
+				atlas.anim.pause();
+				continue;
+			}
+			var inner:flixel.group.FlxGroup.FlxTypedGroup<flixel.FlxBasic> = Std.downcast(member, flixel.group.FlxGroup.FlxTypedGroup);
+			if(inner != null) freezeAtlases(inner);
+			else if(Std.isOfType(member, flixel.group.FlxSpriteGroup.FlxTypedSpriteGroup))
+			{
+				var spriteGroup:Dynamic = member;
+				freezeAtlases(cast spriteGroup.group);
+			}
 		}
 	}
 

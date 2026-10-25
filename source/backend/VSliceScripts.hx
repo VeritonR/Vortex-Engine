@@ -291,6 +291,7 @@ class VSliceScripts
 		HxcRuntime.customImports.set('flixel.util.FlxColor', psychlua.HScript.CustomFlxColor);
 		HxcRuntime.customImports.set('flixel.effects.FlxFlicker', funkin.effects.ScriptFlicker); //(flixel's own crashes the way the base game uses it)
 		HxcRuntime.customImports.set('flixel.ui.FlxBar', funkin.ui.ScriptBar); //(flixel's own can't follow a variable of a script)
+		HxcRuntime.customImports.set('openfl.display.BlendMode', hxc.ScriptBlendMode); //(an abstract: its values)
 
 		// V-Slice's classes to make script classes through: `ScriptedFlxSprite.init('MyClass', ...)`
 		HxcRuntime.customImports.set('funkin.modding.base.ScriptedFlxBasic', funkin.modding.base.ScriptedClasses.ScriptedFlxBasic);
@@ -723,8 +724,13 @@ class VSliceScripts
 
 		// V-Slice tells its modules when a state is done opening, which is when some of them set their things up. Its modules were
 		// updated many times before that (they last from the start of the game), and some only read their settings when they are:
-		// these were just made, they get an update first
+		// these were just made, they get an update first. As on V-Slice, that's an update from before the song's PlayState is there
+		// for them: a module that keeps the song's characters when it sees them on an update (the "Change Character" handler of
+		// Schwiftying) and destroys what it kept when the state is done opening would destroy the song's own characters
+		var playState:funkin.play.PlayState = funkin.play.PlayState.instance;
+		funkin.play.PlayState.instance = null;
 		dispatchToModules(new UpdateScriptEvent(0));
+		funkin.play.PlayState.instance = playState;
 		dispatchToModules(new StateChangeScriptEvent(ScriptEventType.STATE_CHANGE_END, facade));
 		StepLog.add('Scripts started');
 	}
@@ -1502,7 +1508,11 @@ class VSliceScripts
 			case 'onUpdate':
 				if(firstUpdate) StepLog.add('First update of the song');
 				SongSequence.updateAll();
+				// (online, what scripts take while the other player holds a long note is their "health drain" for a computer
+				// opponent, on top of what each of that player's hits already costs: given back, see PlayState.opponentNoteHit())
+				var healthBefore:Float = game.health;
 				dispatch(new UpdateScriptEvent(args[0]));
+				if(game.otherSideHolding() && game.health < healthBefore) game.health = healthBefore;
 				sectionFocusEvents();
 				if(firstUpdate)
 				{
@@ -1823,10 +1833,14 @@ class VSliceScripts
 	/**
 	 * Called by PlayState when the player misses (a note, or a key pressed with nothing to hit), with the character it would play the
 	 * animation of. Returns that character, or null if it isn't the one missing: on V-Slice it's whoever is singing the player's side.
+	 * The side being played: the opponent's with "Play as Opponent" on, or online for the one playing the opponent (who sang the
+	 * missed note is whoever sings its side of the chart, the miss animation is theirs).
 	 */
 	public static function missCharacters(char:Character, direction:Int, note:Note):Character
 	{
 		if(!active || game == null) return char;
+
+		var playerSide:Bool = (note != null) ? note.mustPress : !game.playAsOpponent;
 
 		var method:String = (note != null) ? 'onNoteMiss' : 'onNoteGhostMiss';
 		var suffix:String = (note != null && note.animSuffix != null) ? note.animSuffix : '';
@@ -1834,7 +1848,7 @@ class VSliceScripts
 
 		for (other in stageCharacters())
 		{
-			if(other == char || !singsSide(other, true)) continue;
+			if(other == char || !singsSide(other, playerSide)) continue;
 			if(note != null && !letToSing(other, method, false)) continue;
 
 			other.playSingAnimation(direction, true, suffix);
@@ -1842,7 +1856,7 @@ class VSliceScripts
 
 		if(char == null) return null;
 		if(note != null && !letToSing(char, method, false)) return null;
-		return (gfNote || singsSide(char, true)) ? char : null;
+		return (gfNote || singsSide(char, playerSide)) ? char : null;
 	}
 
 	// The characters scripts added dance to the beat like the others, PlayState only makes its own do it

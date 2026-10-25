@@ -93,8 +93,8 @@ setBlendMode(tag, mode)         // (Psych's function, with more modes on Vortex)
                                 //     makeLuaSprite('light', 'stage/light', 0, 0)
                                 //     setBlendMode('light', 'overlay')
                                 //     addLuaSprite('light', true)
-                                // HScript: use a psychlua.ModchartSprite (import psychlua.ModchartSprite;) and set
-                                // sprite.blend = BlendMode.OVERLAY (import openfl.display.BlendMode;)
+                                // HScript: use a psychlua.ModchartSprite (import psychlua.ModchartSprite;), set
+                                // sprite.cameraBlends = true; and sprite.blend = BlendMode.OVERLAY (import openfl.display.BlendMode;)
 
 
 //------------------------------------------------------------------------------------------------------------------//

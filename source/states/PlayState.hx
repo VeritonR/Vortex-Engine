@@ -621,7 +621,9 @@ class PlayState extends MusicBeatState
 			camPos.y += gf.getGraphicMidpoint().y + gf.cameraPosition[1];
 		}
 
-		if(dad.curCharacter.startsWith('gf')) {
+		// (Psych's rule: an opponent named "gf..." takes Girlfriend's place. V-Slice has none: its songs keep the opponent where the
+		// stage puts it, and only the base game's "gf" moves itself there, from its own script. Fruit Ninja's "gf-katana" went up there)
+		if(dad.curCharacter.startsWith('gf') && SONG.vslice == null) {
 			dad.setPosition(GF_X, GF_Y);
 			if(gf != null)
 				gf.visible = false;
@@ -1530,7 +1532,8 @@ class PlayState extends MusicBeatState
 				setSongTime(0);
 				return true;
 			}
-			moveCameraSection();
+			// (V-Slice's countdown doesn't move the camera: one a script already put somewhere stays there, Fruit Ninja's Versus has it on BF)
+			if(SONG.vslice == null || !isCameraOnForcedPos) moveCameraSection();
 
 			startTimer = new FlxTimer().start(Conductor.crochet / 1000 / playbackRate, function(tmr:FlxTimer)
 			{
@@ -2723,6 +2726,13 @@ class PlayState extends MusicBeatState
         //});
 
         updateBreakTimer(elapsed);
+
+		// (online test runs write the health down once a second)
+		if (backend.NetworkManager.testLog && backend.NetworkManager.connected && Std.int(Conductor.songPosition / 1000) != _lastHealthLog)
+		{
+			_lastHealthLog = Std.int(Conductor.songPosition / 1000);
+			backend.NetworkManager.log('health ' + FlxMath.roundDecimal(health, 3) + ' at ' + _lastHealthLog + 's');
+		}
 
 		if (iconBop != _wasIconBop) 
         {
@@ -4302,6 +4312,17 @@ class PlayState extends MusicBeatState
 		//playableVoice().volume = 0;
 	}
 
+	var _lastHealthLog:Int = -1;
+
+	// Online: when the other player last had a long note held (see otherSideHolding())
+	var lastOtherHoldTime:Float = -99999;
+
+	/**
+	 * Online, if the other player is holding a long note right now.
+	 */
+	public function otherSideHolding():Bool
+		return backend.NetworkManager.connected && Math.abs(Conductor.songPosition - lastOtherHoldTime) < 150;
+
 	function opponentNoteHit(note:Note):Void
 	{
 		if (healthDrain > 0)
@@ -4334,9 +4355,16 @@ class PlayState extends MusicBeatState
 
 		//var result:Dynamic = callOnLuas('opponentNoteHitPre', [notes.members.indexOf(note), Math.abs(note.noteData), note.noteType, note.isSustainNote]);
 		// (scripts are told by the side of the song the note is on: the player's notes are "goodNoteHit" whoever hits them)
+		// Online the other player is the one singing these, and every note they hit already costs health (the tug of war, see
+		// networkOpponentHit()). Songs that take health whenever the opponent sings do it on these callbacks, made for a computer
+		// opponent: what they take is given back, everything else they do here stays
+		var guardHealth:Bool = backend.NetworkManager.connected;
+		if(guardHealth && note.isSustainNote) lastOtherHoldTime = Conductor.songPosition;
+		var healthBefore:Float = health;
 		var luaPre = note.mustPress ? 'goodNoteHitPre' : 'opponentNoteHitPre';
 		var result:Dynamic = callOnLuas(luaPre, [notes.members.indexOf(note), Math.abs(note.noteData), note.noteType, note.isSustainNote]);
 		if(result != LuaUtils.Function_Stop && result != LuaUtils.Function_StopHScript && result != LuaUtils.Function_StopAll) result = callOnHScript(luaPre, [note]);
+		if(guardHealth && health < healthBefore) health = healthBefore;
 
 		if(result == LuaUtils.Function_Stop) return;
 
@@ -4380,11 +4408,13 @@ class PlayState extends MusicBeatState
         note.hitByOpponent = true;
         if(grpHoldCovers != null) grpHoldCovers.noteHit(note, strumOf(note), false);
         
+        healthBefore = health;
         if(note.mustPress) stagesFunc(function(stage:BaseStage) stage.goodNoteHit(note));
         else stagesFunc(function(stage:BaseStage) stage.opponentNoteHit(note));
 		var luaEvent = note.mustPress ? 'goodNoteHit' : 'opponentNoteHit';
         var result:Dynamic = callOnLuas(luaEvent, [notes.members.indexOf(note), Math.abs(note.noteData), note.noteType, note.isSustainNote]);
         if(result != LuaUtils.Function_Stop && result != LuaUtils.Function_StopHScript && result != LuaUtils.Function_StopAll) callOnHScript(luaEvent, [note]);
+        if(guardHealth && health < healthBefore) health = healthBefore;
 
         if (!note.isSustainNote) invalidateNote(note);
 
