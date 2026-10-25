@@ -1,0 +1,203 @@
+=====================================================================================================================
+  VORTEX ENGINE - WHAT LUA AND HSCRIPT (.hx) CAN DO THAT ONLY VORTEX HAS
+=====================================================================================================================
+Only what Vortex Engine adds is here. Everything from Psych Engine 1.0.4 (Lua and HScript) and from V-Slice (.hxc scripts,
+Polymod) works as on their own wikis and is not repeated.
+
+In HScript, "game" is the PlayState (the same as PlayState.instance). Every "setProperty('name', value)" below is
+"game.name = value;" in HScript.
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  1. KNOWING THE SCRIPT IS RUNNING ON VORTEX ENGINE
+//------------------------------------------------------------------------------------------------------------------//
+LUA:
+    function onCreate()
+        if VortexEngine then
+            -- Vortex Engine
+        else
+            -- Psych Engine or another fork (VortexEngine is nil there)
+        end
+    end
+
+HScript/Hx:
+    function onCreate() {
+        var isVortex = false;
+        try {
+            if (VortexEngine == true) isVortex = true;
+        } catch(e) {
+            // (on other engines the variable doesn't exist and reading it is an error)
+            isVortex = false;
+        }
+
+        if (isVortex) {
+            // Vortex Engine
+        } else {
+            // Psych Engine or another fork
+        }
+    }
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  2. VARIABLES (Lua globals; in HScript the same names, or game.xxx)
+//------------------------------------------------------------------------------------------------------------------//
+VortexEngine     // Bool - always true on Vortex Engine (Lua and HScript)
+playAsOpponent   // Bool - (Lua) "Play as Opponent" is on: the player is hitting the opponent's notes.
+                 //        HScript: game.playAsOpponent
+                 //        The sides of the chart don't change: mustPress / goodNoteHit are still the right side's notes,
+                 //        and they're played by the computer. See "playable" in section 5.
+onlinePlay       // Bool - the song is an online match of Vortex's multiplayer (Lua and HScript)
+onlineHost       // Bool - an online match, and this player is the one hosting it (Lua and HScript)
+
+Example (Lua) - a mechanic that would be unfair online:
+    function onCreatePost()
+        if onlinePlay then
+            close() -- turns this script off for online matches
+        end
+    end
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  3. FUNCTIONS (Lua). HScript: call the same ones on "game" (game.setLaneUnderlay(true, 0.7);)
+//------------------------------------------------------------------------------------------------------------------//
+setLaneUnderlay(show, alpha)    // Bool, Float (optional, 0 to 1, 0.5 if not given)
+                                // Turns the dark lanes under the player's notes ("Lane Underlay") on or off and sets how
+                                // dark they are, whatever the player's option says. Works at any time of the song.
+                                //     setLaneUnderlay(true, 0.8)   setLaneUnderlay(false)
+                                // HScript: game.setLaneUnderlay(true, 0.8);  game.laneUnderlayAlpha = 0.3;
+
+setScoreCamera(where)           // String: "game" or "hud"
+                                // Where the ratings ("Sick!"), the combo numbers and "Combo" pop up: in the scene (they
+                                // move and zoom with the stage) or on the HUD. The player's option is only the default.
+
+setHiddenNotes(hide)            // Bool
+                                // Hides every note, the ones already on the screen too ("Hidden Notes" gameplay changer),
+                                // or shows them again. Hit them by memory!
+
+getTallies()                    // returns a table: sick, good, bad, shit, missed, combo, maxCombo, totalNotesHit, totalNotes
+                                // What the V-Slice style results screen counts, so far in the song.
+                                //     local t = getTallies()
+                                //     debugPrint('Sicks: ' .. t.sick .. ' / ' .. t.totalNotes)
+                                // HScript: var t = game.getTallies(); trace(t.sick);
+
+startConversation(name)         // String - returns true if it was found
+                                // Shows a V-Slice dialogue (data/dialogue/conversations/NAME.json of the mod) in a Psych
+                                // song. Like startDialogue: call it in onStartCountdown (return Function_Stop) or onEndSong,
+                                // and the song starts (or ends) when the dialogue is over.
+                                // HScript: game.startConversation('name', function() { ... }); (the function runs at the end
+                                // instead of starting the song)
+
+setBlendMode(tag, mode)         // (Psych's function, with more modes on Vortex)
+                                // "overlay", "hardlight", "difference" and "invert" now really work on Lua sprites
+                                // (makeLuaSprite / makeAnimatedLuaSprite), drawn the way V-Slice's cameras do them.
+                                //     makeLuaSprite('light', 'stage/light', 0, 0)
+                                //     setBlendMode('light', 'overlay')
+                                //     addLuaSprite('light', true)
+                                // HScript: use a psychlua.ModchartSprite (import psychlua.ModchartSprite;) and set
+                                // sprite.blend = BlendMode.OVERLAY (import openfl.display.BlendMode;)
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  4. NEW SCRIPT EVENTS (callbacks the engine calls on Lua and HScript)
+//------------------------------------------------------------------------------------------------------------------//
+function onBreakStart(seconds)     // a part of the song with 3 seconds or more without notes to hit started;
+                                   // "seconds" is how long it is (in real seconds, playback rate included).
+                                   // Called even if the player turned the break timer off.
+function onBreakEnd()              // the notes are coming again (or the song ended)
+function onConversationEnd(name)   // a V-Slice dialogue started with startConversation ended
+
+Example (Lua) - zoom out during the breaks:
+    function onBreakStart(seconds)
+        doTweenZoom('breakZoom', 'camGame', 0.7, 1, 'quadOut')
+    end
+    function onBreakEnd()
+        doTweenZoom('breakZoom', 'camGame', getProperty('defaultCamZoom'), 0.5, 'quadIn')
+    end
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  5. PROPERTIES (setProperty / getProperty in Lua, game.xxx in HScript)
+//------------------------------------------------------------------------------------------------------------------//
+Each one starts with the player's option and can be changed at any time of the song.
+
+setProperty('iconBop', false)         // Bool - the health icons bop on the beat
+setProperty('sustainWiggle', false)   // Bool - the long notes wiggle (needs Shaders on)
+setProperty('showBreakTimer', false)  // Bool - the countdown that shows up when there are 3 seconds or more without notes
+setProperty('ghostNotes', true)       // Bool - two notes of the same character together (35 ms apart) leave an
+                                      //        afterimage of the first pose
+setProperty('healthDrain', 1)         // Float, 0 to 2 - every note the opponent hits takes health (0.1 x this per note,
+                                      //        a little per piece of a long note). It never kills: health stops at 0.01
+setProperty('speedMiss', true)        // Bool - every miss makes the song 5% faster, up to 2x
+setProperty('hiddennotes', true)      // Bool - notes that show up from now on are invisible (setHiddenNotes also hides
+                                      //        the ones already there)
+setProperty('showLaneUnderlay', true) // Bool - shows/hides the lanes; use setLaneUnderlay to turn them on when the
+                                      //        player's option is off (they have to be made first)
+setProperty('laneUnderlayAlpha', 0.5) // Float, 0 to 1 - how dark the lanes are
+
+Read only (getProperty):
+getProperty('isResting')              // Bool - a break (see onBreakStart) is going on
+getProperty('maxRestTime')            // Float - how long the current/last break is, in seconds
+getProperty('maxCombo')               // Int - the biggest combo of the song
+getProperty('scoreCamera')            // String - "Game" or "HUD" (change it with setScoreCamera)
+getProperty('isVSliceStage')          // Bool - the stage is a V-Slice stage (from a V-Slice mod)
+getProperty('playableCharacter.curCharacter')  // the character the player is playing (boyfriend, or dad with Play as
+getProperty('otherCharacter.curCharacter')     //   Opponent) and the one singing by itself
+
+Objects of Vortex's own things, to move, recolor or hide like any other sprite:
+'restCountdownTxt'     // the text of the break timer ("5s")
+'restTimerBar'         // its bar
+'restportrait'         // its picture
+    setProperty('restCountdownTxt.color', getColorFromHex('FF66CC'))
+    setProperty('restTimerBar.y', 600)
+'laneUnderlays'        // the 4 lanes (a group): setPropertyFromGroup('laneUnderlays', 0, 'color', getColorFromHex('220033'))
+'camSus'               // the camera the long notes are on (between the game's and the HUD's)
+'camLanes'             // the camera of the lanes (under camSus; null until the lanes are made)
+'susWiggle'            // the wiggle of the long notes: setProperty('susWiggle.waveAmplitude', 0.15)
+                       //   also waveFrequency, waveSpeed
+'grpHoldCovers'        // the sparks on the receptors while a long note is held (V-Slice's hold covers)
+
+Notes (getPropertyFromGroup('notes', i, ...) / note.xxx in HScript):
+'playable'             // Bool - this note has to be hit by the player. Same as mustPress, except with Play as
+                       //        Opponent on (then it's the opponent's notes). Use it for "the player's notes".
+
+Health icons ('iconP1' / 'iconP2'):
+'autoUpdate'           // Bool - false stops the game from placing and bopping the icon, to put it somewhere else
+'isAnimated'           // Bool - (read) the icon is an animated one (see section 7)
+'hasWinningIcon'       // Bool - (read) the icon has a winning look
+    HScript: game.iconP1.autoUpdate = false; game.iconP1.playAnimation('winning'); // "idle", "losing", "winning"
+
+Player's options (read only): getPropertyFromClass('backend.ClientPrefs', 'data.NAME')
+    ghostNotes, breakTimer, iconBop, sustainWiggle, laneUnderlay, holdCovers, scoreCamera ("HUD"/"Game"),
+    smoothHealthBar, songCredits, resultsScreen, stickerTransition, freeplayStyle ("Standard"/"V-Slice"),
+    naughtyness, windowMode ("Windowed"/"Fullscreen"), sharpness
+Gameplay changers of Vortex: getPropertyFromClass('backend.ClientPrefs', 'data.gameplaySettings')... or in HScript
+    ClientPrefs.getGameplaySetting('healthdrain') / ('hiddennotes') / ('speedmiss')
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  6. HSCRIPT ONLY
+//------------------------------------------------------------------------------------------------------------------//
+FlxColor has more on Vortex:
+    FlxColor.fromString('0x80FF0000')         // "0xAARRGGBB" and "#RRGGBB" read right (with alpha too)
+    FlxColor.interpolate(color1, color2, 0.5) // a color between two others (0 = the first, 1 = the second)
+    FlxColor.gradient(color1, color2, 10)     // a list of 10 colors from one to the other
+    FlxColor.multiply(a, b) / FlxColor.add(a, b) / FlxColor.subtract(a, b)
+
+game.playableCharacter / game.otherCharacter   // Character - the one being played and the one singing by itself
+game.playableStrums / game.otherStrums         // the receptors of each, whoever is playing
+game.getTallies()                              // see section 3
+game.makeStrumsEarly();                        // in onCreatePost: makes the receptors now instead of at the countdown,
+                                               // to move them around before the song (they still show up with it)
+game.conversation                              // the V-Slice dialogue on the screen (null if none)
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  7. OTHER THINGS MODS CAN USE (no script needed)
+//------------------------------------------------------------------------------------------------------------------//
+Animated health icons: put an .xml next to the icon's .png (images/icons/NAME.png + NAME.xml) with the animations
+    "normal", "losing" and "winning" (by prefix, 24 fps, looped).
+Winning icons: an icon image with 3 frames side by side (normal, losing, winning) instead of 2.
+Camera angle: turning a camera (setProperty('camGame.angle', 10) / camHUD) no longer leaves empty corners - scripts
+    like "zCameraFix" aren't needed anymore.
+Psych songs and V-Slice songs share the results screen, the sticker transition and the Freeplay menus (options of the
+    player), so a Psych mod gets them without doing anything.

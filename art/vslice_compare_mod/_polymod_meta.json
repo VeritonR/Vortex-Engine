@@ -1,0 +1,8 @@
+{
+    "title": "Claude comparison test (temporary)",
+    "description": "Opens a song right away and takes pictures of it. Safe to delete.",
+    "author": "Claude",
+    "api_version": "0.8.0",
+    "mod_version": "1.0.0",
+    "license": "MIT"
+}

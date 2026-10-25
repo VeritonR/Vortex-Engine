@@ -1,0 +1,65 @@
+import funkin.modding.module.Module;
+import funkin.play.PlayState;
+import funkin.data.song.SongRegistry;
+import funkin.ui.transition.LoadingState;
+import funkin.util.plugins.ScreenshotPlugin;
+import funkin.ui.title.TitleState;
+import flixel.FlxG;
+
+// TEMPORARY: opens a song as soon as the title screen shows up and takes pictures of it, to compare with Vortex Engine.
+class ClaudeDirectModule extends Module
+{
+  var song:String = 'dehydrated';
+  var difficulty:String = 'normal';
+  var variation:String = 'default';
+  var startAt:Float = 0;
+  // seconds after the song's screen was opened
+  var shots:Array<Float> = [8, 14];
+
+  var clock:Float = 0;
+  var titleAt:Float = -1;
+  var started:Bool = false;
+  var openedAt:Float = -1;
+
+  public function new()
+  {
+    super('ClaudeDirectModule');
+  }
+
+  override function onStateChangeEnd(event:StateChangeScriptEvent):Void
+  {
+    super.onStateChangeEnd(event);
+    var name:String = Std.string(event.targetState);
+    trace('CLAUDE state: ' + name);
+    if (titleAt < 0 && Std.isOfType(event.targetState, TitleState)) titleAt = clock;
+    if (started && openedAt < 0 && Std.isOfType(event.targetState, PlayState)) openedAt = clock;
+  }
+
+  override function onUpdate(event:UpdateScriptEvent):Void
+  {
+    super.onUpdate(event);
+    clock += event.elapsed;
+
+    if (!started && titleAt >= 0 && clock - titleAt > 1.5)
+    {
+      started = true;
+      trace('CLAUDE opening ' + song);
+      var entry = SongRegistry.instance.fetchEntry(song, {variation: variation});
+      entry.validScore = false; // nothing of this run is saved or sent anywhere
+      LoadingState.loadPlayState({
+        targetSong: entry,
+        targetDifficulty: difficulty,
+        targetVariation: variation,
+        botPlayMode: true,
+        startTimestamp: startAt * 1000
+      }, true);
+    }
+
+    if (openedAt >= 0 && shots.length > 0 && clock - openedAt >= shots[0])
+    {
+      trace('CLAUDE picture at ' + shots[0]);
+      shots.shift();
+      ScreenshotPlugin.instance.capture();
+    }
+  }
+}
