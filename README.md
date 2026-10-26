@@ -72,6 +72,8 @@ Each of these is an option, and Psych mods get them too.
 * **Host Game** waits for a friend; **Join Game** connects with the host's IP (port `8888`).
 * Choose your nickname in the lobby (`TAB`).
 * Each player plays one side of the chart, and both see each other's notes, misses and animations as they happen.
+* **Match setup:** after picking the song, the host chooses how the match is won (**Score**, **Misses** or **Accuracy**) and the sides; the other player watches it live.
+* During the song, the other player's score, misses and accuracy are in a corner, with who's ahead. Getting knocked out loses; if nobody is, a results screen shows both players side by side and who won.
 * Health drain added by a mod for the opponent's notes is blocked online, because the match already handles health.
 * Scripts can check `onlinePlay` / `onlineHost` to change mechanics that would be unfair online.
 
@@ -117,7 +119,7 @@ Each of these is an option, and Psych mods get them too.
   <img src="docs/img/vortex/chart_select.jpg" width="49%">
 </p>
 
-* **Chart Editor:** drag a box with the mouse to select notes, drag the selection to move it, cut / copy / paste and undo. Music plays when you leave it idle, like in V-Slice (`M` turns it off).
+* **Chart Editor:** a music player bar at the bottom (like V-Slice's): drag it to go anywhere in the song, play/pause and skip with its buttons, and see the time left, beat, step, BPM and snap. Drag a box with the mouse to select notes, drag the selection to move it, cut / copy / paste and undo. Music plays when you leave it idle, like in V-Slice (`M` turns it off).
 * **Stage, Character, Dialogue Portrait and Menu Character editors:** move things with the mouse, with undo.
 * **Character Select & Results editor (new):** place the characters, portraits and results animations of a playable character, with a live preview. What you save works in the official V-Slice too.
 

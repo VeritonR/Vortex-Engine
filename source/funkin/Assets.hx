@@ -114,7 +114,7 @@ class Assets
 		if(found == null) return null;
 
 		#if sys
-		return Sound.fromFile(found);
+		return backend.SoundLoader.validFile(found) ? Sound.fromFile(found) : null;
 		#else
 		return openfl.utils.Assets.getSound(found);
 		#end

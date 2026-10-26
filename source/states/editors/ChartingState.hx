@@ -187,6 +187,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 	var timeLine:FlxSprite;
 	var infoText:FlxText;
+	var playbar:states.editors.content.ChartPlaybar;
+	var playbarWasPlaying:Bool = false;
 
 	var autoSaveIcon:FlxSprite;
 	var outputTxt:FlxText;
@@ -306,7 +308,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
         lilStage.antialiasing = false;
         lilStage.scrollFactor.set(0, 0);
         lilStage.x = 10;
-        lilStage.y = FlxG.height - 266;
+        lilStage.y = FlxG.height - 266 - PLAYBAR_SPACE;
         lilStage.setGraphicSize(Std.int(lilStage.width));
         lilStage.updateHitbox();
         add(lilStage);
@@ -324,7 +326,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
         lilBf.scrollFactor.set(0, 0);
         lilBf.setGraphicSize(Std.int(lilBf.width));
         lilBf.x = 0;
-        lilBf.y = FlxG.height - 266;
+        lilBf.y = FlxG.height - 266 - PLAYBAR_SPACE;
         lilBf.updateHitbox();
         add(lilBf);
 
@@ -342,7 +344,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
         lilOpp.scrollFactor.set(0, 0);
         lilOpp.setGraphicSize(Std.int(lilOpp.width));
         lilOpp.x = 15;
-        lilOpp.y = FlxG.height - 266;
+        lilOpp.y = FlxG.height - 266 - PLAYBAR_SPACE;
         lilOpp.updateHitbox();
         add(lilOpp);
 
@@ -448,6 +450,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		editorMusic.busy = function() return FlxG.sound.music != null && FlxG.sound.music.playing;
 		add(editorMusic);
 
+		makePlaybar();
+
 		infoBox = new PsychUIBox(infoBoxPosition.x, infoBoxPosition.y, 220, 220, ['Information']);
 		infoBox.scrollFactor.set();
 		infoBox.cameras = [camUI];
@@ -547,7 +551,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		stageDropDown.list = loadFileList('stages/', 'data/stageList.txt');
 		onChartLoaded();
 
-		var tipText:FlxText = new FlxText(FlxG.width - 210, FlxG.height - 30, 200, 'Press F1 for Help', 20);
+		var tipText:FlxText = new FlxText(FlxG.width - 210, FlxG.height - 30 - PLAYBAR_SPACE, 200, 'Press F1 for Help', 20);
 		tipText.cameras = [camUI];
 		tipText.setFormat(null, 16, FlxColor.WHITE, RIGHT);
 		tipText.borderColor = FlxColor.BLACK;
@@ -572,6 +576,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		fullTipText.visible = fullTipText.active = false;
 		fullTipText.text = [
 			"W/S/Mouse Wheel - Move Conductor's Time",
+			"Bottom bar - Click/drag it to go anywhere in the song, its buttons play/pause and skip",
 			"A/D - Change Sections",
 			"Q/E - Decrease/Increase Note Sustain Length",
 			"Hold Shift/Alt to Increase/Decrease move by 4x",
@@ -1296,13 +1301,13 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				updateSelectionBox(); //(every frame: the chart can scroll under it)
 			}
 		}
-		else if(FlxG.mouse.pressedRight && (FlxG.mouse.deltaScreenX != 0 || FlxG.mouse.deltaScreenY != 0))
+		else if(FlxG.mouse.pressedRight && (FlxG.mouse.deltaScreenX != 0 || FlxG.mouse.deltaScreenY != 0) && !playbar.mouseOver())
 		{
 			pendingPress = PRESS_NONE;
 			startSelectionBox(false);
 		}
 		
-		if(FlxG.mouse.justPressed && (FlxG.mouse.overlaps(mainBox.bg) || FlxG.mouse.overlaps(infoBox.bg)))
+		if(FlxG.mouse.justPressed && (FlxG.mouse.overlaps(mainBox.bg) || FlxG.mouse.overlaps(infoBox.bg) || playbar.mouseOver()))
 			ignoreClickForThisFrame = true;
 
 		var minX:Float = gridBg.x;
@@ -1311,7 +1316,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		if(isMovingNotes && FlxG.mouse.justReleased)
 			stopMovingNotes();
 
-		if(FlxG.mouse.x >= minX && FlxG.mouse.x < gridBg.x + gridBg.width)
+		if(FlxG.mouse.x >= minX && FlxG.mouse.x < gridBg.x + gridBg.width && !playbar.mouseOver())
 		{
 			var diffX:Float = FlxG.mouse.x - gridBg.x;
 			var diffY:Float = FlxG.mouse.y - gridBg.y;
@@ -1818,7 +1823,105 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		for (box in [mainBox, infoBox, upperBox])
 			if(box != null && box.visible && (FlxG.mouse.overlaps(box.bg, camUI) || FlxG.mouse.overlaps(box, camUI)))
 				return true;
-		return false;
+		return playbar != null && playbar.mouseOver();
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// The bar at the bottom that works like a music player (V-Slice's "playbar")
+	// ------------------------------------------------------------------------------------------
+
+	// what's left over it for the things that were at the bottom of the screen
+	static inline final PLAYBAR_SPACE:Int = states.editors.content.ChartPlaybar.BAR_HEIGHT + 10;
+
+	function makePlaybar():Void
+	{
+		playbar = new states.editors.content.ChartPlaybar();
+		playbar.cameras = [camUI];
+		for (part in playbar.members) part.cameras = [camUI];
+
+		playbar.getTime = function() return Conductor.songPosition;
+		playbar.getLength = function() return (FlxG.sound.music != null) ? FlxG.sound.music.length : 0;
+		playbar.isPlaying = function() return FlxG.sound.music != null && FlxG.sound.music.playing;
+		playbar.getStatus = function() return {
+			beat: curDecBeat,
+			step: curStep,
+			bpm: Conductor.bpm,
+			snap: curQuant,
+			difficulty: Difficulty.getString(PlayState.storyDifficulty, false)
+		};
+
+		// the song stops while the slider is dragged, and goes on from where it was let go
+		playbar.onDragStart = function()
+		{
+			playbarWasPlaying = FlxG.sound.music != null && FlxG.sound.music.playing;
+			if(playbarWasPlaying) setSongPlaying(false);
+		};
+		playbar.onSeek = playbarSeek;
+		playbar.onDragEnd = function()
+		{
+			if(playbarWasPlaying) setSongPlaying(true);
+			playbarWasPlaying = false;
+		};
+		playbar.onButton = playbarButton;
+		add(playbar);
+	}
+
+	// Goes to a time of the song (as Conductor.songPosition counts it), on the section it's in
+	function playbarSeek(time:Float):Void
+	{
+		if(FlxG.sound.music == null) return;
+
+		var musicTime:Float = FlxMath.bound(time - Conductor.offset, 0, Math.max(0, FlxG.sound.music.length - 1));
+		FlxG.sound.music.time = musicTime;
+		vocals.time = opponentVocals.time = musicTime;
+		Conductor.songPosition = FlxMath.bound(musicTime + Conductor.offset, 0, Math.max(0, FlxG.sound.music.length - 1));
+
+		var section:Int = 0;
+		for (num => sectionTime in cachedSectionTimes)
+		{
+			if(sectionTime > Conductor.songPosition) break;
+			section = num;
+		}
+		if(section != curSec) loadSection(section);
+		forceDataUpdate = true;
+		updateScrollY();
+	}
+
+	function playbarButton(name:String):Void
+	{
+		if(FlxG.sound.music == null) return;
+
+		switch(name)
+		{
+			case 'play':
+				setSongPlaying(!FlxG.sound.music.playing);
+
+			case 'start':
+				setSongPlaying(false);
+				playbarSeek(0);
+
+			case 'end':
+				setSongPlaying(false);
+				playbarSeek(FlxG.sound.music.length - 1 + Conductor.offset);
+
+			case 'back':
+				// to the start of this section, or of the one before if it's right at its start (like a music player's "previous")
+				setSongPlaying(false);
+				var target:Int = curSec;
+				if(Conductor.songPosition - cachedSectionTimes[curSec] < 100) target = curSec - 1;
+				target = Std.int(Math.max(0, target));
+				playbarSeek(cachedSectionTimes[target] + 0.000001);
+
+			case 'forward':
+				setSongPlaying(false);
+				var target:Int = Std.int(Math.min(curSec + 1, PlayState.SONG.notes.length - 1));
+				if(target != curSec) playbarSeek(cachedSectionTimes[target] + 0.000001);
+
+			case 'snapUp', 'snapDown':
+				var index:Int = quantizations.indexOf(curQuant) + (name == 'snapUp' ? 1 : -1);
+				curQuant = quantizations[Std.int(FlxMath.bound(index, 0, quantizations.length - 1))];
+				forceDataUpdate = true;
+		}
 	}
 
 	function startSelectionBox(byLeft:Bool):Void
@@ -1887,7 +1990,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	{
 		trace(message);
 		outputTxt.text = message;
-		outputTxt.y = FlxG.height - outputTxt.height - 30;
+		outputTxt.y = FlxG.height - outputTxt.height - 30 - PLAYBAR_SPACE;
 		outputAlpha = 4;
 		if(isError)
 		{

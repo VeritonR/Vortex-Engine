@@ -682,11 +682,22 @@ class HxcRuntime
 	}
 
 	/**
+	 * While true, errors of scripts are only traced: for what the engine calls on scripts in a way V-Slice never does, where an error
+	 * says nothing about the mod.
+	 */
+	public static var quietErrors:Bool = false;
+
+	/**
 	 * Reports an error of a script, each different one only once: something broken on an update would be reported every frame.
 	 */
 	public static function reportError(className:String, funcName:String, error:Dynamic):Void
 	{
 		var message:String = '$className.$funcName(): ' + describeError(error);
+		if(quietErrors)
+		{
+			trace('(not reported) ' + message);
+			return;
+		}
 		if(reportedErrors.exists(message)) return;
 
 		reportedErrors.set(message, true);

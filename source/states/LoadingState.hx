@@ -465,6 +465,11 @@ class LoadingState extends MusicBeatState
 		if(!Paths.currentTrackedSounds.exists(item.file))
 		{
 			var sound:Sound = null;
+			if(item.bytes != null && !backend.SoundLoader.validBytes(item.bytes))
+			{
+				trace('The sound "${item.file}" is empty or is not one that can be played: it was left out');
+				return;
+			}
 			if(item.bytes != null)
 			{
 				var buffer:lime.media.AudioBuffer = lime.media.AudioBuffer.fromBytes(item.bytes);

@@ -49,6 +49,10 @@ playAsOpponent   // Bool - (Lua) "Play as Opponent" is on: the player is hitting
 onlinePlay       // Bool - the song is an online match of Vortex's multiplayer (Lua and HScript)
 onlineHost       // Bool - an online match, and this player is the one hosting it (Lua and HScript)
 
+Online and the countdown: if a script stops the countdown (onStartCountdown returning Function_Stop: a dialogue, a cutscene,
+a loading screen that waits for ENTER) and starts it later with startCountdown(), the two players wait for each other again
+and the song starts at the same time for both. Nothing has to be done in the script for it.
+
 Example (Lua) - a mechanic that would be unfair online:
     function onCreatePost()
         if onlinePlay then
@@ -155,6 +159,10 @@ Objects of Vortex's own things, to move, recolor or hide like any other sprite:
 'susWiggle'            // the wiggle of the long notes: setProperty('susWiggle.waveAmplitude', 0.15)
                        //   also waveFrequency, waveSpeed
 'grpHoldCovers'        // the sparks on the receptors while a long note is held (V-Slice's hold covers)
+'onlineStatsTxt'       // online: the other player's name, score, misses and accuracy, in the bottom corner of their side,
+                       //   and who's ahead (null when not online): setProperty('onlineStatsTxt.visible', false)
+                       //   How the match is won: getPropertyFromClass('backend.NetworkManager', 'winCondition')
+                       //   ("score", "misses" or "accuracy")
 
 Notes (getPropertyFromGroup('notes', i, ...) / note.xxx in HScript):
 'playable'             // Bool - this note has to be hit by the player. Same as mustPress, except with Play as
@@ -199,5 +207,8 @@ Animated health icons: put an .xml next to the icon's .png (images/icons/NAME.pn
 Winning icons: an icon image with 3 frames side by side (normal, losing, winning) instead of 2.
 Camera angle: turning a camera (setProperty('camGame.angle', 10) / camHUD) no longer leaves empty corners - scripts
     like "zCameraFix" aren't needed anymore.
+Play as Opponent and V-Slice scripts: what V-Slice scripts know as "playerStrumline" is the side being played and
+    "opponentStrumline" the one the computer plays, so a mod that hides or fades "the opponent's notes" doesn't hide the
+    ones the player has to hit. If a song hides the whole HUD while the player has notes coming, it shows up until they're played.
 Psych songs and V-Slice songs share the results screen, the sticker transition and the Freeplay menus (options of the
     player), so a Psych mod gets them without doing anything.

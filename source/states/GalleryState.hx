@@ -81,20 +81,21 @@ class GalleryState extends MusicBeatState
             'mods/images/gallery/'
         ];
 
-        if (FileSystem.exists('mods/')) {
-            for (folder in FileSystem.readDirectory('mods/')) {
-                var modDir:String = 'mods/' + folder + '/';
-                
-                if (FileSystem.isDirectory(modDir) && folder != 'images' && folder != 'data' && folder != 'songs' && folder != 'characters') {
-                    directoriesToCheck.push(modDir + 'images/gallery/');
-                }
-            }
+        // The mods that are turned on. V-Slice mods are left out: their "images/gallery" is the menu of a gallery of their own (its
+        // background, its logo, its spritesheets), not pictures for this one
+        #if MODS_ALLOWED
+        for (folder in backend.Mods.parseList().enabled) {
+            if (backend.PolymodCompat.isPolymod(folder)) continue;
+            directoriesToCheck.push('mods/' + folder + '/images/gallery/');
         }
+        #end
 
         for (path in directoriesToCheck) {
             if (FileSystem.exists(path)) {
                 for (file in FileSystem.readDirectory(path)) {
-                    if (StringTools.endsWith(file, '.png')) {
+                    // (a spritesheet has its frames' file beside it: it's part of a menu, not a picture)
+                    var base:String = path + file.substr(0, file.length - 4);
+                    if (StringTools.endsWith(file, '.png') && !FileSystem.exists(base + '.xml') && !FileSystem.exists(base + '.json') && !FileSystem.exists(base + '.txt')) {
                         var imageName:String = StringTools.replace(file, '.png', '');
                         var fullPath:String = path + file;
                         

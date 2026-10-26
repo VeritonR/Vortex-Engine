@@ -266,6 +266,8 @@ class PlayState extends MusicBeatState
 	// ---> VARIÁVEIS DE SINCRONIZAÇÃO MULTIPLAYER <---
 	public var multiplayerSynced:Bool = false;
 	public var iAmReady:Bool = false;
+	// (online: the start is being waited for again, after a script stopped the countdown)
+	var onlineResync:Bool = false;
 	public var opponentReady:Bool = false;
 	public var syncWaitText:FlxText;
 	// set while the pause menu is closed because the other player resumed (it isn't told back)
@@ -370,6 +372,7 @@ class PlayState extends MusicBeatState
 	override public function create()
 	{
 		backend.StepLog.add('Song: being made, mod "' + Mods.currentModDirectory + '"');
+		FlxG.signals.preUpdate.add(restoreGuardedHud);
 		scoreCamera = ClientPrefs.data.scoreCamera;
 		iconBop = ClientPrefs.data.iconBop;
 		_wasIconBop = iconBop;
@@ -728,6 +731,9 @@ class PlayState extends MusicBeatState
 		scoreTxt.borderSize = 1.25;
 		scoreTxt.visible = !ClientPrefs.data.hideHud;
 		uiGroup.add(scoreTxt);
+
+		// Online: the other player's score, misses and accuracy, in the corner of their side
+		if (backend.NetworkManager.connected) makeOnlineStats();
 
 		var startY:Float = ClientPrefs.data.downScroll ? FlxG.height - 250 : 200;
         var playerX:Float = ClientPrefs.data.middleScroll ? FlxG.width / 2 : (playAsOpponent ? FlxG.width * 0.25 : FlxG.width * 0.75); 
@@ -1459,11 +1465,14 @@ class PlayState extends MusicBeatState
 		// MULTIPLAYER: SISTEMA DE SINCRONIZAÇÃO DE LOADING
 		// =======================================================
 		if (backend.NetworkManager.connected && !multiplayerSynced) {
-			iAmReady = true;
-			backend.NetworkManager.send("PLAYER_READY");
+			// (once: a script can keep asking for the countdown while it waits)
+			if (!iAmReady) {
+				iAmReady = true;
+				backend.NetworkManager.send("PLAYER_READY");
+			}
 			
 			if (syncWaitText == null) {
-				syncWaitText = new FlxText(0, FlxG.height / 2 - 50, FlxG.width, "Aguardando o Oponente Carregar...", 48);
+				syncWaitText = new FlxText(0, FlxG.height / 2 - 50, FlxG.width, onlineResync ? "Aguardando o Oponente..." : "Aguardando o Oponente Carregar...", 48);
 				syncWaitText.setFormat(Paths.font("vcr.ttf"), 48, FlxColor.CYAN, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 				syncWaitText.cameras = [camOther];
 				add(syncWaitText);
@@ -1591,6 +1600,16 @@ class PlayState extends MusicBeatState
 
 				swagCounter += 1;
 			}, 5);
+		}
+		else if (backend.NetworkManager.connected && multiplayerSynced) {
+			// Online, a script stopped the countdown to show something first (a dialogue, a cutscene, a loading screen that waits for
+			// ENTER like Gorefield's): each player gets to the end of it at a different moment. When the script starts the countdown
+			// again both wait for each other once more, like at the start, and begin together
+			multiplayerSynced = false;
+			iAmReady = false;
+			opponentReady = false;
+			onlineResync = true;
+			backend.NetworkManager.log('a script stopped the countdown: waiting for both players again when it starts it');
 		}
 		return true;
 	}
@@ -1738,25 +1757,30 @@ class PlayState extends MusicBeatState
 		vocals.pause();
 		opponentVocals.pause();
 
-		FlxG.sound.music.time = time - Conductor.offset;
+		// A sound sent past its end crashes the game (OpenAL): a time after the end of the song is its last moment, where it ends by
+		// itself. Each vocal track is checked against the new time and its own length (they can be shorter than the song)
+		var musicTime:Float = time - Conductor.offset;
+		if (FlxG.sound.music.length > 0 && musicTime > FlxG.sound.music.length - 20)
+		{
+			musicTime = Math.max(0, FlxG.sound.music.length - 20);
+			time = musicTime + Conductor.offset;
+		}
+		if (musicTime < 0) musicTime = 0;
+
+		FlxG.sound.music.time = musicTime;
 		#if FLX_PITCH FlxG.sound.music.pitch = playbackRate; #end
 		FlxG.sound.music.play();
 
-		if (Conductor.songPosition < vocals.length)
+		for (voc in [vocals, opponentVocals])
 		{
-			vocals.time = time - Conductor.offset;
-			#if FLX_PITCH vocals.pitch = playbackRate; #end
-			vocals.play();
+			if (musicTime < voc.length - 20)
+			{
+				voc.time = musicTime;
+				#if FLX_PITCH voc.pitch = playbackRate; #end
+				voc.play();
+			}
+			else voc.pause();
 		}
-		else vocals.pause();
-
-		if (Conductor.songPosition < opponentVocals.length)
-		{
-			opponentVocals.time = time - Conductor.offset;
-			#if FLX_PITCH opponentVocals.pitch = playbackRate; #end
-			opponentVocals.play();
-		}
-		else opponentVocals.pause();
 		Conductor.songPosition = time;
 	}
 
@@ -2184,7 +2208,7 @@ class PlayState extends MusicBeatState
 		// the look of the note style of the side, on the songs of V-Slice mods
 		#if HSCRIPT_ALLOWED
 		if(backend.VSliceScripts.active && funkin.play.PlayState.instance != null)
-			(player == 1 ? funkin.play.PlayState.instance.playerStrumline : funkin.play.PlayState.instance.opponentStrumline).styleReceptors();
+			(player == 1 ? funkin.play.PlayState.instance.chartPlayerStrumline : funkin.play.PlayState.instance.chartOpponentStrumline).styleReceptors();
 		#end
 	}
 
@@ -2306,7 +2330,8 @@ class PlayState extends MusicBeatState
 		var checkVocals = [vocals, opponentVocals];
 		for (voc in checkVocals)
 		{
-			if (FlxG.sound.music.time < vocals.length)
+			// (each by its own length: a song can have only the opponent's vocals, and the player's being empty paused them for good)
+			if (FlxG.sound.music.time < voc.length - 20)
 			{
 				voc.time = FlxG.sound.music.time;
 				#if FLX_PITCH voc.pitch = playbackRate; #end
@@ -2392,11 +2417,21 @@ class PlayState extends MusicBeatState
 		if (backend.NetworkManager.connected && !paused && !isDead) updateOnlineTime(elapsed);
 
 		if (backend.NetworkManager.connected && !paused && !isDead) {
+			sendOnlineStats(elapsed);
+
 			var msgs = backend.NetworkManager.getNewMessages();
 			for (msg in msgs) {
 				var data = msg.split("|");
 
-				if (data[0] == "PLAYER_DIED") {
+				if (data[0] == "STATS") {
+					updateOnlineStats(data);
+				}
+				else if (data[0] == "FINAL_STATS") {
+					// (the other one's song ended a moment before this one's)
+					otherFinalStats = data;
+					updateOnlineStats(data);
+				}
+				else if (data[0] == "PLAYER_DIED") {
 					backend.NetworkManager.log('the other player died: victory');
 					persistentUpdate = false;
 					persistentDraw = true;
@@ -2427,8 +2462,9 @@ class PlayState extends MusicBeatState
 					// O outro PC não conseguiu abrir a música: volta todo mundo pro lobby
 					onlineBackToLobby("O oponente nao conseguiu abrir a musica.");
 				}
-				else if (data[0] == "RETURN_TO_LOBBY") {
-					onlineBackToLobby("O oponente voltou para o lobby.");
+				else if (data[0] == "RETURN_TO_LOBBY" || data[0] == "RESULTS_LEFT") {
+					// (once the other one finished the song, they're leaving its results: this one's song is about to end too)
+					if (otherFinalStats == null) onlineBackToLobby("O oponente voltou para o lobby.");
 				}
 				// ===================================================
 				// ---> NOVOS COMANDOS: VISUALIZANDO AS TECLAS <---
@@ -2696,6 +2732,7 @@ class PlayState extends MusicBeatState
 		setOnScripts('botPlay', cpuControlled);
 		callOnScripts('onUpdatePost', [elapsed]);
 		guardPlayableStrums(); //(what scripts did on this frame is seen before it's drawn)
+		guardPlayableHud(elapsed);
         
         if (susWiggle != null) 
         {
@@ -2710,6 +2747,7 @@ class PlayState extends MusicBeatState
         }
 
         if (camHUD != null) {
+            keepNoteCamerasUnderHud();
             if (camSus != null) copyHudCamera(camSus);
             if (camLanes != null) copyHudCamera(camLanes);
         }
@@ -2797,6 +2835,46 @@ class PlayState extends MusicBeatState
 		return true;
 	}
 
+	// The long notes (and the lanes under them) are on cameras of their own, right under the HUD's. Mods made before those cameras
+	// existed put cameras of their own in the list and take the HUD's out and back on top ("camHUD" and "camOther" over a camera
+	// for the characters): the long notes stayed under the new ones, behind the characters (Gorefield's Bigotes). They're put back
+	// under the HUD's whenever that happens, as if they were part of it
+	function keepNoteCamerasUnderHud():Void
+	{
+		var list:Array<FlxCamera> = FlxG.cameras.list;
+		var hud:Int = list.indexOf(camHUD);
+		if (hud < 0) return;
+
+		var ours:Array<FlxCamera> = [];
+		for (camera in [camLanes, camSus])
+			if (camera != null && camera.flashSprite != null) ours.push(camera);
+		if (ours.length < 1) return;
+
+		var placed:Bool = hud >= ours.length;
+		for (i => camera in ours)
+			if (placed && list[hud - ours.length + i] != camera) placed = false;
+		if (placed) return;
+
+		// (flixel has no way to put a camera between others: the ones from there on are taken out and put back in order)
+		var first:Int = hud;
+		for (camera in ours)
+		{
+			var index:Int = list.indexOf(camera);
+			if (index > -1 && index < first) first = index;
+		}
+		var moved:Array<FlxCamera> = [for (camera in list.slice(first)) if (!ours.contains(camera)) camera];
+		@:privateAccess var defaults:Array<FlxCamera> = FlxG.cameras.defaults;
+		var drawTargets:Map<FlxCamera, Bool> = [for (camera in moved.concat(ours)) camera => defaults.contains(camera)];
+		for (camera in ours) if (list.contains(camera)) FlxG.cameras.remove(camera, false);
+		for (camera in moved) FlxG.cameras.remove(camera, false);
+		for (camera in moved)
+		{
+			if (camera == camHUD)
+				for (own in ours) FlxG.cameras.add(own, drawTargets.get(own));
+			FlxG.cameras.add(camera, drawTargets.get(camera));
+		}
+	}
+
 	// The long notes (and the lanes under them) are on cameras of their own, under the HUD's: they're made to look at the same place
 	function copyHudCamera(camera:FlxCamera)
 	{
@@ -2868,7 +2946,8 @@ class PlayState extends MusicBeatState
 		}
 		else isResting = false;
 
-		if (!showBreakTimer) fadeIn = false;
+		// (not before the countdown: the song isn't going yet, a loading screen or the online wait would show it counting down)
+		if (!showBreakTimer || !startedCountdown) fadeIn = false;
 		var newAlpha:Float = FlxMath.bound(restCountdownTxt.alpha + (fadeIn ? elapsed : -elapsed) / 1.5, 0, 1);
 		restCountdownTxt.alpha = restTimerBar.alpha = restportrait.alpha = newAlpha;
 	}
@@ -3556,8 +3635,12 @@ class PlayState extends MusicBeatState
 				// ---> CORREÇÃO: REDIRECIONAR PARA O LOBBY AO TERMINAR A MÚSICA <---
 				var isMultiplayer:Bool = (backend.NetworkManager.socket != null && backend.NetworkManager.connected);
 				
-				// Se for Multiplayer, pula a tela de resultados e vai pro Lobby
-				if(isMultiplayer || !openResults(isNewHighscore))
+				// Multiplayer: the screen of who won (nobody was knocked out), and from there back to the lobby
+				if(isMultiplayer)
+				{
+					openOnlineResults();
+				}
+				else if(!openResults(isNewHighscore))
 				{
 					backend.StickerTransition.prepare();
 					Mods.loadTopMod();
@@ -3565,11 +3648,7 @@ class PlayState extends MusicBeatState
 
 					canResync = false;
 					
-					if (isMultiplayer) {
-						// Volta pro Lobby com a conexão aberta: o Host já pode escolher a próxima música
-						backend.StickerTransition.switchState(new states.MultiplayerMenuState());
-					}
-					else if (ClientPrefs.data.freeplayStyle == 'V-Slice') {
+					if (ClientPrefs.data.freeplayStyle == 'V-Slice') {
 						backend.StickerTransition.switchState(new FreeplayStateVslice());
 					} else {
 						backend.StickerTransition.switchState(new FreeplayState());
@@ -4616,6 +4695,7 @@ class PlayState extends MusicBeatState
 
 	override function destroy() {
 		Note.opponentPlay = false;
+		FlxG.signals.preUpdate.remove(restoreGuardedHud);
 
 		if (psychlua.CustomSubstate.instance != null)
 		{
@@ -5093,6 +5173,41 @@ class PlayState extends MusicBeatState
 		}
 	}
 
+	// The whole HUD faded out or hidden by the song (an intro where only the opponent sings, a cutscene) while there's something to
+	// hit: it shows up while there is, coming in and going away smoothly. Only on the screen: it's put back as the song left it when
+	// the next frame starts (a camera's alpha is the one of its sprite on the window, which is drawn after the game's frame), so scripts
+	// and tweens keep reading and changing their own values (see restoreGuardedHud())
+	var hudGuard:Float = 0;
+	var hudGuardAlpha:Null<Float> = null;
+	var hudGuardVisible:Bool = true;
+
+	function guardPlayableHud(elapsed:Float):Void
+	{
+		if(camHUD == null) return;
+
+		var shown:Float = camHUD.visible ? camHUD.alpha : 0;
+		var needed:Bool = playAsOpponent && generatedMusic && !endingSong && shown < GUARD_ALPHA && playableNotesAhead();
+		hudGuard = needed ? Math.min(1, hudGuard + elapsed * 3) : Math.max(0, hudGuard - elapsed * 3);
+		if(hudGuard <= 0 || hudGuard <= shown) return;
+
+		hudGuardAlpha = camHUD.alpha;
+		hudGuardVisible = camHUD.visible;
+		camHUD.visible = true;
+		camHUD.alpha = hudGuard;
+	}
+
+	function restoreGuardedHud():Void
+	{
+		if(hudGuardAlpha == null) return;
+
+		if(camHUD != null)
+		{
+			camHUD.alpha = hudGuardAlpha;
+			camHUD.visible = hudGuardVisible;
+		}
+		hudGuardAlpha = null;
+	}
+
 	// A note the one playing has to hit, before it's put on its place for this frame
 	function guardPlayableNote(note:Note, strum:StrumNote):Void
 	{
@@ -5454,8 +5569,11 @@ class PlayState extends MusicBeatState
 				char.playAnim(animToPlay, true);
 				char.holdTimer = 0;
 			}
-			strumPlayAnim(true, noteData, Conductor.stepCrochet * 1.25 / 1000 / playbackRate);
-			if (opponentVocals != null) opponentVocals.volume = 1;
+			// (the receptors of the other player's side: the dad's only when they're the dad. Always the dad's made the receptors of
+			// the one playing the dad flash whenever the boyfriend hit a note)
+			strumPlayAnim(!playAsOpponent, noteData, Conductor.stepCrochet * 1.25 / 1000 / playbackRate);
+			var otherVocals:FlxSound = (playAsOpponent || opponentVocals == null || opponentVocals.length <= 0) ? vocals : opponentVocals;
+			if (otherVocals != null) otherVocals.volume = 1;
 		}
 
 		// CABO DE GUERRA: Se o oponente acertou, ele causa dano em você!
@@ -5585,6 +5703,115 @@ class PlayState extends MusicBeatState
 	/**
 	 * Both players go back to the lobby, still connected (the other one left the song, or couldn't open it).
 	 */
+	/**
+	 * Online: the other player's score, misses and accuracy ("STATS|score|misses|accuracy|rating" from them), in the corner of the
+	 * screen on their side. Scripts can move it or hide it like any text.
+	 */
+	public var onlineStatsTxt:FlxText;
+	var lastStatsSent:String = null;
+	var statsSendTimer:Float = 0;
+	static inline var STATS_WIDTH:Int = 360;
+
+	function makeOnlineStats() {
+		// (the other player has the side this one doesn't)
+		var otherOnLeft:Bool = !playAsOpponent;
+		onlineStatsTxt = new FlxText(otherOnLeft ? 12 : FlxG.width - 12 - STATS_WIDTH, 0, STATS_WIDTH, "", 18);
+		onlineStatsTxt.setFormat(Paths.font("vcr.ttf"), 18, FlxColor.WHITE, otherOnLeft ? LEFT : RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		onlineStatsTxt.borderSize = 1.25;
+		onlineStatsTxt.scrollFactor.set();
+		onlineStatsTxt.visible = !ClientPrefs.data.hideHud;
+		updateOnlineStats(null);
+		onlineStatsTxt.y = ClientPrefs.data.downScroll ? 12 : FlxG.height - onlineStatsTxt.height - 12;
+		uiGroup.add(onlineStatsTxt);
+	}
+
+	// The other player's last numbers ("STATS"), and the ones they finished the song with ("FINAL_STATS")
+	public var otherOnlineStats:states.OnlineResultsSubstate.OnlineStats = {score: 0, misses: 0, accuracy: -1, rating: ''};
+	public var otherFinalStats:Array<String> = null;
+
+	/**
+	 * This player's numbers, the way they're sent and compared (an accuracy below 0 is no note played yet).
+	 */
+	public function myOnlineStats():states.OnlineResultsSubstate.OnlineStats
+	{
+		var tallies = getTallies();
+		return {
+			score: songScore,
+			misses: songMisses,
+			accuracy: (totalPlayed > 0) ? CoolUtil.floorDecimal(ratingPercent * 100, 2) : -1,
+			rating: (ratingFC != null) ? ratingFC : '',
+			sick: tallies.sick,
+			good: tallies.good,
+			bad: tallies.bad,
+			shit: tallies.shit,
+			maxCombo: maxCombo
+		};
+	}
+
+	function updateOnlineStats(data:Array<String>) {
+		if (data != null) otherOnlineStats = states.OnlineResultsSubstate.parseStats(data);
+		refreshOnlineStats();
+	}
+
+	// The box: the other player's numbers, and who's ahead by the match's condition
+	function refreshOnlineStats() {
+		if (onlineStatsTxt == null) return;
+
+		var other = otherOnlineStats;
+		var accuracy:String = (other.accuracy >= 0) ? other.accuracy + "%" : "?";
+		var rating:String = (other.rating != null && other.rating.length > 0) ? " (" + other.rating + ")" : "";
+		var nick:String = backend.NetworkManager.opponentNickname;
+
+		var lead:Int = backend.NetworkManager.compareResults(myOnlineStats(), other).result;
+		var leadText:String = (lead > 0) ? "you're ahead" : ((lead < 0) ? nick + " is ahead" : "tied");
+		var leadLine:String = "Win by " + backend.NetworkManager.winConditionName(backend.NetworkManager.winCondition) + ": " + leadText;
+
+		var text:String = nick + "\nScore: " + other.score + " | Misses: " + other.misses + "\nAccuracy: " + accuracy + rating + "\n" + leadLine;
+		if (onlineStatsTxt.text == text) return;
+
+		// (the nick in the color of the other player's character, who's ahead in green or red)
+		var otherChar:Character = otherCharacter;
+		var color:FlxColor = (otherChar != null && otherChar.healthColorArray != null) ? FlxColor.fromRGB(otherChar.healthColorArray[0], otherChar.healthColorArray[1], otherChar.healthColorArray[2]) : FlxColor.WHITE;
+		onlineStatsTxt.clearFormats();
+		onlineStatsTxt.text = text;
+		if (nick.length > 0) onlineStatsTxt.addFormat(new FlxTextFormat(color), 0, nick.length);
+		var leadColor:FlxColor = (lead > 0) ? 0xFF66FF66 : ((lead < 0) ? 0xFFFF6666 : 0xFFDDDDDD);
+		onlineStatsTxt.addFormat(new FlxTextFormat(leadColor), text.length - leadLine.length, text.length);
+	}
+
+	// What this player has done, sent a few times per second when it changes
+	function sendOnlineStats(elapsed:Float) {
+		statsSendTimer -= elapsed;
+		if (statsSendTimer > 0) return;
+		statsSendTimer = 0.25;
+		refreshOnlineStats(); //(this player's numbers change who's ahead too)
+
+		var accuracy:String = (totalPlayed > 0) ? Std.string(CoolUtil.floorDecimal(ratingPercent * 100, 2)) : "-";
+		var stats:String = "STATS|" + songScore + "|" + songMisses + "|" + accuracy + "|" + (ratingFC != null ? ratingFC : "");
+		if (stats == lastStatsSent) return;
+		lastStatsSent = stats;
+		backend.NetworkManager.send(stats);
+	}
+
+	/**
+	 * Online, the song ended and nobody was knocked out: this player's numbers go to the other one, and both see who won
+	 * (see `states.OnlineResultsSubstate`).
+	 */
+	function openOnlineResults():Void
+	{
+		var mine = myOnlineStats();
+		backend.NetworkManager.send("FINAL_STATS|" + mine.score + "|" + mine.misses + "|" + (mine.accuracy >= 0 ? Std.string(mine.accuracy) : "-") + "|" + mine.rating
+			+ "|" + mine.sick + "|" + mine.good + "|" + mine.bad + "|" + mine.shit + "|" + mine.maxCombo);
+		backend.NetworkManager.log('song over: ' + mine.score + ' points, ' + mine.misses + ' misses, ' + mine.accuracy + '%');
+
+		if (vocals != null) vocals.stop();
+		if (opponentVocals != null) opponentVocals.stop();
+		persistentUpdate = false;
+		persistentDraw = true;
+		paused = true;
+		openSubState(new states.OnlineResultsSubstate(mine));
+	}
+
 	public function onlineBackToLobby(?reason:String) {
 		if (endingSong) return;
 		endingSong = true;

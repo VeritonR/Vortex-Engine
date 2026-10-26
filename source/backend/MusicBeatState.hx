@@ -5,6 +5,17 @@ import backend.PsychCamera;
 
 class MusicBeatState extends FlxState
 {
+	/**
+	 * V-Slice's: the conductor this state goes by (the game's own unless a script gives it another). Scripts of states made by
+	 * mods use it, some through its getter (`get_conductorInUse().update()`, SKYREBORN's gallery).
+	 */
+	@:keep public var conductorInUse(get, set):funkin.Conductor;
+	var _conductorInUse:funkin.Conductor = null;
+	@:keep public function get_conductorInUse():funkin.Conductor
+		return (_conductorInUse != null) ? _conductorInUse : funkin.Conductor.instance;
+	@:keep public function set_conductorInUse(value:funkin.Conductor):funkin.Conductor
+		return _conductorInUse = value;
+
 	private var curSection:Int = 0;
 	private var stepsToDo:Int = 0;
 
@@ -53,7 +64,14 @@ class MusicBeatState extends FlxState
 	#if HSCRIPT_ALLOWED
 	// The modules of V-Slice mods are told about every menu on V-Slice. The ones here either do that their own way (the main menu,
 	// Freeplay, the credits, the results) or are only opened, updated and closed for them, which is done from here
-	var _menuScripts:Int = 0; //0: not looked at yet, 1: running, -1: not one of those menus
+	var _menuScripts:Int = 0; //0: not looked at yet, 1: running, -1: not one of those menus, 2: given by the menu before (see below)
+
+	/**
+	 * This state was made by a script of a mod and opened from a menu that had the mods' modules running: they go on here
+	 * (see `VSliceScripts.endMenu()`), told it's open on its first update.
+	 */
+	public function takeMenuScripts():Void
+		_menuScripts = 2;
 
 	function runsMenuScripts():Bool
 	{
@@ -63,7 +81,7 @@ class MusicBeatState extends FlxState
 
 	override function destroy()
 	{
-		if(_menuScripts == 1) backend.VSliceScripts.endMenu(this);
+		if(_menuScripts >= 1) backend.VSliceScripts.endMenu(this);
 		_menuScripts = -1;
 		super.destroy();
 	}
@@ -86,6 +104,11 @@ class MusicBeatState extends FlxState
 				backend.VSliceScripts.startMenu(this, true, true);
 				backend.VSliceScripts.menuOpened(this);
 			}
+		}
+		else if(_menuScripts == 2)
+		{
+			_menuScripts = 1;
+			backend.VSliceScripts.menuOpened(this);
 		}
 		else if(_menuScripts == 1) backend.VSliceScripts.menuUpdate(elapsed);
 		#end

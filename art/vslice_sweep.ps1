@@ -85,7 +85,12 @@ foreach ($entry in $songs) {
 			elseif ($inErrors -and $line.Trim() -ne '') { $lines += '  ' + ($line -replace 'assets/vslice/scripts/', '') }
 		}
 	}
-	else { $lines += '  (the scripts were not loaded)' }
+	else {
+		# (the game only writes the file when there's something in it: no file is no errors, if the scripts were loaded at all)
+		$steps = Join-Path $Bin 'last_steps.txt'
+		$loaded = (Test-Path $steps) -and (Select-String -Path $steps -Pattern 'Scripts started' -Quiet)
+		if (-not $loaded) { $lines += '  (the scripts were not loaded)' }
+	}
 
 	$lines | Add-Content $summary
 	$lines

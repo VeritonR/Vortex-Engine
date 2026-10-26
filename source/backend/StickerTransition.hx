@@ -408,7 +408,7 @@ class StickerTransition
 		for (path in sets.get(FlxG.random.getObject(names)))
 		{
 			var sound:Sound = soundCache.get(path);
-			if(sound == null)
+			if(sound == null && SoundLoader.validFile(path))
 			{
 				sound = Sound.fromFile(path);
 				if(sound != null) soundCache.set(path, sound);

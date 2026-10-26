@@ -32,12 +32,6 @@ class GameplaySettingsSubState extends BaseOptionsMenu
 			BOOL);
 		addOption(option);
 
-		var option:Option = new Option('Break Timer',
-            "If checked, a countdown will appear when there is a long gap between your notes.",
-            'breakTimer',
-            BOOL);
-        addOption(option);
-		
 		var option:Option = new Option('Auto Pause',
 			"If checked, the game automatically pauses if the screen isn't on focus.",
 			'autoPause',

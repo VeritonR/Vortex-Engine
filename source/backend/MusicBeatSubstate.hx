@@ -4,6 +4,17 @@ import flixel.FlxSubState;
 
 class MusicBeatSubstate extends FlxSubState
 {
+	/**
+	 * V-Slice's: the conductor this state goes by (the game's own unless a script gives it another). Scripts of states made by
+	 * mods use it, some through its getter (`get_conductorInUse().update()`, SKYREBORN's gallery).
+	 */
+	@:keep public var conductorInUse(get, set):funkin.Conductor;
+	var _conductorInUse:funkin.Conductor = null;
+	@:keep public function get_conductorInUse():funkin.Conductor
+		return (_conductorInUse != null) ? _conductorInUse : funkin.Conductor.instance;
+	@:keep public function set_conductorInUse(value:funkin.Conductor):funkin.Conductor
+		return _conductorInUse = value;
+
 	public function new()
 	{
 		super();

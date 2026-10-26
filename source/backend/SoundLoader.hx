@@ -26,6 +26,54 @@ import sys.thread.Thread;
  */
 class SoundLoader
 {
+	/**
+	 * If these bytes are a sound lime can decode: an empty or broken audio file crashes the game inside lime itself, where nothing
+	 * can catch it (a mod with a "Voices.ogg" of 0 bytes, Vs Tails.exe's Chasing). OGG (Vorbis), WAV, MP3 and FLAC are let through.
+	 */
+	public static function validBytes(bytes:haxe.io.Bytes):Bool
+	{
+		if(bytes == null || bytes.length < 64) return false;
+
+		var head:String = bytes.getString(0, 4);
+		if(head == 'OggS')
+		{
+			// (an OGG of something else than Vorbis, like Opus, isn't one lime can decode either)
+			var start:String = bytes.getString(0, Std.int(Math.min(bytes.length, 128)));
+			return start.indexOf('vorbis') > -1;
+		}
+		if(head == 'RIFF' || head == 'fLaC' || head.substr(0, 3) == 'ID3') return true;
+		return bytes.get(0) == 0xFF && (bytes.get(1) & 0xE0) == 0xE0; //an MP3 frame
+	}
+
+	/**
+	 * The same, reading the start of a file (see `validBytes()`). A file that isn't there isn't one either.
+	 */
+	public static function validFile(file:String):Bool
+	{
+		try
+		{
+			if(file == null || !FileSystem.exists(file) || FileSystem.isDirectory(file)) return false;
+			var input = sys.io.File.read(file, true);
+			var bytes:haxe.io.Bytes = haxe.io.Bytes.alloc(128);
+			var read:Int = 0;
+			try
+			{
+				read = input.readBytes(bytes, 0, 128);
+			}
+			catch(e:Dynamic) {}
+			input.close();
+			if(read < 64) return false;
+			return validBytes(bytes.sub(0, read));
+		}
+		catch(e:Dynamic)
+		{
+			return false;
+		}
+	}
+
+	static function warnInvalid(file:String):Void
+		trace('The sound "$file" is empty or is not one that can be played: it was left out');
+
 	#if sys
 	static var jobs:Deque<{id:Int, file:String}> = null;
 	static var results:Deque<{id:Int, file:String, bytes:haxe.io.Bytes}> = null;
@@ -246,6 +294,7 @@ class SoundLoader
 
 			var sound:Sound = null;
 			if(Paths.currentTrackedSounds.exists(result.file)) sound = Paths.currentTrackedSounds.get(result.file);
+			else if(result.bytes != null && !validBytes(result.bytes)) warnInvalid(result.file);
 			else if(result.bytes != null)
 			{
 				try
@@ -272,6 +321,11 @@ class SoundLoader
 	// A sound played straight from its file (only OGG files can be, the others are loaded whole). On the game's thread, like all of lime's
 	static function openStream(file:String):Sound
 	{
+		if(!validFile(file))
+		{
+			warnInvalid(file);
+			return null;
+		}
 		try
 		{
 			#if lime_vorbis

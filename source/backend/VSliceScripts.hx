@@ -714,7 +714,18 @@ class VSliceScripts
 		// The modules aren't told: on V-Slice they're the same ones that set things up for the song the first time, which they undo
 		// or start over from there ("Restart Song" doesn't make anything again). Here they were made again along with everything
 		// else and haven't set anything up yet, and doing what they do on a retry broke on what isn't there
-		if(states.PlayState.seenCutscene) dispatch(new SongRetryEvent(facade.currentDifficulty), false);
+		// What they do on a retry is undoing what they set up, and these haven't set anything up yet: a script that resets something it
+		// makes at the countdown fails on it not being there (SKYREBORN's Sky). That's not an error of the mod, it isn't reported
+		if(states.PlayState.seenCutscene)
+		{
+			hxc.HxcRuntime.quietErrors = true;
+			try
+			{
+				dispatch(new SongRetryEvent(facade.currentDifficulty), false);
+			}
+			catch(e:Dynamic) {}
+			hxc.HxcRuntime.quietErrors = false;
+		}
 
 		// The chart, as it was loaded. On V-Slice scripts can change it from here, that part isn't done: they only get to read it
 		var notes:Array<SongNoteData> = [for (note in game.unspawnNotes) if(!note.isSustainNote) NoteSprite.get(note).noteData];
@@ -1586,11 +1597,11 @@ class VSliceScripts
 				if(note == null) return false;
 
 				// notes of a side that was hidden don't show up either, and the ones of a faded group come in as faded as it is
-				(note.mustPress ? facade.playerStrumline : facade.opponentStrumline).noteSpawned(note);
+				(note.mustPress ? facade.chartPlayerStrumline : facade.chartOpponentStrumline).noteSpawned(note);
 				if(!note.isSustainNote)
 				{
 					dispatch(new NoteScriptEvent(ScriptEventType.NOTE_INCOMING, NoteSprite.get(note), 0, 0, false));
-					if(facade != null) (note.mustPress ? facade.playerStrumline : facade.opponentStrumline).onNoteIncoming.dispatch(NoteSprite.get(note));
+					if(facade != null) (note.mustPress ? facade.chartPlayerStrumline : facade.chartOpponentStrumline).onNoteIncoming.dispatch(NoteSprite.get(note));
 				}
 
 			case 'goodNoteHitPre', 'opponentNoteHitPre':
@@ -2420,6 +2431,41 @@ class VSliceScripts
 			dispatchToModules(new SubStateScriptEvent(ScriptEventType.SUBSTATE_CLOSE_END, state));
 		}
 
+		// A state of one of the mods' own scripts may be next (a menu of the mod, like SKYREBORN's gallery from the main menu): on
+		// V-Slice the modules last from one state to the next, and a mod's menus count on them for what they share. Which state comes
+		// is only known right before it's made: the modules wait for it
+		if(menuIsState && FlxG.state == state && modules.length > 0)
+		{
+			handingOver = state;
+			FlxG.signals.preStateCreate.addOnce(takeOverMenu);
+			return;
+		}
+		finishMenu();
+	}
+
+	static var handingOver:Dynamic = null;
+
+	static function takeOverMenu(next:flixel.FlxState):Void
+	{
+		var from:Dynamic = handingOver;
+		handingOver = null;
+		if(from == null || menuState != from) return; //(another menu started in between)
+
+		var nextState:MusicBeatState = Std.downcast(next, MusicBeatState);
+		if(nextState != null && HxcRuntime.getInstance(nextState) != null)
+		{
+			menuState = nextState;
+			menuIsState = true;
+			nextState.takeMenuScripts();
+			StepLog.add('The modules go on in a state of a script: ' + HxcRuntime.getInstance(nextState).cls.name);
+			dispatchToModules(new StateChangeScriptEvent(ScriptEventType.STATE_CHANGE_BEGIN, nextState, true));
+			return;
+		}
+		finishMenu();
+	}
+
+	static function finishMenu():Void
+	{
 		menuState = null;
 		menuSongScripts = null;
 		scriptedSprites = [];
@@ -2449,7 +2495,7 @@ class VSliceScripts
 	// What scripts get for `animation.onFrameChange`, `animation.onFinish` and `animation.onLoop`, which this version of the library doesn't have:
 	// signals made on the spot, dispatched by the two callbacks it does have. They're given the same values as the library's own
 	// (name of the animation, and for the frames their number and their position on the image).
-	static function getAnimationSignal(controller:flixel.animation.FlxAnimationController, name:String):Dynamic
+	public static function getAnimationSignal(controller:flixel.animation.FlxAnimationController, name:String):Dynamic
 	{
 		if(name != 'onFrameChange' && name != 'onFinish' && name != 'onLoop') return null;
 

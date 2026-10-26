@@ -53,6 +53,28 @@ class MultiplayerMenuState extends MusicBeatState
     public static var testDifficulty:String = null;
     public static var testRole:String = 'bf';
     public static var testRounds:Int = 1;
+    public static var testWinCondition:String = null;
+
+    // The match's setup, after the host picks a song: how it's won and who plays which side. The one who joined sees it as the
+    // host changes it ("LOBBY_VIEW" says if it's open and the condition)
+    var setupPanel:flixel.group.FlxGroup;
+    var setupTitle:FlxText;
+    var setupSong:FlxText;
+    var setupCondition:FlxText;
+    var setupConditionInfo:FlxText;
+    var setupSide:FlxText;
+    var setupHint:FlxText;
+    var configuring:Bool = false;
+    var setupRow:Int = 0;
+    var winCondition:String = 'score';
+    // (the one who joined: if the host has the setup open)
+    var hostConfiguring:Bool = false;
+
+    // What the host has selected, sent to the other player as it changes ("LOBBY_VIEW|song|mod folder|difficulty|host's side"):
+    // the one who joined watches the host choose. The last one sent, to not send the same again
+    var lastLobbyView:String = null;
+    // (the one who joined: if a view of the host's list came already)
+    var gotLobbyView:Bool = false;
 
     // a message for a few seconds under the status (a song that couldn't be opened...)
     var noticeTime:Float = 0;
@@ -176,6 +198,8 @@ class MultiplayerMenuState extends MusicBeatState
         hostRoleHintText.visible = false;
         add(hostRoleHintText);
 
+        makeSetupPanel();
+
         changeConnSelection(0);
         super.create();
 
@@ -253,24 +277,31 @@ class MultiplayerMenuState extends MusicBeatState
                             for (i in 0...Difficulty.list.length)
                                 if (Difficulty.list[i].toLowerCase() == testDifficulty.toLowerCase()) curDifficulty = i;
                         currentRole = testRole;
+                        if (testWinCondition != null) winCondition = NetworkManager.validCondition(testWinCondition);
+                        NetworkManager.winCondition = winCondition;
                         var chosen:String = songList[curSongSelected];
                         var diffName:String = Difficulty.list[curDifficulty];
                         var role:String = currentRole;
+                        var condition:String = winCondition;
                         // (a moment for the other player to be in the lobby too)
                         new flixel.util.FlxTimer().start(1, function(_) {
                             forceLoadSong(curSongSelected, curDifficulty, (role == 'dad'), function() {
                                 NetworkManager.log('asking for ' + chosen + ' (' + diffName + ')');
-                                NetworkManager.sendLoadSong(chosen, curDifficulty, role, diffName, songFolders[curSongSelected]);
+                                NetworkManager.sendLoadSong(chosen, curDifficulty, role, diffName, songFolders[curSongSelected], condition);
                             });
                         });
                     }
                 }
+                sendLobbyView();
             } else {
                 clientWaitText.visible = true;
+                gotLobbyView = false;
+                // (the host answers with what it has selected, see sendLobbyView())
+                NetworkManager.send("LOBBY_ASK");
             }
         }
 
-        if (inLobby && NetworkManager.isHost && !typingNickname) {
+        if (inLobby && hostLobby.visible && !typingNickname) {
             var lerpVal:Float = FlxMath.bound(elapsed * 9.6, 0, 1);
             for (i in 0...hostLobby.length) {
                 var item = hostLobby.members[i];
@@ -286,6 +317,10 @@ class MultiplayerMenuState extends MusicBeatState
 
                 item.y = FlxMath.lerp(item.y, intendedY, lerpVal);
                 item.x = FlxMath.lerp(item.x, 90 + (Math.abs(item.targetY) * 20), lerpVal);
+                // (the ones going up fade away before they get to the title and the status, and the ones going down before the
+                // texts of the sides at the bottom)
+                item.alpha = ((item.targetY == 0) ? 1 : 0.6) * FlxMath.bound((item.y - 120) / 70, 0, 1)
+                    * FlxMath.bound((FlxG.height - 170 - item.y) / 70, 0, 1);
 
                 if (icon != null) {
                     icon.visible = true;
@@ -297,8 +332,16 @@ class MultiplayerMenuState extends MusicBeatState
         }
 
         if (NetworkManager.connected) {
-            // (the messages of the match that was just played, which nobody needs anymore)
-            NetworkManager.getNewMessages();
+            // (the messages of the match that was just played, which nobody needs anymore, are skipped)
+            var lobbyView:String = null;
+            for (msg in NetworkManager.getNewMessages()) {
+                if (msg == "LOBBY_ASK" && NetworkManager.isHost && inLobby) {
+                    lastLobbyView = null;
+                    sendLobbyView();
+                }
+                else if (StringTools.startsWith(msg, "LOBBY_VIEW|") && !NetworkManager.isHost) lobbyView = msg;
+            }
+            if (lobbyView != null && inLobby) showLobbyView(lobbyView);
 
             var loadMsg:String = NetworkManager.takePendingLoadSong();
             if (loadMsg != null && !NetworkManager.isHost) {
@@ -308,6 +351,7 @@ class MultiplayerMenuState extends MusicBeatState
                 var receivedHostRole = data[3];
                 var diffName:String = (data.length > 4) ? data[4] : "";
                 var folder:String = (data.length > 5) ? data[5] : "";
+                NetworkManager.winCondition = NetworkManager.validCondition((data.length > 6) ? data[6] : null);
 
                 var index:Int = findSong(songName, folder);
                 if (index > -1) selectWeekOf(index);
@@ -350,6 +394,7 @@ class MultiplayerMenuState extends MusicBeatState
             connectionMenu.visible = false;
             clientWaitText.visible = false;
             if (hostLobby != null) hostLobby.visible = false;
+            if (setupPanel != null) setupPanel.visible = false;
             for (icon in iconArray) if (icon != null) icon.visible = false; //(the lobby shows them again)
 
             if (FlxG.keys.justPressed.BACKSPACE && typedNickname.length > 0) {
@@ -432,6 +477,10 @@ class MultiplayerMenuState extends MusicBeatState
                 MusicBeatState.switchState(new MainMenuState());
             }
         }
+        else if (inLobby && NetworkManager.isHost && configuring)
+        {
+            updateSetup();
+        }
         else if (inLobby && NetworkManager.isHost)
         {
             if (controls.UI_UP_P) changeSongSelection(-1);
@@ -441,29 +490,14 @@ class MultiplayerMenuState extends MusicBeatState
 
             if (FlxG.keys.justPressed.SHIFT || FlxG.keys.justPressed.CONTROL) {
                 FlxG.sound.play(Paths.sound('scrollMenu'));
-                if (currentRole == 'bf') {
-                    currentRole = 'dad';
-                    hostRoleText.text = "< Playing with: Left Side (DAD) >";
-                    hostRoleText.color = FlxColor.RED;
-                } else {
-                    currentRole = 'bf';
-                    hostRoleText.text = "< Playing with: Right Side (BF) >";
-                    hostRoleText.color = FlxColor.LIME;
-                }
+                setRole((currentRole == 'bf') ? 'dad' : 'bf');
+                sendLobbyView();
             }
 
+            // the song is picked: how the match is won is set up before it starts
             if (controls.ACCEPT) {
-                var chosenSong = songList[curSongSelected];
-                var diffName:String = Difficulty.list[curDifficulty];
-                // The host's chart has to load before the other player is asked for it (or both would wait for each other)
-                if (forceLoadSong(curSongSelected, curDifficulty, (currentRole == 'dad'), function() {
-                    NetworkManager.sendLoadSong(chosenSong, curDifficulty, currentRole, diffName, songFolders[curSongSelected]);
-                })) {
-                    FlxG.sound.play(Paths.sound('confirmMenu'));
-                } else {
-                    showNotice("Nao foi possivel abrir \"" + chosenSong + "\" nessa dificuldade.");
-                    FlxG.sound.play(Paths.sound('cancelMenu'));
-                }
+                FlxG.sound.play(Paths.sound('scrollMenu'));
+                openSetup(true);
             }
 
             if (controls.BACK) {
@@ -487,9 +521,199 @@ class MultiplayerMenuState extends MusicBeatState
     function restoreScreen() {
         promptText.visible = false;
         if (!inLobby) connectionMenu.visible = true;
-        else if (NetworkManager.isHost) hostLobby.visible = true;
+        else if (NetworkManager.isHost || gotLobbyView) hostLobby.visible = true;
         else clientWaitText.visible = true;
+        setupPanel.visible = inLobby && (configuring || hostConfiguring);
     }
+
+    // ------------------------------------------------------------------------------------------
+    // The match's setup
+    // ------------------------------------------------------------------------------------------
+
+    function makeSetupPanel() {
+        if (FlxG.save.data.multiplayerWinCondition != null)
+            winCondition = NetworkManager.validCondition(FlxG.save.data.multiplayerWinCondition);
+
+        setupPanel = new flixel.group.FlxGroup();
+        setupPanel.visible = false;
+        add(setupPanel);
+
+        var width:Int = 860;
+        var height:Int = 360;
+        var bg:FlxSprite = new FlxSprite(0, 175).makeGraphic(width, height, FlxColor.TRANSPARENT, true);
+        flixel.util.FlxSpriteUtil.drawRoundRect(bg, 2, 2, width - 4, height - 4, 24, 24, 0xEE141414, {thickness: 3, color: 0xFF8844DD});
+        bg.screenCenter(X);
+        setupPanel.add(bg);
+
+        function text(y:Float, size:Int, color:FlxColor):FlxText {
+            var t:FlxText = new FlxText(0, y, FlxG.width, "", size);
+            t.setFormat(Paths.font("vcr.ttf"), size, color, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+            setupPanel.add(t);
+            return t;
+        }
+        setupTitle = text(bg.y + 18, 40, FlxColor.YELLOW);
+        setupSong = text(bg.y + 72, 28, FlxColor.WHITE);
+        setupCondition = text(bg.y + 130, 34, FlxColor.WHITE);
+        setupConditionInfo = text(bg.y + 172, 20, 0xFFBBBBBB);
+        setupSide = text(bg.y + 220, 30, FlxColor.WHITE);
+        setupHint = text(bg.y + height - 50, 18, 0xFFBBBBBB);
+    }
+
+    // The host opens it (or closes it, back to the songs)
+    function openSetup(open:Bool) {
+        configuring = open;
+        setupRow = 0;
+        setupPanel.visible = open;
+        refreshSetup();
+        sendLobbyView();
+    }
+
+    function refreshSetup() {
+        var host:Bool = NetworkManager.isHost;
+        var condition:String = host ? winCondition : NetworkManager.winCondition;
+        var role:String = host ? currentRole : clientViewRole;
+        var diffName:String = host ? Difficulty.list[curDifficulty] : clientViewDifficulty;
+
+        setupTitle.text = host ? "MATCH SETUP" : "THE HOST IS SETTING UP THE MATCH";
+        setupSong.text = (songList.length > 0 ? songList[curSongSelected] : "?") + "  -  " + (diffName != null ? diffName.toUpperCase() : "?");
+        setupCondition.text = (host ? "< " : "") + "Win by: " + NetworkManager.winConditionName(condition).toUpperCase() + (host ? " >" : "");
+        setupConditionInfo.text = NetworkManager.winConditionInfo(condition) + "  (being knocked out always loses)";
+
+        var hostSide:String = (role == 'dad') ? "Left (DAD)" : "Right (BF)";
+        var otherSide:String = (role == 'dad') ? "Right (BF)" : "Left (DAD)";
+        setupSide.text = host ? "< Your side: " + hostSide + " >" : "Host: " + hostSide + "  |  You: " + otherSide;
+        setupSide.color = ((role == 'dad') == host) ? 0xFFFF6666 : FlxColor.LIME;
+
+        setupCondition.color = (host && setupRow == 0) ? FlxColor.YELLOW : FlxColor.WHITE;
+        if (host && setupRow == 1) setupSide.color = FlxColor.YELLOW;
+
+        setupHint.text = host ? "UP/DOWN: choose   LEFT/RIGHT: change   ENTER: start   ESC: back"
+            : "Waiting for the host to start the match... (ESC to leave)";
+    }
+
+    function updateSetup() {
+        if (controls.UI_UP_P || controls.UI_DOWN_P) {
+            setupRow = (setupRow + 1) % 2;
+            FlxG.sound.play(Paths.sound('scrollMenu'));
+            refreshSetup();
+        }
+
+        if (controls.UI_LEFT_P || controls.UI_RIGHT_P) {
+            FlxG.sound.play(Paths.sound('scrollMenu'));
+            if (setupRow == 0) {
+                var conditions:Array<String> = NetworkManager.WIN_CONDITIONS;
+                var index:Int = conditions.indexOf(winCondition) + (controls.UI_LEFT_P ? -1 : 1);
+                if (index < 0) index = conditions.length - 1;
+                if (index >= conditions.length) index = 0;
+                winCondition = conditions[index];
+                FlxG.save.data.multiplayerWinCondition = winCondition;
+                FlxG.save.flush();
+            }
+            else setRole((currentRole == 'bf') ? 'dad' : 'bf');
+            refreshSetup();
+            sendLobbyView();
+        }
+
+        if (controls.ACCEPT) startMatch();
+
+        if (controls.BACK) {
+            FlxG.sound.play(Paths.sound('cancelMenu'));
+            openSetup(false);
+        }
+    }
+
+    function setRole(role:String) {
+        currentRole = role;
+        hostRoleText.text = (role == 'dad') ? "< Playing with: Left Side (DAD) >" : "< Playing with: Right Side (BF) >";
+        hostRoleText.color = (role == 'dad') ? FlxColor.RED : FlxColor.LIME;
+    }
+
+    // The host starts the song it picked, the way it was set up
+    function startMatch() {
+        var chosenSong = songList[curSongSelected];
+        var diffName:String = Difficulty.list[curDifficulty];
+        var condition:String = winCondition;
+        NetworkManager.winCondition = condition;
+        // The host's chart has to load before the other player is asked for it (or both would wait for each other)
+        if (forceLoadSong(curSongSelected, curDifficulty, (currentRole == 'dad'), function() {
+            NetworkManager.log('asking for ' + chosenSong + ' (' + diffName + '), won by ' + condition);
+            NetworkManager.sendLoadSong(chosenSong, curDifficulty, currentRole, diffName, songFolders[curSongSelected], condition);
+        })) {
+            FlxG.sound.play(Paths.sound('confirmMenu'));
+        } else {
+            showNotice("Nao foi possivel abrir \"" + chosenSong + "\" nessa dificuldade.");
+            FlxG.sound.play(Paths.sound('cancelMenu'));
+            openSetup(false);
+        }
+    }
+
+    // The host: tells the other player what it has selected
+    function sendLobbyView() {
+        if (!NetworkManager.connected || !NetworkManager.isHost || !inLobby || songList.length == 0) return;
+
+        var diffName:String = Difficulty.list[curDifficulty];
+        var view:String = "LOBBY_VIEW|" + songList[curSongSelected] + "|" + songFolders[curSongSelected] + "|"
+            + (diffName != null ? diffName : "") + "|" + currentRole + "|" + (configuring ? "1" : "0") + "|" + winCondition;
+        if (view == lastLobbyView) return;
+        lastLobbyView = view;
+        NetworkManager.send(view);
+    }
+
+    // The one who joined: shows the host's list on what the host has selected
+    function showLobbyView(msg:String) {
+        var data:Array<String> = msg.split("|");
+        if (data.length < 5) return;
+
+        var songName:String = data[1];
+        var diffName:String = data[3];
+        var hostRole:String = data[4];
+        clientViewRole = hostRole;
+        clientViewDifficulty = diffName;
+        hostConfiguring = (data.length > 5 && data[5] == "1");
+        if (data.length > 6) NetworkManager.winCondition = NetworkManager.validCondition(data[6]);
+
+        var first:Bool = !gotLobbyView;
+        if (first) {
+            gotLobbyView = true;
+            clientWaitText.visible = false;
+            hostLobby.visible = !typingNickname;
+            diffText.visible = true;
+            hostRoleText.visible = true;
+            hostRoleHintText.visible = true;
+        }
+
+        var index:Int = findSong(songName, data[2]);
+        if (index > -1 && (index != curSongSelected || first)) {
+            if (!first) FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
+            curSongSelected = index;
+            for (i in 0...hostLobby.length) {
+                var item = hostLobby.members[i];
+                item.targetY = i - curSongSelected;
+                item.alpha = (item.targetY == 0) ? 1 : 0.6;
+            }
+        }
+
+        diffText.text = '< ' + (diffName.length > 0 ? diffName.toUpperCase() : '?') + ' >';
+        diffText.x = FlxG.width - diffText.width - 20;
+
+        if (hostRole == 'dad') {
+            hostRoleText.text = "Host: Left Side (DAD)  |  You: Right Side (BF)";
+            hostRoleText.color = FlxColor.LIME;
+        } else {
+            hostRoleText.text = "Host: Right Side (BF)  |  You: Left Side (DAD)";
+            hostRoleText.color = FlxColor.RED;
+        }
+        hostRoleHintText.text = (index > -1) ? "The host is choosing the song... (ESC to leave)"
+            : "The host is on \"" + songName + "\", which isn't installed here! (ESC to leave)";
+
+        // the host's setup of the match, as it changes
+        setupPanel.visible = hostConfiguring && !typingNickname;
+        if (hostConfiguring) refreshSetup();
+    }
+
+    // (the one who joined: the side and the difficulty the host has, from its last "LOBBY_VIEW")
+    var clientViewRole:String = 'bf';
+    var clientViewDifficulty:String = '';
 
     // Back to choosing to host or to join (the connection is gone)
     function leaveLobby() {
@@ -499,7 +723,15 @@ class MultiplayerMenuState extends MusicBeatState
         diffText.visible = false;
         hostRoleText.visible = false;
         hostRoleHintText.visible = false;
+        hostRoleHintText.text = "(Press SHIFT to change character)";
+        hostRoleText.text = (currentRole == 'dad') ? "< Playing with: Left Side (DAD) >" : "< Playing with: Right Side (BF) >";
+        hostRoleText.color = (currentRole == 'dad') ? FlxColor.RED : FlxColor.LIME;
         clientWaitText.visible = false;
+        gotLobbyView = false;
+        lastLobbyView = null;
+        configuring = false;
+        hostConfiguring = false;
+        setupPanel.visible = false;
         for (icon in iconArray) if (icon != null) icon.visible = false;
         connectionMenu.visible = !typingNickname;
         NetworkManager.restoreSettings();
@@ -561,6 +793,7 @@ class MultiplayerMenuState extends MusicBeatState
 
         diffText.text = '< ' + diffName.toUpperCase() + ' >';
         diffText.x = FlxG.width - diffText.width - 20;
+        sendLobbyView();
     }
 
     /**

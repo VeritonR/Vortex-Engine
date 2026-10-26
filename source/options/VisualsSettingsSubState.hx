@@ -98,23 +98,7 @@ class VisualsSettingsSubState extends BaseOptionsMenu
 			BOOL);
 		addOption(option);
 
-		var option:Option = new Option('Lane Underlay',
-			'If checked, a dark background is added behind your notes\nmaking them easier to see.',
-			'laneUnderlay',
-			BOOL);
-		addOption(option);
 
-		var option:Option = new Option('Ghost Notes',
-            "Ghost will appear if double notes are pressed.",
-            'ghostNotes',
-            BOOL);
-        addOption(option);
-
-		var option:Option = new Option('Sustain Wiggle',
-            "If checked, long notes will wave like a snake to the beat of the music.",
-            'sustainWiggle',
-            BOOL);
-        addOption(option);
 
 		var option:Option = new Option('Camera Zooms',
 			"If unchecked, the camera won't zoom in on a beat hit.",
@@ -139,12 +123,6 @@ class VisualsSettingsSubState extends BaseOptionsMenu
 		option.decimals = 1;
 		addOption(option);
 
-		var option:Option = new Option('Smooth Health Bar',
-			'If checked, health bar colors and icons transition smoothly.',
-			'smoothHealthBar',
-			BOOL);
-		addOption(option);
-		
 		#if !mobile
 		var option:Option = new Option('FPS Counter',
 			'If unchecked, hides FPS Counter.',
@@ -154,12 +132,6 @@ class VisualsSettingsSubState extends BaseOptionsMenu
 		option.onChange = onChangeFPSCounter;
 		#end
 
-		var option:Option = new Option('Icon Bop',
-            "If checked, the character icons will tilt back and forth to the beat.",
-            'iconBop',
-            BOOL);
-        addOption(option);
-		
 		var option:Option = new Option('Pause Music:',
 			"What song do you prefer for the Pause Screen?",
 			'pauseMusic',
@@ -175,13 +147,6 @@ class VisualsSettingsSubState extends BaseOptionsMenu
 			BOOL);
 		addOption(option);
 		#end
-
-		var option:Option = new Option('Score Camera:',
-            "Where should the Ratings and Combo numbers appear?",
-            'scoreCamera',
-            STRING,
-            ['HUD', 'Game']);
-        addOption(option);
 
 		var option:Option = new Option('Combo Stacking',
 			"If unchecked, Ratings and Combo won't stack, saving on System Memory and making them easier to read",

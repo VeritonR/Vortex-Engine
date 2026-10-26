@@ -489,6 +489,19 @@ class Character extends FlxSprite
 	 */
 	public var ignoreExclusionPref:Array<String> = ['sing'];
 
+	/**
+	 * Puts the offsets of an animation on the character (V-Slice's `applyAnimationOffsets()`), for scripts that play one through
+	 * `animation.play()` and then ask for its offsets.
+	 */
+	public function applyAnimationOffsets(name:String):Void
+	{
+		if(!hasAnimation(name)) return;
+
+		var daOffset = animOffsets.get(name);
+		offset.set(daOffset[0], daOffset[1]);
+		if(cornerPosition && !isAnimateAtlas) offset.add(hitboxOffsetX, hitboxOffsetY);
+	}
+
 	public function playAnimation(name:String, restart:Bool = false, ignoreOther:Bool = false, reversed:Bool = false):Void
 	{
 		name = correctAnimationName(name);

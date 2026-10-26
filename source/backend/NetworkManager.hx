@@ -380,10 +380,69 @@ class NetworkManager {
     // SINCRONIZAÇÃO DE PLAYSTATE
     // ==========================================
 
-    // O Host envia a música, a dificuldade (o número e o nome), se ele quer ser o 'bf' ou o 'dad' e a pasta do mod da música
-    public static function sendLoadSong(songName:String, difficulty:Int, hostRole:String, ?difficultyName:String, ?folder:String) {
-        // Exemplo: LOADSONG|Bopeebo|1|dad|Normal|
-        send("LOADSONG|" + songName + "|" + difficulty + "|" + hostRole + "|" + (difficultyName != null ? difficultyName : "") + "|" + (folder != null ? folder : ""));
+    // O Host envia a música, a dificuldade (o número e o nome), se ele quer ser o 'bf' ou o 'dad', a pasta do mod da música e
+    // como se ganha a partida (see `winCondition`)
+    public static function sendLoadSong(songName:String, difficulty:Int, hostRole:String, ?difficultyName:String, ?folder:String, ?condition:String) {
+        // Exemplo: LOADSONG|Bopeebo|1|dad|Normal||score
+        send("LOADSONG|" + songName + "|" + difficulty + "|" + hostRole + "|" + (difficultyName != null ? difficultyName : "") + "|" + (folder != null ? folder : "")
+            + "|" + (condition != null ? condition : winCondition));
+    }
+
+    // ==========================================
+    // COMO SE GANHA A PARTIDA
+    // ==========================================
+    /**
+     * How the match is won when nobody is knocked out (being knocked out always loses): "score" (the most points wins), "misses"
+     * (the one who misses the most loses) or "accuracy" (the most accurate wins). The host picks it, it comes with the song.
+     */
+    public static var winCondition:String = 'score';
+    public static final WIN_CONDITIONS:Array<String> = ['score', 'misses', 'accuracy'];
+
+    public static function winConditionName(condition:String):String {
+        return switch (condition) {
+            case 'misses': 'Misses';
+            case 'accuracy': 'Accuracy';
+            default: 'Score';
+        }
+    }
+
+    public static function winConditionInfo(condition:String):String {
+        return switch (condition) {
+            case 'misses': 'The one who misses the most loses';
+            case 'accuracy': 'The most accurate one wins';
+            default: 'The one who scores the most wins';
+        }
+    }
+
+    public static function validCondition(condition:String):String {
+        return (condition != null && WIN_CONDITIONS.contains(condition)) ? condition : 'score';
+    }
+
+    /**
+     * Who's ahead by the match's condition: 1 if `a` is, -1 if `b` is, 0 if they're even in everything. A tie on the condition is
+     * broken by the other two (score, then misses, then accuracy). `decidedBy` says which one decided it.
+     * Accuracy is a percent, or less than 0 for someone who hasn't hit a note yet.
+     */
+    public static function compareResults(a:{score:Int, misses:Int, accuracy:Float}, b:{score:Int, misses:Int, accuracy:Float}, ?condition:String):{result:Int, decidedBy:String} {
+        if (condition == null) condition = winCondition;
+        var order:Array<String> = switch (condition) {
+            case 'misses': ['misses', 'score', 'accuracy'];
+            case 'accuracy': ['accuracy', 'score', 'misses'];
+            default: ['score', 'misses', 'accuracy'];
+        }
+        for (what in order) {
+            var result:Int = switch (what) {
+                case 'misses': (a.misses < b.misses) ? 1 : ((a.misses > b.misses) ? -1 : 0);
+                case 'accuracy':
+                    // (to the hundredth, the way it's shown)
+                    var accA:Int = Math.round(Math.max(a.accuracy, 0) * 100);
+                    var accB:Int = Math.round(Math.max(b.accuracy, 0) * 100);
+                    (accA > accB) ? 1 : ((accA < accB) ? -1 : 0);
+                default: (a.score > b.score) ? 1 : ((a.score < b.score) ? -1 : 0);
+            }
+            if (result != 0) return {result: result, decidedBy: what};
+        }
+        return {result: 0, decidedBy: condition};
     }
 
     public static function prepareToPlay() {

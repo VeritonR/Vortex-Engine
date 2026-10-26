@@ -19,6 +19,19 @@ class AtlasCharacterAnimation
 		this.character = character;
 	}
 
+	// "animation.onFrameChange.add(...)", "animation.onFinish.add(...)": the same signals as the character's own animations would give
+	public var onFrameChange(get, never):Dynamic;
+	function get_onFrameChange():Dynamic
+		return backend.VSliceScripts.getAnimationSignal(character.animation, 'onFrameChange');
+
+	public var onFinish(get, never):Dynamic;
+	function get_onFinish():Dynamic
+		return backend.VSliceScripts.getAnimationSignal(character.animation, 'onFinish');
+
+	public var onLoop(get, never):Dynamic;
+	function get_onLoop():Dynamic
+		return backend.VSliceScripts.getAnimationSignal(character.animation, 'onLoop');
+
 	public function getNameList():Array<String>
 		return character.listAnimations();
 

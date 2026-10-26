@@ -101,8 +101,24 @@ class PlayState
 		return value;
 	}
 	public var currentSong:Song;
-	public var playerStrumline(default, null):Strumline;
-	public var opponentStrumline(default, null):Strumline;
+	/**
+	 * The receptors of each side of the chart: Boyfriend's (the notes that are `mustPress`) and the opponent's.
+	 */
+	public var chartPlayerStrumline(default, null):Strumline;
+	public var chartOpponentStrumline(default, null):Strumline;
+
+	/**
+	 * What scripts know as the player's and the opponent's receptors: with Play as Opponent, the player's are the ones being played
+	 * (the opponent's side of the chart). Mods hide or fade "the opponent's notes" and move "the player's" around for whoever plays
+	 * the song, which on V-Slice is always Boyfriend: without this their mechanics hide the notes being played.
+	 */
+	public var playerStrumline(get, never):Strumline;
+	function get_playerStrumline():Strumline
+		return (game != null && game.playAsOpponent) ? chartOpponentStrumline : chartPlayerStrumline;
+
+	public var opponentStrumline(get, never):Strumline;
+	function get_opponentStrumline():Strumline
+		return (game != null && game.playAsOpponent) ? chartPlayerStrumline : chartOpponentStrumline;
 
 	public var currentVariation:String = 'default';
 
@@ -122,8 +138,15 @@ class PlayState
 	public var discordRPCAlbum:String = '';
 	public var discordRPCIcon:String = '';
 
-	public var currentConversation(get, never):cutscenes.VSliceConversation;
+	// scripts that take over the end of a dialogue (their own "completeCallback") remove it themselves: "currentConversation = null"
+	public var currentConversation(get, set):cutscenes.VSliceConversation;
 	function get_currentConversation():cutscenes.VSliceConversation return game.conversation;
+	function set_currentConversation(value:cutscenes.VSliceConversation):cutscenes.VSliceConversation
+	{
+		if(value == null) @:privateAccess game.removeConversation();
+		else game.conversation = value;
+		return value;
+	}
 	public var stageZoom:Float = 1;
 	public var defaultHUDCameraZoom:Float = 1;
 	public var isMinimalMode:Bool = false;
@@ -155,8 +178,8 @@ class PlayState
 	public function new(game:states.PlayState)
 	{
 		this.game = game;
-		playerStrumline = new Strumline(true);
-		opponentStrumline = new Strumline(false);
+		chartPlayerStrumline = new Strumline(true);
+		chartOpponentStrumline = new Strumline(false);
 		comboPopUps = new funkin.play.components.PopUpStuff(game);
 		vocals = new funkin.audio.VoicesGroup(game);
 		stageZoom = game.defaultCamZoom;
@@ -261,8 +284,11 @@ class PlayState
 	public var isGameOverState(get, never):Bool;
 	function get_isGameOverState():Bool return Std.isOfType(game.subState, substates.GameOverSubstate);
 
-	public var isSongEnd(get, never):Bool;
-	function get_isSongEnd():Bool return game.endingSong;
+	// scripts set it to keep the game from being paused while they show something at the end
+	public var isSongEnd(get, set):Bool;
+	var songEndSetTo:Null<Bool> = null;
+	function get_isSongEnd():Bool return (songEndSetTo != null) ? songEndSetTo : game.endingSong;
+	function set_isSongEnd(value:Bool):Bool return songEndSetTo = value;
 
 	public var isPlaytestResults(get, never):Bool;
 	function get_isPlaytestResults():Bool return false;

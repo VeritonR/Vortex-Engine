@@ -556,7 +556,7 @@ class Paths
 		if(!currentTrackedSounds.exists(file))
 		{
 			#if sys
-			if(FileSystem.exists(file))
+			if(FileSystem.exists(file) && SoundLoader.validFile(file)) //(an empty or broken file crashes lime: see SoundLoader)
 				currentTrackedSounds.set(file, Sound.fromFile(file));
 			#else
 			if(OpenFlAssets.exists(file, SOUND))

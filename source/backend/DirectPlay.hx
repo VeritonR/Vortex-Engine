@@ -152,6 +152,8 @@ class DirectPlay
 			if(mode == 'host') NetworkManager.hostServer();
 			else if(mode.startsWith('join:')) NetworkManager.joinServer(mode.substr(5));
 			states.MultiplayerMenuState.testSong = options.get('onlinesong');
+			if(options.exists('onlinewin')) states.MultiplayerMenuState.testWinCondition = options.get('onlinewin');
+			if(options.exists('time')) PlayState.startOnTime = Math.max(0, number('time', 0)) * 1000; //(both sides start the match there)
 			states.MultiplayerMenuState.testDifficulty = options.get('difficulty');
 			if(options.exists('onlinerole')) states.MultiplayerMenuState.testRole = options.get('onlinerole');
 			states.MultiplayerMenuState.testRounds = Std.int(number('onlinerounds', 1));
@@ -183,11 +185,18 @@ class DirectPlay
 			case 'charselecteditor': () -> new states.editors.CharSelectEditorState();
 			case 'editors': () -> new states.editors.MasterEditorMenu();
 			case 'gallery': () -> new states.GalleryState();
+			case 'mods': () -> new states.ModsMenuState();
+			#if ACHIEVEMENTS_ALLOWED
+			case 'achievements': () -> new states.AchievementsMenuState();
+			#end
 			case 'multiplayer': () -> new states.MultiplayerMenuState();
 			case 'stageeditor': () -> new states.editors.StageEditorState();
 			case 'chareditor': () -> new states.editors.CharacterEditorState(objects.Character.DEFAULT_CHARACTER, false);
 			case 'portraiteditor': () -> new states.editors.DialogueCharacterEditorState();
 			case 'menucharactereditor': () -> new states.editors.MenuCharacterEditorState();
+			case 'weekeditor': () -> new states.editors.WeekEditorState();
+			case 'dialogueeditor': () -> new states.editors.DialogueEditorState();
+			case 'splasheditor': () -> new states.editors.NoteSplashEditorState();
 			default: null;
 		}
 		if(!started && otherMenu != null)
@@ -771,6 +780,32 @@ class DirectPlay
 		var line:String = Std.string(Math.round(elapsed * 100) / 100) + 's song ' + Math.round(Conductor.songPosition) + ':';
 		if(logLines.length < 1 && game.vocals != null && game.opponentVocals != null)
 			line += ' | voices: player ' + Math.round(game.vocals.length) + ' ms, opponent ' + Math.round(game.opponentVocals.length) + ' ms';
+		// what plays and what the player sees: the vocal tracks (P = player's, O = opponent's), the HUD, and how many of the receptors
+		// and notes being played are showing
+		if(game.vocals != null && game.opponentVocals != null)
+			line += ' | vox ' + (game.vocals.playing ? 'P' : '-') + (game.opponentVocals.playing ? 'O' : '-');
+		if(game.camHUD != null)
+			line += ' | hud ' + (game.camHUD.visible ? Std.string(Math.round(game.camHUD.alpha * 100) / 100) : 'hidden')
+				+ (@:privateAccess game.hudGuard > 0 ? ' shown ' + Std.string(Math.round(@:privateAccess game.hudGuard * 100) / 100) : '');
+		if(game.playableStrums != null)
+		{
+			var shown:Int = 0;
+			for (strum in game.playableStrums.members)
+				if(strum != null && strum.visible && strum.alpha > 0.05) shown++;
+			var notes:Int = 0, notesShown:Int = 0;
+			if(game.notes != null)
+				for (note in game.notes.members)
+					if(note != null && note.alive && note.playable && !note.isSustainNote && note.y > -100 && note.y < FlxG.height + 100)
+					{
+						notes++;
+						if(note.visible && note.alpha > 0.05) notesShown++;
+					}
+			// (and how many of them are lit up: pressed or hit)
+			var lit:Int = 0;
+			for (strum in game.playableStrums.members)
+				if(strum != null && strum.animation.curAnim != null && strum.animation.curAnim.name != 'static') lit++;
+			line += ' | played receptors ' + shown + '/' + game.playableStrums.length + ' notes ' + notesShown + '/' + notes + ' lit ' + lit;
+		}
 		var everyone:Array<objects.Character> = [game.boyfriend, game.dad, game.gf];
 		#if HSCRIPT_ALLOWED
 		everyone = backend.VSliceScripts.stageCharacters();
@@ -857,7 +892,18 @@ class DirectPlay
 				if(!FileSystem.exists(folder)) FileSystem.createDirectory(folder);
 			}
 
+			// (the window's own picture: something drawn into an image off the screen can leave that image's framebuffer bound,
+			// and the picture was of it, upside down)
+			var bound:Dynamic = null;
+			try
+			{
+				bound = lime.graphics.opengl.GL.getParameter(lime.graphics.opengl.GL.FRAMEBUFFER_BINDING);
+				lime.graphics.opengl.GL.bindFramebuffer(lime.graphics.opengl.GL.FRAMEBUFFER, null);
+			}
+			catch(e:Dynamic) {}
 			var bitmap:BitmapData = BitmapData.fromImage(FlxG.stage.window.readPixels());
+			if(bound != null) try { lime.graphics.opengl.GL.bindFramebuffer(lime.graphics.opengl.GL.FRAMEBUFFER, bound); } catch(e:Dynamic) {}
+			if(bound != null) trace('Picture $index: a framebuffer other than the one of the window was bound');
 			trace('Picture $index: on ' + Type.getClassName(Type.getClass(FlxG.state)) + ((FlxG.state.subState != null) ? ', under ' + Type.getClassName(Type.getClass(FlxG.state.subState)) : ''));
 			File.saveBytes(folder + 'directplay_$index.png', bitmap.encode(bitmap.rect, new PNGEncoderOptions()));
 			bitmap.dispose();
