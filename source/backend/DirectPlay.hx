@@ -185,7 +185,7 @@ class DirectPlay
 			case 'charselecteditor': () -> new states.editors.CharSelectEditorState();
 			case 'editors': () -> new states.editors.MasterEditorMenu();
 			case 'gallery': () -> new states.GalleryState();
-			case 'mods': () -> new states.ModsMenuState();
+			case 'mods': () -> new states.ModsMenuState(options.get('mod')); //("--mod" picks the one selected)
 			#if ACHIEVEMENTS_ALLOWED
 			case 'achievements': () -> new states.AchievementsMenuState();
 			#end

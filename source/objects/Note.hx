@@ -101,6 +101,11 @@ class Note extends FlxSprite
 
 	public var animSuffix:String = '';
 	public var gfNote:Bool = false;
+	/**
+	 * Vortex Engine: who sings this note, when the song has extra characters (see objects.ExtraCharacter). Null is the main
+	 * character of its side and the extra ones that sing everything; "main", "all", or the tags of extra characters ("pico2").
+	 */
+	public var singers:String = null;
 	public var earlyHitMult:Float = 1;
 	public var lateHitMult:Float = 1;
 	public var lowPriority:Bool = false;

@@ -31,6 +31,60 @@ class PauseSubState extends MusicBeatSubstate
 
 	public static var songName:String = null;
 
+	// ------------------------------------------------------------------------------------------
+	// The menu the way V-Slice scripts know it (`funkin.play.PauseSubState`): mods restyle it by these
+	// ------------------------------------------------------------------------------------------
+
+	/**
+	 * While false, the keys don't do anything on the menu (a script is showing something of its own on it).
+	 */
+	public var allowInput:Bool = true;
+
+	/**
+	 * The dark background.
+	 */
+	public var background(default, null):FlxSprite;
+
+	/**
+	 * The texts of the options.
+	 */
+	public var menuEntryText(get, never):FlxTypedGroup<Alphabet>;
+	inline function get_menuEntryText() return grpMenuShit;
+
+	/**
+	 * The option that's selected, from 0.
+	 */
+	public var currentEntry(get, never):Int;
+	inline function get_currentEntry() return curSelected;
+
+	/**
+	 * The options, each with its text and what picks it (`entry.callback(pauseMenu)`).
+	 */
+	public var currentMenuEntries(get, never):Array<Dynamic>;
+	var _entriesOf:Array<String> = null;
+	var _entries:Array<Dynamic> = [];
+	function get_currentMenuEntries():Array<Dynamic>
+	{
+		if(_entriesOf != menuItems || _entries.length != menuItems.length)
+		{
+			_entriesOf = menuItems;
+			_entries = [for (num => item in menuItems) {
+				text: Language.getPhrase('pause_$item', item),
+				callback: function(?_) pickEntry(num)
+			}];
+		}
+		return _entries;
+	}
+
+	// An option picked by a script, done on the next update like ENTER would be
+	var pickedByScript:Bool = false;
+	function pickEntry(num:Int):Void
+	{
+		if(num < 0 || num >= menuItems.length) return;
+		curSelected = num;
+		pickedByScript = true;
+	}
+
 	override function create()
 	{
 		if(Difficulty.list.length < 2) menuItemsOG.remove('Change Difficulty'); //No need to change difficulty if there is only one!
@@ -72,6 +126,7 @@ class PauseSubState extends MusicBeatSubstate
 		FlxG.sound.list.add(pauseMusic);
 
 		var bg:FlxSprite = new FlxSprite().makeGraphic(1, 1, FlxColor.BLACK);
+		background = bg;
 		bg.scale.set(FlxG.width, FlxG.height);
 		bg.updateHitbox();
 		bg.alpha = 0;
@@ -236,6 +291,10 @@ class PauseSubState extends MusicBeatSubstate
 
 		super.update(elapsed);
 
+		// (V-Slice's modules keep being updated on its menus, the pause menu too: the ones that restyle it do it then)
+		backend.VSliceScripts.substateUpdate(elapsed);
+		if(!exists || FlxG.state.subState != this) return; //(a script closed it)
+
 		// Online: the other player resumed (both count down), or left the song
 		if(backend.NetworkManager.connected)
 		{
@@ -250,8 +309,9 @@ class PauseSubState extends MusicBeatSubstate
 			}
 		}
 		if(updateResumeCountdown(elapsed)) return;
+		if(!allowInput && !pickedByScript) return;
 
-		if(controls.BACK)
+		if(!pickedByScript && controls.BACK)
 		{
 			resume();
 			return;
@@ -266,11 +326,11 @@ class PauseSubState extends MusicBeatSubstate
 		}
 
 		updateSkipTextStuff();
-		if (controls.UI_UP_P)
+		if (!pickedByScript && controls.UI_UP_P)
 		{
 			changeSelection(-1);
 		}
-		if (controls.UI_DOWN_P)
+		if (!pickedByScript && controls.UI_DOWN_P)
 		{
 			changeSelection(1);
 		}
@@ -306,7 +366,9 @@ class PauseSubState extends MusicBeatSubstate
 				}
 		}
 
-		if (controls.ACCEPT && (cantUnpause <= 0 || !controls.controllerMode))
+		var accepted:Bool = pickedByScript || (allowInput && controls.ACCEPT && (cantUnpause <= 0 || !controls.controllerMode));
+		pickedByScript = false;
+		if (accepted)
 		{
 			if (menuItems == difficultyChoices)
 			{
@@ -463,7 +525,7 @@ class PauseSubState extends MusicBeatSubstate
 		super.destroy();
 	}
 
-	function changeSelection(change:Int = 0):Void
+	public function changeSelection(change:Int = 0):Void
 	{
 		curSelected = FlxMath.wrap(curSelected + change, 0, menuItems.length - 1);
 		for (num => item in grpMenuShit.members)

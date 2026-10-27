@@ -789,6 +789,13 @@ class VSliceScripts
 		// that have the same name. A mod with no scripts at all still has V-Slice's own song events to be run by this.
 		songMod = mod;
 		if(mod != PolymodCompat.BASE_MOD) HxcRuntime.loadFolder(Paths.mods(PolymodCompat.BASE_MOD + '/scripts'));
+		// (and the mods made to change every song, see `PolymodCompat.utilityMods()`)
+		for (other in PolymodCompat.utilityMods())
+		{
+			if(other == mod) continue;
+			StepLog.add('Also loading the scripts of "$other", made for every song');
+			HxcRuntime.loadFolder(Paths.mods('$other/scripts'));
+		}
 		HxcRuntime.quietReplace = true;
 		HxcRuntime.loadFolder(Paths.mods('$mod/scripts'));
 		HxcRuntime.quietReplace = false;
@@ -2422,6 +2429,14 @@ class VSliceScripts
 			warn('isSongNew of the song "$songId": $e');
 			return false;
 		}
+	}
+
+	/**
+	 * A substate over the song is being updated (the pause menu): V-Slice's modules are, on V-Slice's substates.
+	 */
+	public static function substateUpdate(elapsed:Float):Void
+	{
+		if(active && menuState == null && modules.length > 0) dispatchToModules(new UpdateScriptEvent(elapsed));
 	}
 
 	public static function menuUpdate(elapsed:Float):Void

@@ -32,6 +32,7 @@ typedef SwagSong =
 	@:optional var splashSkin:String;
 
 	@:optional var vslice:Dynamic; //Only on charts converted from a V-Slice (Polymod) mod, see PolymodCompat.getChart()
+	@:optional var vortexCharacters:Array<Dynamic>; //Vortex Engine: the song's extra characters, see objects.ExtraCharacter
 }
 
 typedef SwagSection =

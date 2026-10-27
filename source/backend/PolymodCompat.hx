@@ -190,6 +190,62 @@ class PolymodCompat
 	}
 
 	/**
+	 * The enabled V-Slice mods that have scripts and no songs of their own: ones made to change every song (a pause menu of their
+	 * own, the HUD, the camera...). On V-Slice every mod's modules run all the time; here these are the ones loaded for the songs
+	 * of other mods too (a mod with songs only has its scripts on its own songs, so two of them don't get in each other's way).
+	 */
+	public static function utilityMods():Array<String>
+	{
+		var found:Array<String> = [];
+		if(mods == null) refresh();
+		for (mod in Mods.parseList().enabled)
+		{
+			if(mod == BASE_MOD || !isPolymod(mod)) continue;
+			if(!FileSystem.exists(Paths.mods('$mod/scripts'))) continue;
+
+			var hasSongs:Bool = FileSystem.exists(Paths.mods('$mod/data/songs'));
+			for (library in mods.get(mod))
+				if(FileSystem.exists(Paths.mods('$mod/$library/data/songs'))) hasSongs = true;
+			if(!hasSongs) found.push(mod);
+		}
+		return found;
+	}
+
+	/**
+	 * The names of the V-Slice files of a kind ("characters", "stages") the current mod has, with the base game's ones after them,
+	 * for the editors' lists. Empty if the current mod isn't a V-Slice one.
+	 */
+	public static function listDataIds(kind:String):Array<String>
+	{
+		var ids:Array<String> = [];
+		var mod:String = Mods.currentModDirectory;
+		if(!isPolymod(mod)) return ids;
+
+		var owners:Array<String> = (mod == BASE_MOD) ? [mod] : [mod, BASE_MOD];
+		for (owner in owners)
+		{
+			if(!isPolymod(owner)) continue;
+
+			var found:Array<String> = [];
+			var folders:Array<String> = [Paths.mods('$owner/data/$kind')];
+			for (library in mods.get(owner)) folders.push(Paths.mods('$owner/$library/data/$kind'));
+			for (folder in folders)
+			{
+				if(!FileSystem.exists(folder) || !FileSystem.isDirectory(folder)) continue;
+				for (file in FileSystem.readDirectory(folder))
+				{
+					if(!file.toLowerCase().endsWith('.json')) continue;
+					var id:String = file.substr(0, file.length - 5);
+					if(!ids.contains(id) && !found.contains(id)) found.push(id);
+				}
+			}
+			found.sort(Reflect.compare);
+			ids = ids.concat(found);
+		}
+		return ids;
+	}
+
+	/**
 	 * Same data a "pack.json" would have, taken from the mod's metadata.
 	 */
 	public static function getPack(mod:String):Dynamic

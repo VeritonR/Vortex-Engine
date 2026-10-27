@@ -108,6 +108,29 @@ class MetaNote extends Note
 		return (_noteTypeText = txt);
 	}
 
+	// Who sings it, when it's not the default ones (extra characters, see objects.ExtraCharacter): a little name under it
+	public static var singerTexts:Map<String, FlxText> = [];
+	var _singerText:FlxText;
+	public function setSingerLabel(singers:String)
+	{
+		_singerText = null;
+		if(singers == null || singers.length < 1) return;
+
+		var txt:FlxText = singerTexts.get(singers);
+		if(txt == null || !txt.exists)
+		{
+			txt = new FlxText(0, 0, ChartingState.GRID_SIZE + 20, (singers.length > 8) ? singers.substr(0, 7) + '.' : singers, 9);
+			txt.autoSize = false;
+			txt.alignment = CENTER;
+			txt.color = 0xFFFFE066;
+			txt.borderStyle = OUTLINE;
+			txt.borderColor = FlxColor.BLACK;
+			txt.scrollFactor.x = 0;
+			singerTexts.set(singers, txt);
+		}
+		_singerText = txt;
+	}
+
 	override function draw()
 	{
 		if(sustainSprite != null && sustainSprite.exists && sustainSprite.visible && sustainLength > 0)
@@ -125,6 +148,13 @@ class MetaNote extends Note
 			_noteTypeText.y = this.y + this.height/2 - _noteTypeText.height/2;
 			_noteTypeText.alpha = this.alpha;
 			_noteTypeText.draw();
+		}
+		if(_singerText != null && _singerText.exists)
+		{
+			_singerText.x = this.x + this.width/2 - _singerText.width/2;
+			_singerText.y = this.y + this.height - _singerText.height + 2;
+			_singerText.alpha = this.alpha;
+			_singerText.draw();
 		}
 	}
 

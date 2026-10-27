@@ -563,7 +563,7 @@ class PicoCard extends FreeplayBackingCard
 		add(confirmAtlas);
 		// its backplates and flashes cover the screen, like V-Slice's script makes them (they're small on the file)
 		for (symbol in ['backplate flat blue', 'pink back', 'black flash', 'white flash', 'blue flash', 'blue flash 2', 'pink flash'])
-			if(Sys.getEnv('NOSCALE') == null) confirmAtlas.scaleSymbolContent(symbol, 2, 100); //TEMPTIME
+			confirmAtlas.scaleSymbolContent(symbol, 2, 100);
 
 		cardGlow.blend = BlendMode.ADD;
 		cardGlow.visible = false;

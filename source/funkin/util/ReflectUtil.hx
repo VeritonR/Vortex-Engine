@@ -67,8 +67,30 @@ class ReflectUtil
 	public static function getClassNameOf(obj:Dynamic):String
 	{
 		var cls:Class<Dynamic> = Type.getClass(obj);
-		return (cls != null) ? Type.getClassName(cls) : 'Unknown';
+		if(cls == null) return 'Unknown';
+
+		var name:String = Type.getClassName(cls);
+		return VSLICE_NAMES.exists(name) ? VSLICE_NAMES.get(name) : name;
 	}
+
+	/**
+	 * The engine's states and menus by the names of the V-Slice ones they stand for: scripts tell where the game is by them
+	 * (`getClassNameOf(FlxG.state.subState) == "funkin.play.PauseSubState"`).
+	 */
+	static final VSLICE_NAMES:Map<String, String> = [
+		'states.PlayState' => 'funkin.play.PlayState',
+		'substates.PauseSubState' => 'funkin.play.PauseSubState',
+		'substates.GameOverSubstate' => 'funkin.play.GameOverSubState',
+		'states.ResultsState' => 'funkin.play.ResultState',
+		'states.FreeplayStateVslice' => 'funkin.ui.freeplay.FreeplayState',
+		'states.FreeplayState' => 'funkin.ui.freeplay.FreeplayState',
+		'states.CharacterSelectState' => 'funkin.ui.charSelect.CharSelectSubState',
+		'states.StoryMenuState' => 'funkin.ui.story.StoryMenuState',
+		'states.MainMenuState' => 'funkin.ui.mainmenu.MainMenuState',
+		'states.TitleState' => 'funkin.ui.title.TitleState',
+		'options.OptionsState' => 'funkin.ui.options.OptionsState',
+		'states.editors.ChartingState' => 'funkin.ui.debug.charting.ChartEditorState'
+	];
 
 	public static function makeVarArgs(f:Array<Dynamic>->Dynamic):Dynamic return Reflect.makeVarArgs(f);
 }

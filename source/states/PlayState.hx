@@ -583,6 +583,8 @@ class PlayState extends MusicBeatState
 
 		startCharacterPos(boyfriend);
 		boyfriendGroup.add(boyfriend);
+
+		createExtraCharacters();
 		
 		if(stageData.objects != null && stageData.objects.length > 0)
 		{
@@ -641,6 +643,7 @@ class PlayState extends MusicBeatState
 		if(gf != null) startCharacterScripts(gf.curCharacter);
 		startCharacterScripts(dad.curCharacter);
 		startCharacterScripts(boyfriend.curCharacter);
+		for (extra in extraCharacters) startCharacterScripts(extra.char.curCharacter);
 		#end
 
 		uiGroup = new FlxSpriteGroup();
@@ -1953,7 +1956,9 @@ class PlayState extends MusicBeatState
 				swagNote.mustPress = gottaHitNote;
 				swagNote.sustainLength = holdLength;
 				swagNote.noteType = noteType;
-				if(songNotes.length > 4 && songNotes[4] != null) swagNote.extraData.set('vsliceParams', songNotes[4]); //see funkin.play.notes.NoteSprite
+				// (the 5th value: who sings it, on Vortex charts with extra characters, or the parameters of a V-Slice note)
+				if(songNotes.length > 4 && Std.isOfType(songNotes[4], String)) swagNote.singers = songNotes[4];
+				else if(songNotes.length > 4 && songNotes[4] != null) swagNote.extraData.set('vsliceParams', songNotes[4]); //see funkin.play.notes.NoteSprite
 
 				swagNote.scrollFactor.set();
 				unspawnNotes.push(swagNote);
@@ -1970,6 +1975,7 @@ class PlayState extends MusicBeatState
 						sustainNote.animSuffix = swagNote.animSuffix;
 						sustainNote.mustPress = swagNote.mustPress;
 						sustainNote.gfNote = swagNote.gfNote;
+						sustainNote.singers = swagNote.singers;
 						sustainNote.noteType = swagNote.noteType;
 						sustainNote.scrollFactor.set();
 						sustainNote.parent = swagNote;
@@ -2051,6 +2057,9 @@ class PlayState extends MusicBeatState
 		// some of these, for characters that the port doesn't have (on V-Slice the mod's own script ignores them)
 		var notPsychs:Bool = (event.event == 'Change Character' && !Character.characterExists(event.value2));
 		switch(notPsychs ? '' : event.event) {
+			case "Change Character" if(precacheExtraCharacter(event.value1, event.value2)):
+				//(for an extra character)
+
 			case "Change Character":
 				var charType:Int = 0;
 				switch(event.value1.toLowerCase()) {
@@ -2651,6 +2660,7 @@ class PlayState extends MusicBeatState
 					keysCheck();
 				else
 					playerDance();
+				extrasBackToIdle();
 
 				if(notes.length > 0)
 				{
@@ -3287,6 +3297,9 @@ class PlayState extends MusicBeatState
 					}
 				}
 
+
+			case 'Change Character' if(Character.characterExists(value2) && changeExtraCharacter(value1, value2)):
+				//(the first value was the tag of an extra character: that one was changed)
 
 			case 'Change Character' if(Character.characterExists(value2)):
 				var charType:Int = 0;
@@ -4374,7 +4387,8 @@ class PlayState extends MusicBeatState
 		char = backend.VSliceScripts.missCharacters(char, direction, note);
 		#end
 
-		if(char != null && (note == null || !note.noMissAnimation) && char.hasMissAnimations)
+		missExtraCharacters(note, direction, playAsOpponent ? 'opponent' : 'player');
+		if(char != null && (note == null || !note.noMissAnimation) && char.hasMissAnimations && ExtraCharacter.mainSings(note))
 		{
 			var postfix:String = '';
 			if(note != null) postfix = note.animSuffix;
@@ -4463,8 +4477,9 @@ class PlayState extends MusicBeatState
             var char:Character = botChar;
             var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, note.noteData)))] + note.animSuffix;
             if(note.gfNote) char = gf;
+            singExtraCharacters(note, animToPlay);
 
-            if(char != null)
+            if(char != null && ExtraCharacter.mainSings(note))
             {
                 var canPlay:Bool = true;
                 if(note.isSustainNote)
@@ -4561,6 +4576,7 @@ class PlayState extends MusicBeatState
 			if(!note.noAnimation)
 			{
 				var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, note.noteData)))] + note.animSuffix;
+				singExtraCharacters(note, animToPlay);
 
 				var char:Character = playerChar;
 				var animCheck:String = 'hey';
@@ -4570,7 +4586,7 @@ class PlayState extends MusicBeatState
 					animCheck = 'cheer';
 				}
 
-				if(char != null)
+				if(char != null && ExtraCharacter.mainSings(note))
 				{
 					var canPlay:Bool = true;
 					if(note.isSustainNote)
@@ -4832,6 +4848,156 @@ class PlayState extends MusicBeatState
 			boyfriend.dance();
 		if (dad != null && beat % dad.danceEveryNumBeats == 0 && !dad.getAnimationName().startsWith('sing') && !dad.stunned)
 			dad.dance();
+
+		for (extra in extraCharacters)
+		{
+			var char:Character = extra.char;
+			if(char == null) continue;
+			var every:Int = (extra.side == 'gf') ? Math.round(gfSpeed * char.danceEveryNumBeats) : char.danceEveryNumBeats;
+			if(every > 0 && beat % every == 0 && !char.getAnimationName().startsWith('sing') && !char.stunned)
+				char.dance();
+		}
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Extra characters (Vortex Engine): see objects.ExtraCharacter
+	// ------------------------------------------------------------------------------------------
+
+	/**
+	 * The song's extra characters, made from its chart. Scripts also get each one by its tag (`getProperty('pico2.x')`).
+	 */
+	public var extraCharacters:Array<ExtraCharacter> = [];
+
+	function createExtraCharacters():Void
+	{
+		for (data in ExtraCharacter.listOf(SONG))
+		{
+			if(!Character.characterExists(data.character))
+			{
+				addTextToDebug('Extra character "${data.tag}": there is no character named "${data.character}"', FlxColor.RED);
+				continue;
+			}
+
+			var extra:ExtraCharacter = new ExtraCharacter(data);
+			extra.char = makeExtraCharacter(extra, data.character);
+			extra.characters.set(data.character, extra.char);
+			extraCharacters.push(extra);
+			variables.set(extra.tag, extra.char);
+		}
+	}
+
+	// A character for an extra one, on the spot of its side's main character (and what the chart moves it from there)
+	function makeExtraCharacter(extra:ExtraCharacter, name:String):Character
+	{
+		var group:FlxSpriteGroup = switch(extra.side)
+		{
+			case 'player': boyfriendGroup;
+			case 'gf': (gf != null) ? gfGroup : dadGroup;
+			default: dadGroup;
+		}
+
+		var char:Character = new Character(0, 0, name, extra.side == 'player');
+		startCharacterPos(char);
+		char.x += extra.offsetX;
+		char.y += extra.offsetY;
+		if(extra.behind) group.insert(0, char);
+		else group.add(char);
+		return char;
+	}
+
+	/**
+	 * The extra character with that tag, null if there's none.
+	 */
+	public function getExtraCharacter(tag:String):ExtraCharacter
+	{
+		if(tag == null) return null;
+		tag = tag.trim();
+		for (extra in extraCharacters)
+			if(extra.tag == tag) return extra;
+		return null;
+	}
+
+	// "Change Character" with the tag of an extra character: that one changes. False if it's not one's tag
+	function changeExtraCharacter(tag:String, name:String):Bool
+	{
+		var extra:ExtraCharacter = getExtraCharacter(tag);
+		if(extra == null) return false;
+		if(extra.char.curCharacter == name) return true;
+
+		precacheExtraCharacter(tag, name);
+		var next:Character = extra.characters.get(name);
+		next.alpha = extra.char.alpha;
+		extra.char.alpha = 0.00001;
+		extra.char = next;
+		variables.set(extra.tag, next);
+		return true;
+	}
+
+	function precacheExtraCharacter(tag:String, name:String):Bool
+	{
+		var extra:ExtraCharacter = getExtraCharacter(tag);
+		if(extra == null) return false;
+		if(!extra.characters.exists(name) && Character.characterExists(name))
+		{
+			var char:Character = makeExtraCharacter(extra, name);
+			char.alpha = 0.00001;
+			extra.characters.set(name, char);
+			startCharacterScripts(name);
+		}
+		return true;
+	}
+
+	// The extra characters that sing a note sing it, the way the main ones do (long notes keep the pose going)
+	function singExtraCharacters(note:Note, anim:String):Void
+	{
+		for (extra in extraCharacters)
+		{
+			if(!extra.sings(note)) continue;
+
+			var char:Character = extra.char;
+			var animToPlay:String = anim;
+			var canPlay:Bool = true;
+			if(note.isSustainNote)
+			{
+				var holdAnim:String = animToPlay + '-hold';
+				if(char.animation.exists(holdAnim)) animToPlay = holdAnim;
+				if(char.getAnimationName() == holdAnim || char.getAnimationName() == holdAnim + '-loop') canPlay = false;
+				if(char.specialAnim || !char.canRestartForHold()) canPlay = false;
+			}
+
+			if(canPlay) char.playAnim(animToPlay, true);
+			char.holdTimer = 0;
+		}
+	}
+
+	// The ones that would have sung a missed note miss it (a key pressed on nothing: the ones that sing all of that side)
+	function missExtraCharacters(note:Note, direction:Int, side:String):Void
+	{
+		if(note != null && note.noMissAnimation) return;
+
+		for (extra in extraCharacters)
+		{
+			var char:Character = extra.char;
+			if(char == null || !char.hasMissAnimations) continue;
+			if(note != null ? !extra.sings(note) : (extra.side != side || !extra.singsAll)) continue;
+
+			var postfix:String = (note != null) ? note.animSuffix : '';
+			char.playAnim(singAnimations[Std.int(Math.abs(Math.min(singAnimations.length - 1, direction)))] + 'miss' + postfix, true);
+		}
+	}
+
+	// The ones on the player's side don't go back to dancing by themselves after singing (like the player): done here
+	function extrasBackToIdle():Void
+	{
+		for (extra in extraCharacters)
+		{
+			var char:Character = extra.char;
+			if(char == null || !char.isPlayer) continue;
+
+			var anim:String = char.getAnimationName();
+			if(char.holdTimer > Conductor.stepCrochet * (0.0011 #if FLX_PITCH / FlxG.sound.music.pitch #end) * char.singDuration && anim.startsWith('sing') && !anim.endsWith('miss'))
+				char.dance();
+		}
 	}
 
 	public function playerDance():Void
@@ -5587,6 +5753,7 @@ class PlayState extends MusicBeatState
 	}
 
 	public function networkOpponentMiss(noteData:Int, isPress:Bool = false, isSustain:Bool = false) {
+		missExtraCharacters(null, noteData, playAsOpponent ? 'player' : 'opponent');
 		var char:Character = otherCharacter;
 		if (char != null && char.hasMissAnimations) {
 			var animToPlay:String = singAnimations[Std.int(Math.abs(noteData))] + 'miss';

@@ -29,6 +29,7 @@ import backend.Highscore;
 import backend.Difficulty;
 
 import objects.Character;
+import objects.ExtraCharacter;
 import objects.HealthIcon;
 import objects.Note;
 import objects.StrumNote;
@@ -460,7 +461,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		infoBox.getTab('Information').menu.add(infoText);
 		add(infoBox);
 
-		mainBox = new PsychUIBox(mainBoxPosition.x, mainBoxPosition.y, 300, 280, ['Charting', 'Data', 'Events', 'Note', 'Section', 'Song']);
+		mainBox = new PsychUIBox(mainBoxPosition.x, mainBoxPosition.y, 340, 280, ['Charting', 'Data', 'Events', 'Note', 'Section', 'Song', 'Extras']);
 		mainBox.selectedName = 'Song';
 		mainBox.scrollFactor.set();
 		mainBox.cameras = [camUI];
@@ -512,6 +513,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		addNoteTab();
 		addSectionTab();
 		addSongTab();
+		addExtrasTab();
 		
 		////// for upper box
 		addFileTab();
@@ -535,8 +537,13 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		// CHARACTERS FOR THE DROP DOWNS
 		var gameOverCharacters:Array<String> = loadFileList('characters/', 'data/characterList.txt');
+		#if MODS_ALLOWED
+		// (a V-Slice mod's characters and stages are in its "data" folder, with the base game's: they're in the lists too)
+		for (id in PolymodCompat.listDataIds('characters')) if(!gameOverCharacters.contains(id)) gameOverCharacters.push(id);
+		#end
 		var characterList:Array<String> = gameOverCharacters.filter((name:String) -> (!name.endsWith('-dead') && !name.endsWith('-death')));
 		playerDropDown.list = characterList;
+		extraCharDropDown.list = characterList;
 		opponentDropDown.list = characterList;
 		girlfriendDropDown.list = characterList;
 
@@ -548,7 +555,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		});
 		gameOverCharDropDown.list = gameOverCharacters;
 
-		stageDropDown.list = loadFileList('stages/', 'data/stageList.txt');
+		var stageList:Array<String> = loadFileList('stages/', 'data/stageList.txt');
+		#if MODS_ALLOWED
+		for (id in PolymodCompat.listDataIds('stages')) if(!stageList.contains(id)) stageList.push(id);
+		#end
+		stageDropDown.list = stageList;
 		onChartLoaded();
 
 		var tipText:FlxText = new FlxText(FlxG.width - 210, FlxG.height - 30 - PLAYBAR_SPACE, 200, 'Press F1 for Help', 20);
@@ -734,6 +745,10 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		noteTextureInputText.text = PlayState.SONG.arrowSkin;
 		noteSplashesInputText.text = PlayState.SONG.splashSkin;
+
+		// EXTRAS TAB
+		curExtra = 0;
+		refreshExtrasTab();
 	}
 	
 	var noteSelectionSine:Float = 0;
@@ -1785,6 +1800,22 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			return false;
 		}
 
+		// (one that started next to the grid and came onto it: it's still a selection box, or a click on nothing)
+		if(pendingPress == PRESS_OUTSIDE)
+		{
+			if(!FlxG.mouse.pressed)
+			{
+				resetSelectedNotes();
+				pendingPress = PRESS_NONE;
+			}
+			else if(pressMoved())
+			{
+				startSelectionBox(true);
+				pendingPress = PRESS_NONE;
+			}
+			return false;
+		}
+
 		if(pendingPress != PRESS_EMPTY && pendingPress != PRESS_SELECTED) return false;
 		if(!FlxG.mouse.pressed)
 		{
@@ -2030,6 +2061,13 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				{
 					susLengthLastVal = susLengthStepper.value = note.sustainLength;
 					noteTypeDropDown.selectedIndex = Std.int(Math.max(0, noteTypes.indexOf(note.noteType)));
+					sungByDropDown.selectedLabel = switch(note.singers)
+					{
+						case null: SUNG_DEFAULT;
+						case ExtraCharacter.MAIN: SUNG_MAIN;
+						case ExtraCharacter.ALL: SUNG_ALL;
+						default: note.singers;
+					}
 				}
 				else
 				{
@@ -2049,6 +2087,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			susLengthLastVal = susLengthStepper.value = 0;
 			strumTimeStepper.value = selectedNotes[0].strumTime;
 			noteTypeDropDown.selectedLabel = '';
+			sungByDropDown.selectedLabel = '';
 			eventDropDown.selectedLabel = '';
 			value1InputText.text = '';
 			value2InputText.text = '';
@@ -2311,6 +2350,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		swagNote.setSustainLength(note[2], cachedSectionCrochets[secNum] / 4, curZoom);
 		swagNote.gfNote = (section.gfSection && gottaHitNote == section.mustHitSection);
 		swagNote.noteType = note[3];
+		swagNote.singers = (note.length > 4 && Std.isOfType(note[4], String)) ? note[4] : null;
+		swagNote.setSingerLabel(swagNote.singers);
 		swagNote.scrollFactor.x = 0;
 		var txt:FlxText = swagNote.findNoteTypeText(swagNote.noteType != null ? noteTypes.indexOf(swagNote.noteType) : 0);
 		if(txt != null) txt.visible = showNoteTypeLabels;
@@ -3077,8 +3118,10 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 				if(typeSelected != null && typeSelected.length > 0)
 					note.songData[3] = typeSelected;
-				else
-					note.songData.remove(note.songData[3]);
+				else if(note.songData.length > 4)
+					note.songData[3] = ''; //(the 5th value, who sings it, stays where it is)
+				else if(note.songData.length > 3)
+					note.songData.splice(3, 1);
 
 				var id:Int = notes.indexOf(note);
 				if(id > -1)
@@ -3095,10 +3138,272 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		
 		tab_group.add(new FlxText(susLengthStepper.x, susLengthStepper.y - 15, 80, 'Sustain length:'));
 		tab_group.add(new FlxText(strumTimeStepper.x, strumTimeStepper.y - 15, 100, 'Note Hit time (ms):'));
+		// who sings the note, when the song has extra characters (see the Extras tab)
+		objY += 40;
+		sungByDropDown = new PsychUIDropDownMenu(objX, objY, [SUNG_DEFAULT], function(id:Int, label:String)
+		{
+			var value:String = switch(label)
+			{
+				case SUNG_DEFAULT: null;
+				case SUNG_MAIN: ExtraCharacter.MAIN;
+				case SUNG_ALL: ExtraCharacter.ALL;
+				default: label;
+			}
+			var changed:Int = 0;
+			for (note in selectedNotes)
+			{
+				if(note == null || note.isEvent) continue;
+				setNoteSingers(note, value);
+				changed++;
+			}
+			if(changed > 0) showOutput('"$label" sings $changed note(s)');
+		}, 150);
+
 		tab_group.add(new FlxText(noteTypeDropDown.x, noteTypeDropDown.y - 15, 80, 'Note Type:'));
+		tab_group.add(new FlxText(sungByDropDown.x, sungByDropDown.y - 15, 200, 'Sung by (extra characters):'));
 		tab_group.add(susLengthStepper);
 		tab_group.add(strumTimeStepper);
+		tab_group.add(sungByDropDown);
 		tab_group.add(noteTypeDropDown);
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Extra characters (Vortex Engine): see objects.ExtraCharacter
+	// ------------------------------------------------------------------------------------------
+
+	static inline final SUNG_DEFAULT:String = 'Default';
+	static inline final SUNG_MAIN:String = 'Main character only';
+	static inline final SUNG_ALL:String = 'Everyone on its side';
+	static final SIDE_NAMES:Array<String> = ['Opponent', 'Player', 'Girlfriend'];
+
+	var sungByDropDown:PsychUIDropDownMenu;
+	var curExtra:Int = 0;
+	var extraSelectDropDown:PsychUIDropDownMenu;
+	var extraCharDropDown:PsychUIDropDownMenu;
+	var extraSideDropDown:PsychUIDropDownMenu;
+	var extraTagInputText:PsychUIInputText;
+	var extraXStepper:PsychUINumericStepper;
+	var extraYStepper:PsychUINumericStepper;
+	var extraSingsAllCheckBox:PsychUICheckBox;
+	var extraBehindCheckBox:PsychUICheckBox;
+	var extraRemoveButton:PsychUIButton;
+	var extraInfoText:FlxText;
+	var extraFields:Array<FlxSprite> = [];
+
+	function getExtras():Array<Dynamic>
+	{
+		if(PlayState.SONG.vortexCharacters == null) PlayState.SONG.vortexCharacters = [];
+		return PlayState.SONG.vortexCharacters;
+	}
+
+	function getCurExtra():Dynamic
+	{
+		var list:Array<Dynamic> = getExtras();
+		return (curExtra >= 0 && curExtra < list.length) ? list[curExtra] : null;
+	}
+
+	// Who sings a note: its 5th value (null: the default ones)
+	function setNoteSingers(note:MetaNote, value:String):Void
+	{
+		var data:Array<Dynamic> = note.songData;
+		if(value == null || value.length < 1)
+		{
+			if(data.length > 4 && Std.isOfType(data[4], String)) data.splice(4, data.length - 4);
+		}
+		else
+		{
+			while(data.length < 4) data.push(data.length == 2 ? 0 : '');
+			data[4] = value;
+		}
+		note.singers = (value != null && value.length > 0) ? value : null;
+		note.setSingerLabel(note.singers);
+	}
+
+	function addExtrasTab()
+	{
+		var tab_group = mainBox.getTab('Extras').menu;
+		var objX:Float = 10;
+		var objY:Float = 25;
+
+		extraSelectDropDown = new PsychUIDropDownMenu(objX, objY, [''], function(id:Int, label:String)
+		{
+			curExtra = id;
+			refreshExtrasTab();
+		}, 120);
+
+		var addButton:PsychUIButton = new PsychUIButton(objX + 130, objY, 'Add', function()
+		{
+			var list:Array<Dynamic> = getExtras();
+			var num:Int = list.length + 1;
+			while(extraTagExists('extra$num')) num++;
+			var opponent:String = (PlayState.SONG.player2 != null) ? PlayState.SONG.player2 : 'dad';
+			list.push({tag: 'extra$num', character: opponent, side: 'opponent', x: -250, y: 0, singsAll: false, behind: true});
+			curExtra = list.length - 1;
+			refreshExtrasTab();
+			showOutput('Added "extra$num". Who sings each note: Note tab, "Sung by"');
+		}, 55);
+
+		extraRemoveButton = new PsychUIButton(objX + 195, objY, 'Remove', function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra == null) return;
+
+			// the notes that were only for it go back to the default singers
+			var count:Int = 0;
+			for (note in notes)
+			{
+				if(note == null || note.isEvent || note.singers != extra.tag) continue;
+				setNoteSingers(note, null);
+				count++;
+			}
+			getExtras().remove(extra);
+			curExtra = Std.int(Math.max(0, curExtra - 1));
+			refreshExtrasTab();
+			showOutput('Removed "${extra.tag}"' + (count > 0 ? ' ($count of its notes went back to the default singers)' : ''));
+		}, 70);
+		extraRemoveButton.normalStyle.bgColor = FlxColor.RED;
+		extraRemoveButton.normalStyle.textColor = FlxColor.WHITE;
+
+		objY += 40;
+		extraTagInputText = new PsychUIInputText(objX, objY, 120, '', 8);
+		extraTagInputText.onChange = function(old:String, cur:String)
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra == null) return;
+
+			cur = cur.trim();
+			if(cur.length < 1 || cur == ExtraCharacter.MAIN || cur == ExtraCharacter.ALL || cur.contains(',')) return;
+			if(cur != extra.tag && extraTagExists(cur)) return;
+
+			// (its notes stay its)
+			var oldTag:String = extra.tag;
+			for (note in notes)
+				if(note != null && !note.isEvent && note.singers == oldTag)
+					setNoteSingers(note, cur);
+			extra.tag = cur;
+			refreshExtraLists();
+		};
+
+		extraSideDropDown = new PsychUIDropDownMenu(objX + 140, objY, SIDE_NAMES, function(id:Int, label:String)
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.side = ExtraCharacter.SIDES[id];
+		}, 120);
+
+		objY += 40;
+		extraCharDropDown = new PsychUIDropDownMenu(objX, objY, [''], function(id:Int, character:String)
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.character = character;
+		}, 150);
+
+		objY += 40;
+		extraXStepper = new PsychUINumericStepper(objX, objY, 10, 0, -9999, 9999, 0, 80);
+		extraXStepper.onValueChange = function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.x = extraXStepper.value;
+		};
+		extraYStepper = new PsychUINumericStepper(objX + 110, objY, 10, 0, -9999, 9999, 0, 80);
+		extraYStepper.onValueChange = function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.y = extraYStepper.value;
+		};
+
+		objY += 25;
+		extraSingsAllCheckBox = new PsychUICheckBox(objX, objY, 'Sings every note of its side (duet)', 220, function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.singsAll = extraSingsAllCheckBox.checked;
+		});
+		objY += 25;
+		extraBehindCheckBox = new PsychUICheckBox(objX, objY, 'Behind the main character', 220, function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.behind = extraBehindCheckBox.checked;
+		});
+
+		objY += 30;
+		extraInfoText = new FlxText(objX, objY, 280, '', 8);
+
+		var labels:Array<FlxText> = [
+			new FlxText(extraSelectDropDown.x, extraSelectDropDown.y - 15, 200, 'Extra character:'),
+			new FlxText(extraTagInputText.x, extraTagInputText.y - 15, 130, 'Tag (notes, scripts):'),
+			new FlxText(extraSideDropDown.x, extraSideDropDown.y - 15, 120, 'Side:'),
+			new FlxText(extraCharDropDown.x, extraCharDropDown.y - 15, 120, 'Character:'),
+			new FlxText(extraXStepper.x, extraXStepper.y - 15, 100, 'X (from the main):'),
+			new FlxText(extraYStepper.x, extraYStepper.y - 15, 100, 'Y (from the main):')
+		];
+		for (label in labels) tab_group.add(label);
+		tab_group.add(addButton);
+		tab_group.add(extraRemoveButton);
+		tab_group.add(extraXStepper);
+		tab_group.add(extraYStepper);
+		tab_group.add(extraSingsAllCheckBox);
+		tab_group.add(extraBehindCheckBox);
+		tab_group.add(extraInfoText);
+		tab_group.add(extraTagInputText);
+		tab_group.add(extraCharDropDown);
+		tab_group.add(extraSideDropDown);
+		tab_group.add(extraSelectDropDown);
+
+		// (what's hidden while there are none)
+		extraFields = [extraRemoveButton, extraTagInputText, extraSideDropDown, extraCharDropDown, extraXStepper, extraYStepper,
+			extraSingsAllCheckBox, extraBehindCheckBox, labels[1], labels[2], labels[3], labels[4], labels[5]];
+	}
+
+	function extraTagExists(tag:String):Bool
+	{
+		for (extra in getExtras())
+			if(extra != null && extra.tag == tag) return true;
+		return false;
+	}
+
+	// The tab shows the extra character picked on it
+	function refreshExtrasTab():Void
+	{
+		if(extraSelectDropDown == null || PlayState.SONG == null) return;
+
+		var fromVSlice:Bool = #if MODS_ALLOWED PolymodCompat.isVSliceChart(PlayState.SONG) #else false #end;
+		var list:Array<Dynamic> = fromVSlice ? [] : getExtras();
+		curExtra = Std.int(FlxMath.bound(curExtra, 0, Math.max(0, list.length - 1)));
+		refreshExtraLists();
+
+		var extra:Dynamic = fromVSlice ? null : getCurExtra();
+		var has:Bool = (extra != null);
+		for (field in extraFields) field.visible = field.active = has;
+		extraSelectDropDown.visible = extraSelectDropDown.active = !fromVSlice;
+
+		if(fromVSlice)
+			extraInfoText.text = "Extra characters are a Vortex Engine feature of Psych charts:\na V-Slice chart is saved back to its own files, which can't have them.";
+		else if(!has)
+			extraInfoText.text = 'Characters that sing besides the opponent, the player\nand the girlfriend, with no script needed. Press "Add".';
+		else
+		{
+			extraSelectDropDown.selectedIndex = curExtra;
+			extraTagInputText.text = extra.tag;
+			extraSideDropDown.selectedIndex = Std.int(Math.max(0, ExtraCharacter.SIDES.indexOf(extra.side)));
+			extraCharDropDown.selectedLabel = extra.character;
+			extraXStepper.value = (extra.x != null) ? extra.x : 0;
+			extraYStepper.value = (extra.y != null) ? extra.y : 0;
+			extraSingsAllCheckBox.checked = (extra.singsAll == true);
+			extraBehindCheckBox.checked = (extra.behind == true);
+			extraInfoText.text = 'Who sings each note: Note tab, "Sung by".\nScripts get it by its tag; "Change Character" with\nthe tag changes it. (Vortex Engine only)';
+		}
+	}
+
+	// The names on the lists of extra characters: the one to edit, and who can sing a note
+	function refreshExtraLists():Void
+	{
+		var fromVSlice:Bool = #if MODS_ALLOWED PolymodCompat.isVSliceChart(PlayState.SONG) #else false #end;
+		var tags:Array<String> = fromVSlice ? [] : [for (extra in getExtras()) if(extra != null) Std.string(extra.tag)];
+		if(extraSelectDropDown != null)
+		{
+			extraSelectDropDown.list = (tags.length > 0) ? tags : [''];
+			extraSelectDropDown.selectedIndex = (tags.length > 0) ? curExtra : 0;
+		}
+		if(sungByDropDown != null) sungByDropDown.list = [SUNG_DEFAULT, SUNG_MAIN, SUNG_ALL].concat(tags);
 	}
 
 	var mustHitCheckBox:PsychUICheckBox;
@@ -5468,6 +5773,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			events.sort(PlayState.sortByTime);
 		}
 		softReloadNotes();
+		forceDataUpdate = true;
 	}
 
 	function actionRemoveNotes(dataNotes:Array<MetaNote>, dataEvents:Array<EventMetaNote>)
@@ -5508,6 +5814,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			}
 		}
 		softReloadNotes();
+		forceDataUpdate = true; //(the "Selected" count is written again)
 	}
 
 	function actionReplaceNotes(oldNote:MetaNote, newNote:MetaNote)

@@ -658,6 +658,20 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 				return;
 			}
 
+			// a symbol with a blend mode that is just one image: drawn straight with that blend mode. The library would draw it on a
+			// bitmap of its own first, again each time it moves, the size it's shown at (Pico's Freeplay flashes cover the screen, and
+			// the game went at a few frames a second while they were on)
+			if(directBlend == null && filterInstance == null && instance != null && instance.visible && isDirectBlend(instance))
+			{
+				directBlend = instance.symbol.blendMode;
+				var skipFilters:Bool = anim.metadata.skipFilters;
+				anim.metadata.skipFilters = true; //(what makes the library skip that bitmap; there's nothing else under it it would skip)
+				super.parseElement(instance, m, colorFilter, filterInstance, cameras, scrollFactor);
+				anim.metadata.skipFilters = skipFilters;
+				directBlend = null;
+				return;
+			}
+
 			super.parseElement(instance, m, colorFilter, filterInstance, cameras, scrollFactor);
 			return;
 		}
@@ -667,6 +681,62 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 
 	// While a symbol with one of those blend modes is drawn: the cameras its pieces go on instead of each camera
 	var blendLayers:haxe.ds.ObjectMap<FlxCamera, FlxCamera> = null;
+
+	// The blend mode the images of the symbol being drawn straight get (see `isDirectBlend()`)
+	var directBlend:openfl.display.BlendMode = null;
+	var _singleImages:Map<String, Bool> = [];
+
+	@:privateAccess
+	function isDirectBlend(instance:FlxElement):Bool
+	{
+		var params = instance.symbol;
+		if(params == null || params.blendMode == null || params.blendMode == NORMAL || @:privateAccess params._cacheAsBitmap) return false;
+		if(params.filters != null && params.filters.length > 0) return false;
+		return isSingleImage(params.name, 0);
+	}
+
+	// If a symbol is never more than one image at a time, with nothing that blends, filters or masks in it
+	@:privateAccess
+	function isSingleImage(name:String, depth:Int):Bool
+	{
+		if(name == null || depth > 8) return false;
+		if(depth == 0 && _singleImages.exists(name)) return _singleImages.get(name);
+
+		var single:Bool = false;
+		var symbol = anim.symbolDictionary.get(name);
+		if(symbol != null && symbol.timeline != null)
+		{
+			var layers = symbol.timeline.getList();
+			single = (layers.length == 1);
+			if(single)
+			{
+				var layer = layers[0];
+				if(layer.type != Normal || @:privateAccess layer._clipper != null) single = false;
+				else
+				{
+					for (keyFrame in @:privateAccess layer._keyframes)
+					{
+						var elements = keyFrame.getList();
+						if(elements.length > 1 || (keyFrame.filters != null && keyFrame.filters.length > 0)) { single = false; break; }
+						for (element in elements)
+						{
+							if(element.bitmap != null) continue;
+							var inner = element.symbol;
+							if(inner == null || (inner.blendMode != null && inner.blendMode != NORMAL) || @:privateAccess inner._cacheAsBitmap
+								|| (inner.filters != null && inner.filters.length > 0) || !isSingleImage(inner.name, depth + 1))
+							{
+								single = false;
+								break;
+							}
+						}
+						if(!single) break;
+					}
+				}
+			}
+		}
+		if(depth == 0) _singleImages.set(name, single);
+		return single;
+	}
 
 	// The blend mode of an instance that `backend.CameraBlend` does, -1 if it has none of those
 	static function cameraBlendOf(instance:FlxElement):Int
@@ -1102,6 +1172,8 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 	override function drawLimb(limb:flixel.graphics.frames.FlxFrame, _matrix:FlxMatrix, ?colorTransform:ColorTransform = null, filterin:Bool = false,
 		?blendMode:openfl.display.BlendMode, ?scrollFactor:FlxPoint = null, cameras:Array<FlxCamera> = null)
 	{
+		if(directBlend != null && !filterin && (blendMode == null || blendMode == NORMAL)) blendMode = directBlend;
+
 		if(blendLayers != null && !filterin)
 		{
 			// (on the camera of its own each camera has, which sees the same: everything is worked out for the camera it goes on)

@@ -21,6 +21,7 @@
 | 🌐 **Online multiplayer** | Host or join a match by IP and play a song against a friend: each player sings one side. |
 | 🎤 **V-Slice menus for everyone** | Freeplay with the DJ, Character Select, the Results screen and the sticker transition, for Psych songs too. |
 | 🎮 **New gameplay options** | Play as Opponent, Health Drain, Break Timer, Lane Underlay, Ghost Notes, Hold Note Covers and more. |
+| 👥 **Extra characters** | Add more singers to a song in the chart editor (a duet, a third character...) and pick who sings each note, with no script. |
 | 🛠️ **Better editors** | Box selection in the chart editor, mouse tools and undo in the other editors, plus a new Character Select / Results editor. |
 | 📜 **More scripting** | New Lua and HScript functions, callbacks and properties, listed in [`scripts.txt`](scripts.txt). |
 
@@ -32,6 +33,7 @@ Put a V-Slice mod in the `mods` folder and it shows up in the game like any othe
 
 * **Scripts:** `.hxc` scripts run through Vortex's own interpreter: song, stage, character, module, dialogue, Freeplay and results scripts.
 * **Content:** V-Slice charts (`-chart.json` / `-metadata.json`, every difficulty and variation), stages, characters (Sparrow, Packer, multi-sparrow and Adobe Animate atlases), song events (`FocusCamera`, `ZoomCamera`, `SetCameraBop`, `PlayAnimation`, ...), note kinds and dialogue conversations.
+* **Utility mods:** a V-Slice mod with scripts and no songs of its own (a custom pause menu, HUD or camera module) runs on the V-Slice songs of every mod, like on V-Slice.
 * **Playable characters:** a mod's playable characters appear in Character Select and bring their own Freeplay DJ and results animations.
 * **Built-in base game content:** the V-Slice versions of the base weeks, stages and characters come with the engine, so mods that depend on them work without the official game installed.
 * Made for mods targeting the V-Slice 0.8.x API (the one from 0.8.0 up to the latest 0.8.6).
@@ -120,6 +122,7 @@ Each of these is an option, and Psych mods get them too.
 </p>
 
 * **Chart Editor:** a music player bar at the bottom (like V-Slice's): drag it to go anywhere in the song, play/pause and skip with its buttons, and see the time left, beat, step, BPM and snap. Drag a box with the mouse to select notes, drag the selection to move it, cut / copy / paste and undo. Music plays when you leave it idle, like in V-Slice (`M` turns it off).
+* **Extra characters:** the chart editor's "Extras" tab adds characters besides the opponent, the player and the girlfriend (a character, a side, where it stands), and the Note tab's "Sung by" picks who sings each note: the main character, an extra one, or everyone on that side. They dance, sing, hold long notes and miss like the main ones; scripts get them by their tag. See section 8 of [`scripts.txt`](scripts.txt).
 * **Stage, Character, Dialogue Portrait and Menu Character editors:** move things with the mouse, with undo.
 * **Character Select & Results editor (new):** place the characters, portraits and results animations of a playable character, with a live preview. What you save works in the official V-Slice too.
 
@@ -141,6 +144,13 @@ Everything Psych Engine's Lua and HScript can do still works, and so do V-Slice'
 * Camera rotation without empty corners: no `zCameraFix` scripts needed.
 
 The full list, with examples, is in [`scripts.txt`](scripts.txt).
+
+> [!WARNING]
+> **Mods made with Vortex Engine are not recommended for other engines.**
+> Many features only exist in Vortex: the functions, variables and callbacks above, the extra blend modes, the gameplay changers, V-Slice dialogue in Psych songs, online checks and the files made by its editors. A mod that uses any of them will break or behave differently on Psych Engine, V-Slice or other forks.
+> A mod made in Vortex can only be expected to work elsewhere if it **doesn't use any of Vortex's exclusive mechanics** (plain Psych Engine 1.0.4 Lua/HScript, or plain V-Slice content).
+> If you want your mod to run on other engines too, check for Vortex with the `VortexEngine` variable before using these features.
+> The **CHECK MOD** button in the mods menu lists everything a mod uses that only Vortex has, with the file and line of each one.
 
 ---
 

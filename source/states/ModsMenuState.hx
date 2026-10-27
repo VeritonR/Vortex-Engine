@@ -235,6 +235,17 @@ class ModsMenuState extends MusicBeatState
 				button.enabled = false;
 		}
 
+		// Vortex Engine: what the mod uses that only Vortex has (see backend.ModCompatibility)
+		var compatButton:MenuButton = new MenuButton(bgButtons.x + 15, buttonsY, 290, 80, Language.getPhrase('compat_button', 'CHECK MOD'), function()
+		{
+			var curMod:ModItem = modsGroup.members[curSelectedMod];
+			if(curMod == null) return;
+			FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
+			openSubState(new substates.ModCompatSubState(curMod.folder, curMod.name));
+		});
+		add(compatButton);
+		buttons.insert(0, compatButton);
+
 		settingsButton = new MenuButton(buttonsX + 300, buttonsY, 80, 80, Paths.image('modsMenuButtons'), function() //Settings
 		{
 			var curMod:ModItem = modsGroup.members[curSelectedMod];

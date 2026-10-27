@@ -212,3 +212,47 @@ Play as Opponent and V-Slice scripts: what V-Slice scripts know as "playerStruml
     ones the player has to hit. If a song hides the whole HUD while the player has notes coming, it shows up until they're played.
 Psych songs and V-Slice songs share the results screen, the sticker transition and the Freeplay menus (options of the
     player), so a Psych mod gets them without doing anything.
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  8. EXTRA CHARACTERS (more characters singing in a song, no script needed)
+//------------------------------------------------------------------------------------------------------------------//
+On the chart editor, the "Extras" tab adds characters besides the opponent, the player and the girlfriend. Each one has:
+    Tag        the name notes and scripts know it by ("pico2")
+    Side       Opponent, Player or Girlfriend: whose notes it can sing, and whose spot it stands next to
+    Character  the character file
+    X / Y      where it stands, from the spot of the main character of its side
+    Sings every note of its side (duet) / Behind the main character
+Who sings each note: select notes and pick it on the Note tab, "Sung by":
+    Default               the main character of the side (and the extra ones set to sing every note)
+    Main character only   only the main one
+    Everyone on its side  the main one and every extra one of that side
+    (a tag)               only that extra character
+They dance on the beat, sing, hold long notes and miss like the main ones (also online and with Play as Opponent).
+
+In the chart (Psych format): a "vortexCharacters" list, and the 5th value of a note says who sings it:
+    "vortexCharacters": [{"tag": "pico2", "character": "pico", "side": "opponent", "x": -250, "y": 0,
+                          "singsAll": false, "behind": true}]
+    [1200, 5, 0, "", "pico2"]      // "main", "all", a tag, or tags separated by commas ("main,pico2")
+
+Scripts get each one by its tag, like a Lua sprite:
+    setProperty('pico2.alpha', 0.5)
+    playAnim('pico2', 'hey', true)
+    getProperty('pico2.curCharacter')
+"Change Character" event with the tag as its first value changes that extra character (value 2: the new character).
+Notes: getPropertyFromGroup('notes', i, 'singers') / note.singers (HScript) - who sings it (null = the default ones).
+HScript: game.extraCharacters (a list: .tag, .side, .char), game.getExtraCharacter('pico2').char
+
+Other engines don't have them: the extra characters don't show up there and the main characters sing every note.
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  9. MAKING A MOD FOR OTHER ENGINES TOO
+//------------------------------------------------------------------------------------------------------------------//
+The mods menu has a "CHECK MOD" button: it reads the mod's scripts, charts and icons and lists everything it uses that only
+Vortex Engine has (everything in this file), with the file and line of each one:
+    ERROR       other engines stop the script there (a function only Vortex has)
+    DIFFERENT   it works differently or not at all there (callbacks, properties, blend modes, extra characters)
+    NOTE        usually fine (a variable that is just nil there, an option that reads as nothing)
+A mod with no ERROR or DIFFERENT should also work on Psych Engine 1.0.4 (or V-Slice, for V-Slice mods). Checking the
+VortexEngine variable before using something (section 1) is how a script can work on both.
