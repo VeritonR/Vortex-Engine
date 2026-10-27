@@ -84,7 +84,14 @@ class TitleState extends MusicBeatState
 		#elseif CHARTING
 		MusicBeatState.switchState(new ChartingState());
 		#else
-		if(!BetaWarningState.leftState)
+		if(!LanguageSelectState.chosen)
+		{
+			// (the first time the game is opened: the language comes before everything, the warnings are shown in it)
+			FlxTransitionableState.skipNextTransIn = true;
+			FlxTransitionableState.skipNextTransOut = true;
+			MusicBeatState.switchState(new LanguageSelectState());
+		}
+		else if(!BetaWarningState.leftState)
 		{
 			// (the engine is a beta: whoever opens it is told what to expect)
 			FlxTransitionableState.skipNextTransIn = true;

@@ -230,9 +230,16 @@ class PlayState
 	public var cameraFollowPoint(get, never):FlxObject;
 	function get_cameraFollowPoint():FlxObject return game.camFollow;
 
+	// On V-Slice the health is always Boyfriend's (its side of the bar), and scripts draw their own bars and drain it that way. With Play
+	// as Opponent (the dad's side online too) the game's own is the one of who's playing, the dad's: scripts get it as Boyfriend's,
+	// or their bars went the wrong way (Schwiftying's)
 	public var health(get, set):Float;
-	function get_health():Float return game.health;
-	function set_health(value:Float):Float return game.health = value;
+	function get_health():Float return game.playAsOpponent ? 2 - game.health : game.health;
+	function set_health(value:Float):Float
+	{
+		game.health = game.playAsOpponent ? 2 - value : value;
+		return value;
+	}
 
 	public var songScore(get, set):Int;
 	function get_songScore():Int return game.songScore;
@@ -309,7 +316,7 @@ class PlayState
 
 	// (the health the bar shows, which goes after the real one on V-Slice; here the bar follows it by itself)
 	public var healthLerp(get, set):Float;
-	function get_healthLerp():Float return game.health;
+	function get_healthLerp():Float return get_health();
 	function set_healthLerp(value:Float):Float return value;
 
 	public var previousDifficulty(get, never):String;

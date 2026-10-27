@@ -4,7 +4,7 @@ class InterfaceSettingsSubState extends BaseOptionsMenu
 {
 	public function new()
 	{
-		title = 'V-Slice Settings';
+		title = Language.getPhrase('vslice_menu', 'V-Slice Settings');
 		rpcTitle = 'V-Slice Settings Menu';
 
 		var option:Option = new Option('Freeplay Style',

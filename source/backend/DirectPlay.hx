@@ -527,7 +527,7 @@ class DirectPlay
 			}
 			mouseActions.sort((a, b) -> Reflect.compare(a.time, b.time));
 		}
-		if(shotTimes.length > 0 || quitAfter >= 0 || keyPresses.length > 0 || mouseActions.length > 0 || options.exists('freezeatlas') || options.exists('members')) FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
+		if(shotTimes.length > 0 || quitAfter >= 0 || keyPresses.length > 0 || mouseActions.length > 0 || options.exists('freezeatlas') || options.exists('members') || options.exists('fullscreenat')) FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
 
 		// what the current state is doing, once a second (a menu that stopped updating, a substate over it...)
 		if(options.exists('stateinfo'))
@@ -543,7 +543,8 @@ class DirectPlay
 				@:privateAccess
 				Sys.println('STATE ' + Type.getClassName(Type.getClass(state)) + ' active=' + state.active + ' exists=' + state.exists
 					+ ' persistentUpdate=' + state.persistentUpdate + ' sub=' + (sub != null ? Type.getClassName(Type.getClass(sub)) + ' (active=' + sub.active + ')' : 'none')
-					+ ' requested=' + (FlxG.game._nextState != null) + ' paused=' + FlxG.game._lostFocus);
+					+ ' requested=' + (FlxG.game._nextState != null) + ' paused=' + FlxG.game._lostFocus
+					+ ' fullscreen=' + FlxG.fullscreen + ' window=' + FlxG.stage.window.width + 'x' + FlxG.stage.window.height);
 			});
 		}
 
@@ -643,6 +644,14 @@ class DirectPlay
 ' + lines.join('
 '));
 		}
+		// "--fullscreenat=SECONDS": the window goes fullscreen then, like with ALT+ENTER (not through the game's option)
+		if(options.exists('fullscreenat') && !wentFullscreen && elapsed >= number('fullscreenat', 0))
+		{
+			wentFullscreen = true;
+			FlxG.stage.window.fullscreen = true;
+			Sys.println('DIRECTPLAY: the window went fullscreen');
+		}
+
 		// "--freezeatlas=SECONDS": every texture atlas on the screen stops on the first frame of what it's playing then
 		// (to compare one with V-Slice on the very same frame)
 		if(options.exists('freezeatlas') && !atlasesFrozen && elapsed >= number('freezeatlas', 0))
@@ -691,7 +700,7 @@ class DirectPlay
 			var atlas:flxanimate.FlxAnimate = Std.downcast(member, flxanimate.FlxAnimate);
 			if(atlas != null && atlas.anim != null)
 			{
-				atlas.anim.curFrame = 0;
+				atlas.anim.curFrame = Std.int(number('freezeframe', 0)); //(--freezeframe=N: that frame of it instead of the first)
 				atlas.anim.pause();
 				continue;
 			}
@@ -705,6 +714,7 @@ class DirectPlay
 		}
 	}
 
+	static var wentFullscreen:Bool = false;
 	static var mouseActions:Array<{time:Float, action:String, values:Array<Float>}> = [];
 	static var mouseX:Float = 640;
 	static var mouseY:Float = 360;

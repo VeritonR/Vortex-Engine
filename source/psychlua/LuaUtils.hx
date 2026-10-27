@@ -40,8 +40,19 @@ class LuaUtils
 		} : null;
 	}
 
+	// Songs and scripts take the health as Boyfriend's (his side of the bar). With Play as Opponent (the dad's side online too) the
+	// game's own is the one of who's playing, the dad's: scripts get it as Boyfriend's, or their bars and drains went the wrong way
+	// (The Basement Show's Reburning)
+	static inline function flipsHealth(instance:Dynamic, variable:String):Bool
+		return variable == 'health' && PlayState.instance != null && instance == PlayState.instance && PlayState.instance.playAsOpponent;
+
 	public static function setVarInArray(instance:Dynamic, variable:String, value:Dynamic, allowMaps:Bool = false):Any
 	{
+		if(flipsHealth(instance, variable) && Std.isOfType(value, Float))
+		{
+			PlayState.instance.health = 2 - value;
+			return value;
+		}
 		var splitProps:Array<String> = variable.split('[');
 		if(splitProps.length > 1)
 		{
@@ -82,6 +93,7 @@ class LuaUtils
 	}
 	public static function getVarInArray(instance:Dynamic, variable:String, allowMaps:Bool = false):Any
 	{
+		if(flipsHealth(instance, variable)) return 2 - PlayState.instance.health;
 		var splitProps:Array<String> = variable.split('[');
 		if(splitProps.length > 1)
 		{

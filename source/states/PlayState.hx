@@ -1472,7 +1472,7 @@ class PlayState extends MusicBeatState
 			}
 			
 			if (syncWaitText == null) {
-				syncWaitText = new FlxText(0, FlxG.height / 2 - 50, FlxG.width, onlineResync ? "Aguardando o Oponente..." : "Aguardando o Oponente Carregar...", 48);
+				syncWaitText = new FlxText(0, FlxG.height / 2 - 50, FlxG.width, onlineResync ? Language.getPhrase('online_waiting_other', "Waiting for the other player...") : Language.getPhrase('online_waiting_load', "Waiting for the other player to load..."), 48);
 				syncWaitText.setFormat(Paths.font("vcr.ttf"), 48, FlxColor.CYAN, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 				syncWaitText.cameras = [camOther];
 				add(syncWaitText);
@@ -2460,11 +2460,11 @@ class PlayState extends MusicBeatState
 				}
 				else if (data[0] == "LOAD_FAILED") {
 					// O outro PC não conseguiu abrir a música: volta todo mundo pro lobby
-					onlineBackToLobby("O oponente nao conseguiu abrir a musica.");
+					onlineBackToLobby(Language.getPhrase('online_other_cant_open', "The other player couldn't open the song."));
 				}
 				else if (data[0] == "RETURN_TO_LOBBY" || data[0] == "RESULTS_LEFT") {
 					// (once the other one finished the song, they're leaving its results: this one's song is about to end too)
-					if (otherFinalStats == null) onlineBackToLobby("O oponente voltou para o lobby.");
+					if (otherFinalStats == null) onlineBackToLobby(Language.getPhrase('online_other_left_song', "The other player went back to the lobby."));
 				}
 				// ===================================================
 				// ---> NOVOS COMANDOS: VISUALIZANDO AS TECLAS <---
@@ -5445,7 +5445,7 @@ class PlayState extends MusicBeatState
 		bg2.updateHitbox();
 		add(bg2);
 
-		var text2 = new FlxText(-600, bg2.y + 25, bg2.width, "COMPOSED BY: " + composer, 24);
+		var text2 = new FlxText(-600, bg2.y + 25, bg2.width, Language.getPhrase('credits_composed_by', "COMPOSED BY: {1}", [composer]), 24);
 		text2.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.BLACK, CENTER);
 		text2.cameras = [camOther];
 		add(text2);
@@ -5456,7 +5456,7 @@ class PlayState extends MusicBeatState
 		bg3.updateHitbox();
 		add(bg3);
 
-		var text3 = new FlxText(-600, bg3.y + 25, bg3.width, "CHARTED BY: " + charter, 24);
+		var text3 = new FlxText(-600, bg3.y + 25, bg3.width, Language.getPhrase('credits_charted_by', "CHARTED BY: {1}", [charter]), 24);
 		text3.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.BLACK, CENTER);
 		text3.cameras = [camOther];
 		add(text3);
@@ -5684,7 +5684,7 @@ class PlayState extends MusicBeatState
 			multiplayerSynced = true;
 			startCountdown();
 		}
-		showOnlineNotice(backend.NetworkManager.statusString + " A musica continua sem o oponente.");
+		showOnlineNotice(backend.NetworkManager.statusString + Language.getPhrase('online_song_goes_on', " The song goes on without the other player."));
 	}
 
 	function showOnlineNotice(text:String) {
@@ -5763,10 +5763,11 @@ class PlayState extends MusicBeatState
 		var nick:String = backend.NetworkManager.opponentNickname;
 
 		var lead:Int = backend.NetworkManager.compareResults(myOnlineStats(), other).result;
-		var leadText:String = (lead > 0) ? "you're ahead" : ((lead < 0) ? nick + " is ahead" : "tied");
-		var leadLine:String = "Win by " + backend.NetworkManager.winConditionName(backend.NetworkManager.winCondition) + ": " + leadText;
+		var leadText:String = (lead > 0) ? Language.getPhrase('online_you_ahead', "you're ahead") : ((lead < 0) ? Language.getPhrase('online_other_ahead', "{1} is ahead", [nick]) : Language.getPhrase('online_tied', "tied"));
+		var leadLine:String = Language.getPhrase('online_lead_line', "Win by {1}: {2}", [backend.NetworkManager.winConditionName(backend.NetworkManager.winCondition), leadText]);
 
-		var text:String = nick + "\nScore: " + other.score + " | Misses: " + other.misses + "\nAccuracy: " + accuracy + rating + "\n" + leadLine;
+		var text:String = nick + "\n" + Language.getPhrase('online_stats_line', "Score: {1} | Misses: {2}", [other.score, other.misses])
+			+ "\n" + Language.getPhrase('online_accuracy_line', "Accuracy: {1}", [accuracy + rating]) + "\n" + leadLine;
 		if (onlineStatsTxt.text == text) return;
 
 		// (the nick in the color of the other player's character, who's ahead in green or red)

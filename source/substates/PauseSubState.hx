@@ -244,7 +244,7 @@ class PauseSubState extends MusicBeatSubstate
 				if(msg == "UNPAUSE_GAME") startResumeCountdown();
 				if(msg == "RETURN_TO_LOBBY")
 				{
-					PlayState.instance.onlineBackToLobby("O oponente voltou para o lobby.");
+					PlayState.instance.onlineBackToLobby(Language.getPhrase('online_other_left_song', "The other player went back to the lobby."));
 					return;
 				}
 			}

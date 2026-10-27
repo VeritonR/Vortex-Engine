@@ -123,16 +123,14 @@ class MainMenuState extends MusicBeatState
 
 		road = new FlxSprite(0, 0).loadGraphic(Paths.image('mainmenu/parallax/road'));
 		road.antialiasing = ClientPrefs.data.antialiasing;
-		road.scale.set(0.85, 0.85); // Mantém a proporção do resto do cenário
+		road.scale.set(0.85, 0.85);
 		road.updateHitbox();
 		road.screenCenter();
-		// IMPORTANTE: Ajuste o road.y aqui depois para alinhar a estrada no fundo!
-		// Exemplo: road.y += 100;
+		//road.y += 100;
 		add(road);
 
 		phillyCar = new FlxSprite(0, 0);
 		phillyCar.frames = Paths.getSparrowAtlas('mainmenu/parallax/phillyCars');
-		// Carrega as 4 animações baseadas no XML
 		phillyCar.animation.addByPrefix('car1', 'car1', 0, false);
 		phillyCar.animation.addByPrefix('car2', 'car2', 0, false);
 		phillyCar.animation.addByPrefix('car3', 'car3', 0, false);
@@ -142,7 +140,6 @@ class MainMenuState extends MusicBeatState
 		phillyCar.visible = false;
 		add(phillyCar);
 
-		// Dispara o primeiro carro em alguns segundos
 		new FlxTimer().start(FlxG.random.float(2, 4), resetCar);
 
 		parallaxBg2 = new FlxSprite(0, 0).loadGraphic(Paths.image('mainmenu/parallax/bg2'));
@@ -183,7 +180,7 @@ class MainMenuState extends MusicBeatState
 			}
 			currentY += item.height + 15;
 		}
-		vortexVer = new FlxText(12, FlxG.height - 74, 0, "Vortex Engine v1.1", 14);
+		vortexVer = new FlxText(12, FlxG.height - 74, 0, "Vortex Engine v1.2", 14);
 		vortexVer.scrollFactor.set();
 		vortexVer.antialiasing = ClientPrefs.data.antialiasing;
 		vortexVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);

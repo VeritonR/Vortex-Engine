@@ -697,9 +697,10 @@ class FunkinLua {
 			game.songHits = value;
 			game.RecalculateRating();
 		});
-		Lua_helper.add_callback(lua, "setHealth", function(value:Float = 1) game.health = value);
-		Lua_helper.add_callback(lua, "addHealth", function(value:Float = 0) game.health += value);
-		Lua_helper.add_callback(lua, "getHealth", function() return game.health);
+		// (Boyfriend's health, like getProperty('health'): see LuaUtils.setVarInArray())
+		Lua_helper.add_callback(lua, "setHealth", function(value:Float = 1) game.health = game.playAsOpponent ? 2 - value : value);
+		Lua_helper.add_callback(lua, "addHealth", function(value:Float = 0) game.health += game.playAsOpponent ? -value : value);
+		Lua_helper.add_callback(lua, "getHealth", function() return game.playAsOpponent ? 2 - game.health : game.health);
 
 		//Identical functions
 		Lua_helper.add_callback(lua, "FlxColor", function(color:String) return FlxColor.fromString(color));

@@ -60,7 +60,7 @@ class GalleryState extends MusicBeatState
         bottomBar = new FlxSprite(0, FlxG.height - 130).makeGraphic(FlxG.width, 130, 0xFF826DB3);
         add(bottomBar);
 
-        infoText = new FlxText(0, 10, FlxG.width, "Press F for Fullscreen | Scroll = Zoom In/Out | Drag = Move | R = Reset", 18);
+        infoText = new FlxText(0, 10, FlxG.width, Language.getPhrase('gallery_hint', "Press F for Fullscreen | Scroll = Zoom In/Out | Drag = Move | R = Reset"), 18);
         infoText.setFormat(Paths.font("vcr.ttf"), 18, FlxColor.WHITE, CENTER);
         infoText.antialiasing = ClientPrefs.data.antialiasing;
         add(infoText);
@@ -119,8 +119,8 @@ class GalleryState extends MusicBeatState
         if (imagesList.length > 0) {
             changeImage(0);
         } else {
-            titleText.text = "PASTA VAZIA!";
-            creatorText.text = "Nenhuma imagem em images/gallery/";
+            titleText.text = Language.getPhrase('gallery_empty', "EMPTY FOLDER!");
+            creatorText.text = Language.getPhrase('gallery_empty_info', "No pictures in images/gallery/");
             titleText.color = FlxColor.RED;
         }
 
@@ -243,7 +243,7 @@ class GalleryState extends MusicBeatState
         if (splitName.length > 1) {
             creatorText.text = splitName[1];
         } else {
-            creatorText.text = "Criador Desconhecido"; 
+            creatorText.text = Language.getPhrase('gallery_unknown_creator', "Unknown creator"); 
         }
         
         updateImageScale();

@@ -23,7 +23,10 @@ class BetaWarningState extends MusicBeatState
 		texts.alpha = 0;
 		add(texts);
 
-		var title:FlxText = new FlxText(0, 70, FlxG.width, "ATTENTION  /  ATENÇÃO");
+		// (in the language that was picked; in both if there's none yet)
+		var both:Bool = !LanguageSelectState.chosen;
+		var inPortuguese:Bool = ClientPrefs.data.language == 'pt-BR';
+		var title:FlxText = new FlxText(0, 70, FlxG.width, both ? "ATTENTION  /  ATENÇÃO" : (inPortuguese ? "ATENÇÃO" : "ATTENTION"));
 		title.setFormat(Paths.font("vcr.ttf"), 48, FlxColor.YELLOW, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		texts.add(title);
 
@@ -31,15 +34,16 @@ class BetaWarningState extends MusicBeatState
 			"Vortex Engine is still in BETA.\n"
 			+ "It is not completely finished: some things may not work as they should, and crashes are expected.");
 		english.setFormat(Paths.font("vcr.ttf"), 28, FlxColor.WHITE, CENTER);
-		texts.add(english);
+		if(both || !inPortuguese) texts.add(english);
 
-		var portuguese:FlxText = new FlxText(140, english.y + english.height + 36, FlxG.width - 280,
+		var portuguese:FlxText = new FlxText(140, both ? english.y + english.height + 36 : english.y, FlxG.width - 280,
 			"O Vortex Engine ainda está em BETA.\n"
 			+ "Ele não está completamente pronto: algumas coisas podem não funcionar como deveriam, e crashes são esperados.");
 		portuguese.setFormat(Paths.font("vcr.ttf"), 28, FlxColor.WHITE, CENTER);
-		texts.add(portuguese);
+		if(both || inPortuguese) texts.add(portuguese);
 
-		var press:FlxText = new FlxText(0, FlxG.height - 110, FlxG.width, "Press ENTER to continue  /  Aperte ENTER para continuar");
+		var press:FlxText = new FlxText(0, FlxG.height - 110, FlxG.width, both ? "Press ENTER to continue  /  Aperte ENTER para continuar"
+			: (inPortuguese ? "Aperte ENTER para continuar" : "Press ENTER to continue"));
 		press.setFormat(Paths.font("vcr.ttf"), 24, 0xFFB0B0B0, CENTER);
 		texts.add(press);
 

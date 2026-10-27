@@ -92,7 +92,7 @@ class NetworkManager {
         if (busy || connected) return;
         busy = true;
         startPinging();
-        statusString = "Aguardando Jogador 2...";
+        statusString = Language.getPhrase('online_status_waiting', "Waiting for player 2...");
         var mySession:Int = session;
 
         Thread.create(function() {
@@ -112,14 +112,14 @@ class NetworkManager {
 
                 // ---> ANTI-LAG: DESLIGA O ALGORITMO DE NAGLE (TCP_NODELAY) <---
                 client.setFastSend(true);
-                statusString = "Jogador 2 Conectado!";
+                statusString = Language.getPhrase('online_status_joined', "Player 2 connected!");
                 log('hosting: player 2 connected');
                 startSession(client, true); // (fica escutando aqui até a conexão acabar)
             } catch(e:Dynamic) {
                 closeQuietly(listener);
                 server = null;
                 busy = false;
-                if (mySession == session) statusString = "Erro ao criar servidor (a porta " + PORT + " pode estar em uso).";
+                if (mySession == session) statusString = Language.getPhrase('online_status_host_error', "Couldn't host (the port {1} may be in use).", [PORT]);
             }
         });
         #end
@@ -133,7 +133,7 @@ class NetworkManager {
         if (busy || connected) return;
         busy = true;
         startPinging();
-        statusString = "Conectando a " + ip + "...";
+        statusString = Language.getPhrase('online_status_connecting', "Connecting to {1}...", [ip]);
         var mySession:Int = session;
 
         Thread.create(function() {
@@ -146,14 +146,14 @@ class NetworkManager {
 
                 // ---> ANTI-LAG: DESLIGA O ALGORITMO DE NAGLE (TCP_NODELAY) <---
                 attempt.setFastSend(true);
-                statusString = "Conectado ao Host!";
+                statusString = Language.getPhrase('online_status_connected', "Connected to the host!");
                 log('joined the host');
                 startSession(attempt, false); // (fica escutando aqui até a conexão acabar)
             } catch(e:Dynamic) {
                 connecting = null;
                 closeQuietly(attempt);
                 busy = false;
-                if (mySession == session) statusString = "Falha ao conectar no IP.";
+                if (mySession == session) statusString = Language.getPhrase('online_status_join_error', "Couldn't connect to that IP.");
             }
         });
         #end
@@ -171,7 +171,7 @@ class NetworkManager {
         closeQuietly(connecting);
         server = null;
         connecting = null;
-        statusString = "Disconnected";
+        statusString = Language.getPhrase('online_status_disconnected', "Disconnected");
         #end
     }
 
@@ -196,7 +196,7 @@ class NetworkManager {
         #end
         pendingLoadSong = null;
         latency = 0;
-        statusString = (reason != null) ? reason : "Disconnected";
+        statusString = (reason != null) ? reason : Language.getPhrase('online_status_disconnected', "Disconnected");
         restoreSettings();
     }
 
@@ -239,7 +239,7 @@ class NetworkManager {
             } catch(e:Dynamic) {
                 if (mySession == session) {
                     connected = false;
-                    statusString = "Conexao Perdida.";
+                    statusString = Language.getPhrase('online_status_lost', "Connection lost.");
                 }
                 break;
             }
@@ -287,7 +287,7 @@ class NetworkManager {
                     log('received ' + msg);
                 case "BYE":
                     connected = false;
-                    statusString = "O outro jogador saiu.";
+                    statusString = Language.getPhrase('online_status_left', "The other player left.");
                     break;
                 default:
                     mutex.acquire();
@@ -400,17 +400,17 @@ class NetworkManager {
 
     public static function winConditionName(condition:String):String {
         return switch (condition) {
-            case 'misses': 'Misses';
-            case 'accuracy': 'Accuracy';
-            default: 'Score';
+            case 'misses': Language.getPhrase('online_win_misses', 'Misses');
+            case 'accuracy': Language.getPhrase('online_win_accuracy', 'Accuracy');
+            default: Language.getPhrase('online_win_score', 'Score');
         }
     }
 
     public static function winConditionInfo(condition:String):String {
         return switch (condition) {
-            case 'misses': 'The one who misses the most loses';
-            case 'accuracy': 'The most accurate one wins';
-            default: 'The one who scores the most wins';
+            case 'misses': Language.getPhrase('online_win_misses_info', 'The one who misses the most loses');
+            case 'accuracy': Language.getPhrase('online_win_accuracy_info', 'The most accurate one wins');
+            default: Language.getPhrase('online_win_score_info', 'The one who scores the most wins');
         }
     }
 

@@ -9,13 +9,13 @@ import states.TitleState;
 // Add a variable here and it will get automatically saved
 @:structInit class SaveVariables {
 	public var playerSkin:String = '';
-	public var ghostNotes:Bool = true;
+	public var ghostNotes:Bool = false;
 	public var laneUnderlay:Bool = false;
-	public var sustainWiggle:Bool = true;
-	public var iconBop:Bool = true;
+	public var sustainWiggle:Bool = false;
+	public var iconBop:Bool = false;
 	public var scoreCamera:String = 'HUD';
-	public var breakTimer:Bool = true;
-	public var songCredits:Bool = true; //the card with the song's name, composer and charter when a song starts
+	public var breakTimer:Bool = false;
+	public var songCredits:Bool = false; //the card with the song's name, composer and charter when a song starts
 	public var downScroll:Bool = false;
 	public var middleScroll:Bool = false;
 	public var opponentStrums:Bool = true;
@@ -96,7 +96,7 @@ import states.TitleState;
 	public var discordRPC:Bool = true;
 	public var loadingScreen:Bool = true;
 	public var language:String = 'en-US';
-	public var freeplayStyle:String = 'Standard';
+	public var freeplayStyle:String = 'V-Slice';
 }
 
 class ClientPrefs {

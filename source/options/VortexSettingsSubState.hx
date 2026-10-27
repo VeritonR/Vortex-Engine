@@ -7,7 +7,7 @@ class VortexSettingsSubState extends BaseOptionsMenu
 {
 	public function new()
 	{
-		title = 'Vortex Engine Settings';
+		title = Language.getPhrase('vortex_menu', 'Vortex Engine Settings');
 		rpcTitle = 'Vortex Engine Settings Menu';
 
 		// Gameplay

@@ -22,12 +22,12 @@ class VictorySubstate extends MusicBeatSubstate {
         bg.alpha = 0.6;
         add(bg);
 
-        var winText = new FlxText(0, 0, 0, "VITORIA!\nO Oponente foi Nocauteado!", 64);
+        var winText = new FlxText(0, 0, 0, Language.getPhrase('online_knockout_win', "VICTORY!\nThe other player was knocked out!"), 64);
         winText.setFormat(Paths.font("vcr.ttf"), 64, FlxColor.YELLOW, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         winText.screenCenter();
         add(winText);
 
-        var hintText = new FlxText(0, FlxG.height - 100, 0, "Aperte ENTER para sair", 32);
+        var hintText = new FlxText(0, FlxG.height - 100, 0, Language.getPhrase('online_knockout_leave', "Press ENTER to leave"), 32);
         hintText.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         hintText.screenCenter(X);
         add(hintText);

@@ -557,9 +557,13 @@ class PicoCard extends FreeplayBackingCard
 
 		setExtrasVisible(false);
 
-		confirmAtlas = new FreeplayAtlas(5, 55, 'freeplay/backingCards/pico/pico-confirm');
+		// (where V-Slice's lands, measured on both: its x of -120 is drawn here at 7)
+		confirmAtlas = new FreeplayAtlas(7, 67, 'freeplay/backingCards/pico/pico-confirm');
 		confirmAtlas.visible = false;
 		add(confirmAtlas);
+		// its backplates and flashes cover the screen, like V-Slice's script makes them (they're small on the file)
+		for (symbol in ['backplate flat blue', 'pink back', 'black flash', 'white flash', 'blue flash', 'blue flash 2', 'pink flash'])
+			if(Sys.getEnv('NOSCALE') == null) confirmAtlas.scaleSymbolContent(symbol, 2, 100); //TEMPTIME
 
 		cardGlow.blend = BlendMode.ADD;
 		cardGlow.visible = false;

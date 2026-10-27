@@ -104,7 +104,7 @@ class OnlineResultsSubstate extends MusicBeatSubstate
 		add(dim);
 		FlxTween.tween(dim, {alpha: 0.7}, 0.5);
 
-		waitText = makeText(0, FlxG.height / 2 - 20, FlxG.width, "Waiting for " + NetworkManager.opponentNickname + "'s results...", 32, FlxColor.CYAN, CENTER);
+		waitText = makeText(0, FlxG.height / 2 - 20, FlxG.width, Language.getPhrase('results_online_waiting', "Waiting for {1}'s results...", [NetworkManager.opponentNickname]), 32, FlxColor.CYAN, CENTER);
 		noticeText = makeText(0, FlxG.height - 76, FlxG.width, '', 20, 0xFFBBBBBB, CENTER);
 		hintText = makeText(0, FlxG.height - 44, FlxG.width, '', 24, FlxColor.WHITE, CENTER);
 
@@ -167,7 +167,7 @@ class OnlineResultsSubstate extends MusicBeatSubstate
 					if (!shown) otherKnockedOut = true;
 				case 'RESULTS_LEFT', 'RETURN_TO_LOBBY':
 					otherLeft = true;
-					noticeText.text = '${NetworkManager.opponentNickname} went back to the lobby';
+					noticeText.text = Language.getPhrase('results_online_left', "{1} went back to the lobby", [NetworkManager.opponentNickname]);
 			}
 		}
 	}
@@ -186,19 +186,19 @@ class OnlineResultsSubstate extends MusicBeatSubstate
 			+ ', theirs ' + other.score + '/' + other.misses + '/' + other.accuracy);
 
 		// the title
-		var titleText:String = (result > 0) ? 'VICTORY!' : ((result < 0) ? 'DEFEAT' : 'DRAW');
+		var titleText:String = (result > 0) ? Language.getPhrase('results_online_victory', 'VICTORY!') : ((result < 0) ? Language.getPhrase('results_online_defeat', 'DEFEAT') : Language.getPhrase('results_online_draw', 'DRAW'));
 		var titleColor:FlxColor = (result > 0) ? 0xFFFFD34D : ((result < 0) ? 0xFFFF5C5C : FlxColor.WHITE);
 		var title:FlxText = makeText(0, 18, FlxG.width, titleText, 72, titleColor, CENTER);
 		title.borderSize = 4;
 		title.scale.set(0.2, 0.2);
 		FlxTween.tween(title.scale, {x: 1, y: 1}, 0.5, {ease: FlxEase.backOut});
 
-		var subtitle:String = 'Win by ' + NetworkManager.winConditionName(NetworkManager.winCondition);
-		if (otherKnockedOut) subtitle = '${NetworkManager.opponentNickname} was knocked out';
+		var subtitle:String = Language.getPhrase('results_online_win_by', "Win by {1}", [NetworkManager.winConditionName(NetworkManager.winCondition)]);
+		if (otherKnockedOut) subtitle = Language.getPhrase('results_online_knocked_out', "{1} was knocked out", [NetworkManager.opponentNickname]);
 		else if (result != 0 && comparison.decidedBy != NetworkManager.winCondition)
-			subtitle += '  -  tied, decided by ' + NetworkManager.winConditionName(comparison.decidedBy);
-		else if (result == 0) subtitle += '  -  tied in everything';
-		if (!otherIsFinal && !otherKnockedOut) subtitle += '  (their last numbers)';
+			subtitle += Language.getPhrase('results_online_tie_break', "  -  tied, decided by {1}", [NetworkManager.winConditionName(comparison.decidedBy)]);
+		else if (result == 0) subtitle += Language.getPhrase('results_online_tied', "  -  tied in everything");
+		if (!otherIsFinal && !otherKnockedOut) subtitle += Language.getPhrase('results_online_last_numbers', "  (their last numbers)");
 		makeText(0, 104, FlxG.width, subtitle, 22, 0xFFDDDDDD, CENTER);
 
 		// the cards: the dad's side on the left, the boyfriend's on the right
@@ -225,7 +225,7 @@ class OnlineResultsSubstate extends MusicBeatSubstate
 		}
 		catch (e:Dynamic) {}
 
-		hintText.text = 'ENTER: back to the lobby';
+		hintText.text = Language.getPhrase('results_online_back', 'ENTER: back to the lobby');
 		hintText.alpha = 0;
 		FlxTween.tween(hintText, {alpha: 1}, 0.4, {startDelay: 1});
 	}
@@ -255,12 +255,12 @@ class OnlineResultsSubstate extends MusicBeatSubstate
 		add(icon);
 		parts.push(icon);
 
-		var nick:String = isMe ? NetworkManager.myNickname + ' (you)' : NetworkManager.opponentNickname;
+		var nick:String = isMe ? Language.getPhrase('results_online_you', "{1} (you)", [NetworkManager.myNickname]) : NetworkManager.opponentNickname;
 		var textX:Float = x + 150;
 		var nickText:FlxText = makeText(textX, y + 34, CARD_WIDTH - 164, nick, 28, nickColor, LEFT);
 		parts.push(nickText);
 
-		var tag:String = (result > 0) ? 'WINNER' : ((result < 0) ? '' : 'DRAW');
+		var tag:String = (result > 0) ? Language.getPhrase('results_online_winner', 'WINNER') : ((result < 0) ? '' : Language.getPhrase('results_online_draw', 'DRAW'));
 		if (tag.length > 0)
 		{
 			var tagText:FlxText = makeText(textX, y + 72, CARD_WIDTH - 164, tag, 24, (result > 0) ? 0xFFFFD34D : 0xFFBBBBBB, LEFT);
@@ -269,12 +269,12 @@ class OnlineResultsSubstate extends MusicBeatSubstate
 
 		var condition:String = NetworkManager.winCondition;
 		var rows:Array<{name:String, value:String, key:String}> = [
-			{name: 'Score', value: Std.string(stats.score), key: 'score'},
-			{name: 'Misses', value: Std.string(stats.misses), key: 'misses'},
-			{name: 'Accuracy', value: (stats.accuracy >= 0) ? Std.string(stats.accuracy) + '%' : '?', key: 'accuracy'},
-			{name: 'Rating', value: (stats.rating != null && stats.rating.length > 0) ? stats.rating : '?', key: ''},
-			{name: 'Sick / Good / Bad / Shit', value: tally(stats.sick) + ' / ' + tally(stats.good) + ' / ' + tally(stats.bad) + ' / ' + tally(stats.shit), key: ''},
-			{name: 'Max Combo', value: tally(stats.maxCombo), key: ''}
+			{name: Language.getPhrase('results_online_score', 'Score'), value: Std.string(stats.score), key: 'score'},
+			{name: Language.getPhrase('results_online_misses', 'Misses'), value: Std.string(stats.misses), key: 'misses'},
+			{name: Language.getPhrase('results_online_accuracy', 'Accuracy'), value: (stats.accuracy >= 0) ? Std.string(stats.accuracy) + '%' : '?', key: 'accuracy'},
+			{name: Language.getPhrase('results_online_rating', 'Rating'), value: (stats.rating != null && stats.rating.length > 0) ? stats.rating : '?', key: ''},
+			{name: Language.getPhrase('results_online_ratings', 'Sick / Good / Bad / Shit'), value: tally(stats.sick) + ' / ' + tally(stats.good) + ' / ' + tally(stats.bad) + ' / ' + tally(stats.shit), key: ''},
+			{name: Language.getPhrase('results_online_max_combo', 'Max Combo'), value: tally(stats.maxCombo), key: ''}
 		];
 
 		var rowY:Float = y + 146;

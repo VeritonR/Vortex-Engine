@@ -59,10 +59,18 @@ class CameraBlend
 
 	static function mirror(camera:FlxCamera, cameras:haxe.ds.ObjectMap<FlxCamera, FlxCamera>):FlxCamera
 	{
+		// (made with the camera's own starting zoom: where a camera's corner is depends on it, and a mirror made at another one put the
+		// copy of what's behind somewhere else than what's blended on a zoomed camera, a square of the wrong picture around it)
 		var layer:FlxCamera = cameras.get(camera);
+		if(layer != null && layer.initialZoom != camera.initialZoom)
+		{
+			cameras.remove(camera);
+			layer.destroy();
+			layer = null;
+		}
 		if(layer == null)
 		{
-			layer = new FlxCamera(0, 0, camera.width, camera.height, camera.zoom);
+			layer = new FlxCamera(0, 0, camera.width, camera.height, camera.initialZoom);
 			layer.bgColor = 0;
 			cameras.set(camera, layer);
 		}

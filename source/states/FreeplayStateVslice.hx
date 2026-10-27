@@ -1519,6 +1519,7 @@ class FreeplayStateVslice extends MusicBeatState
 
 	function confirmSong():Void
 	{
+		var __t:Float = haxe.Timer.stamp(); function __p(n:String) { Sys.println('TIMING ' + n + ' ' + Std.int((haxe.Timer.stamp() - __t) * 1000)); __t = haxe.Timer.stamp(); } //TEMPTIME
 		if(dj != null) dj.onPlayerAction();
 
 		if(currentSong == null)
@@ -1542,7 +1543,7 @@ class FreeplayStateVslice extends MusicBeatState
 		{
 			if(difficulty < 0) throw 'The song doesn\'t have the difficulty "$currentDifficulty"';
 
-			Song.loadFromJson(Highscore.formatSong(songLowercase, difficulty), songLowercase);
+			__p('pre'); Song.loadFromJson(Highscore.formatSong(songLowercase, difficulty), songLowercase); __p('chart'); //TEMPTIME
 			if(PlayState.SONG == null) throw 'Missing file: $songLowercase/' + Highscore.formatSong(songLowercase, difficulty) + '.json';
 
 			PlayState.isStoryMode = false;
@@ -1569,15 +1570,15 @@ class FreeplayStateVslice extends MusicBeatState
 		playedDifficulty = currentDifficulty;
 		playedRank = song.getRank(currentDifficulty);
 
-		FlxG.sound.play(Paths.sound('confirmMenu'));
-		if(dj != null) dj.onConfirm();
+		__p('misc'); FlxG.sound.play(Paths.sound('confirmMenu')); __p('sound'); //TEMPTIME
+		if(dj != null) dj.onConfirm(); __p('dj'); //TEMPTIME
 		if(capsule != null)
 		{
 			capsule.forcePosition();
 			capsule.confirm();
 		}
-		dispatchCapsuleEvent(funkin.modding.events.ScriptEventType.SONG_SELECTED);
-		backingCard.confirm();
+		__p('capsule'); dispatchCapsuleEvent(funkin.modding.events.ScriptEventType.SONG_SELECTED); __p('event'); //TEMPTIME
+		backingCard.confirm(); __p('card'); //TEMPTIME
 		fadeDots(false);
 
 		new FlxTimer().start(style.startDelay, function(_) startSong());

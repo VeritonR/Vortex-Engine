@@ -28,6 +28,33 @@ class FreeplayAtlas extends FlxAnimate
 	var lastFrame:Int = -1;
 	var finishTimer:Float = -1;
 
+	/**
+	 * V-Slice's `scaleElement(getFirstElement(symbol), scale, positionOffset)`: the first thing inside a symbol (on its first frame)
+	 * gets that much more scale, and is moved back by the offset. Its scripts do it to the flashes of their atlases, which are small
+	 * on the file and are meant to cover the screen (Pico's backing card when a song is picked).
+	 */
+	public function scaleSymbolContent(symbolName:String, scale:Float, positionOffset:Float = 0):Void
+	{
+		if(!loaded || anim.symbolDictionary == null) return;
+		var symbol = anim.symbolDictionary.get(symbolName);
+		if(symbol == null || symbol.timeline == null) return;
+
+		for (layer in symbol.timeline.getList())
+		{
+			var keyFrame = layer.get(0);
+			if(keyFrame == null) continue;
+			for (element in keyFrame.getList())
+			{
+				if(element == null || element.matrix == null) continue;
+				element.matrix.a += scale;
+				element.matrix.d += scale;
+				element.matrix.tx -= positionOffset;
+				element.matrix.ty -= positionOffset;
+				return;
+			}
+		}
+	}
+
 	public function new(x:Float, y:Float, key:String)
 	{
 		super(x, y);

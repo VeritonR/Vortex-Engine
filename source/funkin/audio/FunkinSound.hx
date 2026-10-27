@@ -126,6 +126,33 @@ class FunkinSound extends FlxSound
 	// (V-Slice loads parts of songs for Freeplay's previews in a queue, which scripts empty before opening a song; nothing waits here)
 	public static function emptyPartialQueue():Void {}
 
+	// A sound that was destroyed does nothing when it's played, paused or resumed, like V-Slice's: scripts destroy one that
+	// couldn't be loaded and go on to play it (Vs Kapi's cutscenes with no music, Hairball's Pico mix)
+	override public function play(ForceRestart:Bool = false, StartTime:Float = 0.0, ?EndTime:Float):FlxSound
+	{
+		if(!exists) return this;
+		return super.play(ForceRestart, StartTime, EndTime);
+	}
+
+	override public function resume():FlxSound
+	{
+		if(!exists) return this;
+		return super.resume();
+	}
+
+	override public function pause():FlxSound
+	{
+		if(!exists) return this;
+		return super.pause();
+	}
+
+	// (and its volume can still be set, like on V-Slice's: a destroyed sound has no transform left to put it on)
+	override function updateTransform():Void
+	{
+		if(_transform == null) return;
+		super.updateTransform();
+	}
+
 	public static function stopAllAudio(musicToo:Bool = false):Void
 	{
 		for (sound in FlxG.sound.list.members)

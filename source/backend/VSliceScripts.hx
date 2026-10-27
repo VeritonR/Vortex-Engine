@@ -967,6 +967,19 @@ class VSliceScripts
 	// The scripts that were already told their character was made: the ones of the characters other scripts make are told right away
 	static var createdCharacters:Array<HxcInstance> = [];
 
+	// Nene (and the characters made from her script) raises her knife at Boyfriend when his health is low. With Play as Opponent
+	// Boyfriend is the computer's: that's only a threat to him when Health Drain is on too, otherwise she stays calm (her threshold
+	// is put where the health never gets). Without Play as Opponent nothing changes
+	static function calmLowHealthThreat(script:HxcInstance):Void
+	{
+		if(game == null || !game.playAsOpponent || game.healthDrain > 0) return;
+		if(script.hasMember('VULTURE_THRESHOLD'))
+		{
+			script.setField('VULTURE_THRESHOLD', -1);
+			StepLog.add('Play as Opponent: ' + script.cls.name + ' keeps her knife down');
+		}
+	}
+
 	static function loadCharacterScripts():Void
 	{
 		for (char in [game.boyfriend, game.dad, game.gf])
@@ -1013,6 +1026,7 @@ class VSliceScripts
 		characterScripts.push(script);
 		watchAnimations(char, script);
 		applyAtlasSettings(char, script);
+		calmLowHealthThreat(script);
 
 		// what the script does its own way, for the character to send there
 		var overrides:Array<String> = [for (name in CHARACTER_OVERRIDES) if(script.hasMethod(name)) name];

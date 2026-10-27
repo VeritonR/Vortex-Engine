@@ -16,11 +16,15 @@ import openfl.events.KeyboardEvent;
 
 class MultiplayerMenuState extends MusicBeatState
 {
+    // A text of the online menus in the game's language (English if it has no translation: see "online_" in the .lang files)
+    public static function t(key:String, english:String, ?values:Array<Dynamic>):String
+        return Language.getPhrase('online_' + key, english, values);
+
     var titleText:FlxText;
     var statusText:FlxText;
 
     var connectionMenu:flixel.group.FlxGroup.FlxTypedGroup<Alphabet>;
-    var connOptions:Array<String> = ['Host Game', 'Join Game'];
+    var connOptions:Array<String> = [t('host_game', 'Host Game'), t('join_game', 'Join Game')];
     var curConnSelected:Int = 0;
 
     var hostLobby:flixel.group.FlxGroup.FlxTypedGroup<Alphabet>;
@@ -85,6 +89,9 @@ class MultiplayerMenuState extends MusicBeatState
         // what the player had before the match (see NetworkManager.applyMatchSettings())
         NetworkManager.restoreSettings();
 
+        if(!NetworkManager.connected && !NetworkManager.busy && NetworkManager.statusString == "Disconnected")
+            NetworkManager.statusString = Language.getPhrase('online_status_disconnected', "Disconnected");
+
         if(FlxG.save.data.multiplayerNickname != null) {
             NetworkManager.myNickname = NetworkManager.cleanNickname(FlxG.save.data.multiplayerNickname);
         }
@@ -94,7 +101,7 @@ class MultiplayerMenuState extends MusicBeatState
         bg.screenCenter();
         add(bg);
 
-        titleText = new FlxText(0, 20, FlxG.width, "LOBBY", 48);
+        titleText = new FlxText(0, 20, FlxG.width, t('lobby', "LOBBY"), 48);
         titleText.setFormat(Paths.font("vcr.ttf"), 48, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         add(titleText);
 
@@ -107,7 +114,7 @@ class MultiplayerMenuState extends MusicBeatState
         diffText.visible = false;
         add(diffText);
 
-        nicknameText = new FlxText(FlxG.width - 400, 70, 380, "Nick: " + NetworkManager.myNickname + "\n[TAB] To Change", 24);
+        nicknameText = new FlxText(FlxG.width - 400, 70, 380, t('nick', "Nick: {1}\n[TAB] To Change", [NetworkManager.myNickname]), 24);
         nicknameText.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.CYAN, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         add(nicknameText);
 
@@ -183,17 +190,17 @@ class MultiplayerMenuState extends MusicBeatState
         promptText.visible = false;
         add(promptText);
 
-        clientWaitText = new FlxText(0, 400, FlxG.width, "Waiting for Host...\n\n(ESC to leave)", 32);
+        clientWaitText = new FlxText(0, 400, FlxG.width, t('waiting_host', "Waiting for Host...\n\n(ESC to leave)"), 32);
         clientWaitText.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.CYAN, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         clientWaitText.visible = false;
         add(clientWaitText);
 
-        hostRoleText = new FlxText(0, FlxG.height - 100, FlxG.width, "< Playing with: Right Side (BF) >", 32);
+        hostRoleText = new FlxText(0, FlxG.height - 100, FlxG.width, t('playing_right', t('playing_right', "< Playing with: Right Side (BF) >")), 32);
         hostRoleText.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.LIME, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         hostRoleText.visible = false;
         add(hostRoleText);
 
-        hostRoleHintText = new FlxText(0, FlxG.height - 60, FlxG.width, "(Press SHIFT to change character)", 20);
+        hostRoleHintText = new FlxText(0, FlxG.height - 60, FlxG.width, t('shift_hint', "(Press SHIFT to change character)"), 20);
         hostRoleHintText.setFormat(Paths.font("vcr.ttf"), 20, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         hostRoleHintText.visible = false;
         add(hostRoleHintText);
@@ -236,7 +243,7 @@ class MultiplayerMenuState extends MusicBeatState
 
         var status:String = NetworkManager.statusString;
         if (NetworkManager.connected) {
-            status += "  (vs " + NetworkManager.opponentNickname + ")";
+            status += t('vs', "  (vs {1})", [NetworkManager.opponentNickname]);
             if (NetworkManager.latency > 0) status += "  Ping: " + Math.round(NetworkManager.latency * 2) + "ms";
         }
         if (noticeTime > 0) {
@@ -371,7 +378,7 @@ class MultiplayerMenuState extends MusicBeatState
                 var imTheOpponent:Bool = (receivedHostRole == 'bf');
                 if (index < 0 || !forceLoadSong(index, difficulty, imTheOpponent)) {
                     NetworkManager.send("LOAD_FAILED|" + songName);
-                    showNotice("Nao foi possivel abrir \"" + songName + "\" (o mod esta instalado?)");
+                    showNotice(t('cant_open_mod', "Couldn't open \"{1}\" (is the mod installed?)", [songName]));
                     FlxG.sound.play(Paths.sound('cancelMenu'));
                 }
             }
@@ -389,7 +396,7 @@ class MultiplayerMenuState extends MusicBeatState
         if (typingNickname)
         {
             var cursor = (Math.floor(FlxG.game.ticks / 500) % 2 == 0) ? "_" : "";
-            promptText.text = "Type your nickname:\n\n" + typedNickname + cursor + "\n\n(Press ENTER to save or ESC to cancel)";
+            promptText.text = t('type_nick', "Type your nickname:\n\n{1}\n\n(Press ENTER to save or ESC to cancel)", [typedNickname + cursor]);
             promptText.visible = true;
             connectionMenu.visible = false;
             clientWaitText.visible = false;
@@ -414,7 +421,7 @@ class MultiplayerMenuState extends MusicBeatState
                 NetworkManager.myNickname = typedNickname;
                 FlxG.save.data.multiplayerNickname = typedNickname;
                 FlxG.save.flush();
-                nicknameText.text = "Nick: " + typedNickname + "\n[TAB] To Change";
+                nicknameText.text = t('nick', "Nick: {1}\n[TAB] To Change", [typedNickname]);
                 FlxG.sound.play(Paths.sound('confirmMenu'));
 
                 if (NetworkManager.connected) NetworkManager.send("NICK_EXCHANGE|" + typedNickname);
@@ -424,7 +431,7 @@ class MultiplayerMenuState extends MusicBeatState
         else if (typingIP)
         {
             var cursor = (Math.floor(FlxG.game.ticks / 500) % 2 == 0) ? "_" : "";
-            promptText.text = "Type HOST IP (Radmin/Hamachi):\n\n" + typedIP + cursor + "\n\n(Press ENTER to connect or ESC to back)";
+            promptText.text = t('type_ip', "Type HOST IP (Radmin/Hamachi):\n\n{1}\n\n(Press ENTER to connect or ESC to back)", [typedIP + cursor]);
             promptText.visible = true;
 
             if (FlxG.keys.justPressed.BACKSPACE && typedIP.length > 0) {
@@ -574,21 +581,21 @@ class MultiplayerMenuState extends MusicBeatState
         var role:String = host ? currentRole : clientViewRole;
         var diffName:String = host ? Difficulty.list[curDifficulty] : clientViewDifficulty;
 
-        setupTitle.text = host ? "MATCH SETUP" : "THE HOST IS SETTING UP THE MATCH";
+        setupTitle.text = host ? t('setup_title', "MATCH SETUP") : t('setup_title_client', "THE HOST IS SETTING UP THE MATCH");
         setupSong.text = (songList.length > 0 ? songList[curSongSelected] : "?") + "  -  " + (diffName != null ? diffName.toUpperCase() : "?");
-        setupCondition.text = (host ? "< " : "") + "Win by: " + NetworkManager.winConditionName(condition).toUpperCase() + (host ? " >" : "");
-        setupConditionInfo.text = NetworkManager.winConditionInfo(condition) + "  (being knocked out always loses)";
+        setupCondition.text = (host ? "< " : "") + t('win_by', "Win by: {1}", [NetworkManager.winConditionName(condition).toUpperCase()]) + (host ? " >" : "");
+        setupConditionInfo.text = NetworkManager.winConditionInfo(condition) + t('knockout_loses', "  (being knocked out always loses)");
 
-        var hostSide:String = (role == 'dad') ? "Left (DAD)" : "Right (BF)";
-        var otherSide:String = (role == 'dad') ? "Right (BF)" : "Left (DAD)";
-        setupSide.text = host ? "< Your side: " + hostSide + " >" : "Host: " + hostSide + "  |  You: " + otherSide;
+        var hostSide:String = (role == 'dad') ? t('left_dad', "Left (DAD)") : t('right_bf', "Right (BF)");
+        var otherSide:String = (role == 'dad') ? t('right_bf', "Right (BF)") : t('left_dad', "Left (DAD)");
+        setupSide.text = host ? "< " + t('your_side', "Your side: {1}", [hostSide]) + " >" : t('sides', "Host: {1}  |  You: {2}", [hostSide, otherSide]);
         setupSide.color = ((role == 'dad') == host) ? 0xFFFF6666 : FlxColor.LIME;
 
         setupCondition.color = (host && setupRow == 0) ? FlxColor.YELLOW : FlxColor.WHITE;
         if (host && setupRow == 1) setupSide.color = FlxColor.YELLOW;
 
-        setupHint.text = host ? "UP/DOWN: choose   LEFT/RIGHT: change   ENTER: start   ESC: back"
-            : "Waiting for the host to start the match... (ESC to leave)";
+        setupHint.text = host ? t('setup_hint', "UP/DOWN: choose   LEFT/RIGHT: change   ENTER: start   ESC: back")
+            : t('setup_hint_client', "Waiting for the host to start the match... (ESC to leave)");
     }
 
     function updateSetup() {
@@ -624,7 +631,7 @@ class MultiplayerMenuState extends MusicBeatState
 
     function setRole(role:String) {
         currentRole = role;
-        hostRoleText.text = (role == 'dad') ? "< Playing with: Left Side (DAD) >" : "< Playing with: Right Side (BF) >";
+        hostRoleText.text = (role == 'dad') ? t('playing_left', "< Playing with: Left Side (DAD) >") : t('playing_right', "< Playing with: Right Side (BF) >");
         hostRoleText.color = (role == 'dad') ? FlxColor.RED : FlxColor.LIME;
     }
 
@@ -641,7 +648,7 @@ class MultiplayerMenuState extends MusicBeatState
         })) {
             FlxG.sound.play(Paths.sound('confirmMenu'));
         } else {
-            showNotice("Nao foi possivel abrir \"" + chosenSong + "\" nessa dificuldade.");
+            showNotice(t('cant_open_diff', "Couldn't open \"{1}\" on this difficulty.", [chosenSong]));
             FlxG.sound.play(Paths.sound('cancelMenu'));
             openSetup(false);
         }
@@ -697,14 +704,14 @@ class MultiplayerMenuState extends MusicBeatState
         diffText.x = FlxG.width - diffText.width - 20;
 
         if (hostRole == 'dad') {
-            hostRoleText.text = "Host: Left Side (DAD)  |  You: Right Side (BF)";
+            hostRoleText.text = t('sides_full', "Host: {1}  |  You: {2}", [t('left_side', "Left Side (DAD)"), t('right_side', "Right Side (BF)")]);
             hostRoleText.color = FlxColor.LIME;
         } else {
-            hostRoleText.text = "Host: Right Side (BF)  |  You: Left Side (DAD)";
+            hostRoleText.text = t('sides_full', "Host: {1}  |  You: {2}", [t('right_side', "Right Side (BF)"), t('left_side', "Left Side (DAD)")]);
             hostRoleText.color = FlxColor.RED;
         }
-        hostRoleHintText.text = (index > -1) ? "The host is choosing the song... (ESC to leave)"
-            : "The host is on \"" + songName + "\", which isn't installed here! (ESC to leave)";
+        hostRoleHintText.text = (index > -1) ? t('host_choosing', "The host is choosing the song... (ESC to leave)")
+            : t('host_missing_song', "The host is on \"{1}\", which isn't installed here! (ESC to leave)", [songName]);
 
         // the host's setup of the match, as it changes
         setupPanel.visible = hostConfiguring && !typingNickname;
@@ -723,8 +730,8 @@ class MultiplayerMenuState extends MusicBeatState
         diffText.visible = false;
         hostRoleText.visible = false;
         hostRoleHintText.visible = false;
-        hostRoleHintText.text = "(Press SHIFT to change character)";
-        hostRoleText.text = (currentRole == 'dad') ? "< Playing with: Left Side (DAD) >" : "< Playing with: Right Side (BF) >";
+        hostRoleHintText.text = t('shift_hint', "(Press SHIFT to change character)");
+        hostRoleText.text = (currentRole == 'dad') ? t('playing_left', "< Playing with: Left Side (DAD) >") : t('playing_right', "< Playing with: Right Side (BF) >");
         hostRoleText.color = (currentRole == 'dad') ? FlxColor.RED : FlxColor.LIME;
         clientWaitText.visible = false;
         gotLobbyView = false;

@@ -200,6 +200,11 @@ class AtlasSprite extends FlxAnimate
 		flipWidth = boundsX * 2 + boundsWidth;
 		flipHeight = boundsY * 2 + boundsHeight;
 
+		// Before anything is played it shows the first frame of its timeline, still, like V-Slice's atlases do (A-Bot's eyes are
+		// only played when the camera moves: they weren't there until then). Nothing counts as being played yet
+		anim.play(MAIN, true, false, 0);
+		anim.pause();
+
 		player.reset();
 		return this;
 	}
