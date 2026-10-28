@@ -216,6 +216,9 @@ Open the screen's file in `source/states/` to see the names of its things. Every
 
 The loaded song is already in `PlayState.SONG` (`PlayState.SONG.song` is its name), so you can show a different picture for each song.
 
+> [!TIP]
+> The music that was playing (the menu's, or Freeplay's preview of the song) keeps playing on the loading screen. If your screen has a sound of its own, stop it in `onCreatePost()` with `FlxG.sound.music.stop();`.
+
 > [!IMPORTANT]
 > If the song is already loaded when the screen opens, `onFinishedLoading()` is called **right then, before `onCreatePost()`**. Decide things like "does this song have a loading screen of its own?" in `onCreate()`, not `onCreatePost()`.
 
@@ -324,8 +327,6 @@ function onUpdate(elapsed:Float)
 }
 ```
 
-VsGorefieldV2's loading screen was converted this way (`mods/VsGorefieldV2/states/LoadingState.hx`): the same pictures, sound, minimum time and "press ENTER" it had, but shown while the song really loads.
-
 > [!NOTE]
 > Psych Engine's `data/LoadingScreen.hx` still works as well.
 
@@ -427,4 +428,4 @@ A file with every callback and a short explanation of each is in [`docs/scripts/
 * **Hide, don't destroy** the screen's own things (see [section 6](#6-changing-what-a-screen-already-has)).
 * **`onFinishedLoading` can come before `onCreatePost`** on the loading screen (see [section 7](#7-the-loading-screen)).
 * **V-Slice mods** have their own way of changing menus (`.hxc` modules); state scripts work alongside them.
-* **Other engines** don't have state scripts. If your mod should also work on Psych Engine, keep what's essential outside of them (like VsGorefieldV2's song script, which still shows its loading screen on other engines).
+* **Other engines** don't have state scripts. If your mod should also work on Psych Engine, keep what's essential outside of them, in the song's own scripts.
