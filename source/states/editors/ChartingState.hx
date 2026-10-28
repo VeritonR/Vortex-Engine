@@ -85,7 +85,19 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		['Change Character', "Value 1: Character to change (Dad, BF, GF)\nValue 2: New character's name"],
 		['Change Scroll Speed', "Value 1: Scroll Speed Multiplier (1 is default)\nValue 2: Time it takes to change fully in seconds."],
 		['Set Property', "Value 1: Variable name\nValue 2: New value"],
-		['Play Sound', "Value 1: Sound file name\nValue 2: Volume (Default: 1), ranges from 0 to 1"]
+		['Play Sound', "Value 1: Sound file name\nValue 2: Volume (Default: 1), ranges from 0 to 1"],
+		// Vortex Engine (a mod with an event of its own with one of these names keeps using its own)
+		['Flash Camera', "(Vortex) Flashes a camera.\nValue 1: Color, Duration (Default: FFFFFF, 1)\nValue 2: Camera: game, hud or other (Default: game)\n\nOff when the player turned off Flashing Lights."],
+		['Fade Screen', "(Vortex) Covers the whole screen with a color.\nValue 1: Color, Alpha from 0 to 1 (Default: 000000, 1)\nValue 2: Duration, Ease (Default: 1, linear)\n\nFade to black: \"000000, 1\". Back: \", 0\"."],
+		['Set Camera Zoom', "(Vortex) Changes how close the camera is.\nValue 1: Zoom (blank: the stage's)\nValue 2: Duration, Ease (blank: at once)\n\nExample: \"1.2\" and \"2, quadOut\""],
+		['Fade HUD', "(Vortex) Fades the whole HUD in or out.\nValue 1: Alpha from 0 to 1 (Default: 1)\nValue 2: Duration, Ease (Default: 0.5, linear)"],
+		['Cinematic Bars', "(Vortex) Black bars on the top and the bottom.\nValue 1: Size in pixels (blank: 100, 0: gone)\nValue 2: Duration, Ease (Default: 0.5, linear)"],
+		['Lyrics', "(Vortex) A line of text at the bottom of the screen.\nValue 1: The text (blank: clears it, \\n: new line)\nValue 2: Color (Default: FFFFFF)"],
+		['Camera Target', "(Vortex) Keeps the camera on someone.\nValue 1: dad, bf, gf or the tag of an extra\ncharacter. Blank: back to following the sections."],
+		['Camera Bop', "(Vortex) How often the camera bops.\nValue 1: Beats between bops (blank: each section,\n0: none)\nValue 2: How strong (Default: 1)"],
+		['Character Trail', "(Vortex) Afterimages behind a character.\nValue 1: dad, bf, gf or the tag of an extra character\nValue 2: Color (blank: removes the trail)"],
+		['Notes Fade', "(Vortex) Fades the receptors and their notes.\nValue 1: player, opponent or both\nValue 2: Alpha, Duration, Ease (Default: 0, 0.5, linear)\n\nWith Play as Opponent the played ones stay visible."],
+		['Camera Angle', "(Vortex) Turns a camera.\nValue 1: game, hud or other\nValue 2: Angle, Duration, Ease (Default: 0, 0, linear)"]
 	];
 	
 	public static var keysArray:Array<FlxKey> = [ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT]; //Used for Vortex Editor
@@ -245,6 +257,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		if(_shouldReset) Conductor.songPosition = 0;
 		persistentUpdate = false;
+		setupExtraFields();
 		FlxG.mouse.visible = true;
 		FlxG.sound.list.add(vocals);
 		FlxG.sound.list.add(opponentVocals);
@@ -369,7 +382,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		vortexIndicator.visible = strumLineNotes.visible = strumLineNotes.active = vortexEnabled;
 		if(SHOW_EVENT_COLUMN) startX += GRID_SIZE;
 
-		for (i in 0...Std.int(GRID_PLAYERS * GRID_COLUMNS_PER_PLAYER))
+		for (i in 0...displayColumns)
 		{
 			var note:StrumNote = new StrumNote(startX + (GRID_SIZE * i), startY, i % GRID_COLUMNS_PER_PLAYER, 0);
 			note.scrollFactor.set();
@@ -431,6 +444,34 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			icon.x = iconX + GRID_SIZE * (GRID_COLUMNS_PER_PLAYER/2) - icon.width/2;
 			iconX += GRID_SIZE * GRID_COLUMNS_PER_PLAYER;
 		}
+
+		// (a field of its own for each extra character, after the opponent's, with its icon)
+		extraIcons = [];
+		for (extra in extraColumns)
+		{
+			gridStripes.push(columns);
+			columns += GRID_COLUMNS_PER_PLAYER;
+
+			var icon:HealthIcon = new HealthIcon(extraIconName(extra));
+			icon.autoAdjustOffset = false;
+			icon.y = iconY;
+			icon.alpha = 0.6;
+			icon.scrollFactor.set();
+			icon.scale.set(0.3, 0.3);
+			icon.updateHitbox();
+			icon.x = iconX + GRID_SIZE * (GRID_COLUMNS_PER_PLAYER/2) - icon.width/2;
+			add(icon);
+			extraIcons.push(icon);
+
+			var label:FlxText = new FlxText(iconX, iconY + icon.height - 4, GRID_SIZE * GRID_COLUMNS_PER_PLAYER, Std.string(extra.tag), 10);
+			label.alignment = CENTER;
+			label.borderStyle = OUTLINE;
+			label.borderColor = FlxColor.BLACK;
+			label.scrollFactor.set();
+			add(label);
+			extraLabels.push(label);
+			iconX += GRID_SIZE * GRID_COLUMNS_PER_PLAYER;
+		}
 		prevGridBg.stripes = nextGridBg.stripes = gridBg.stripes = gridStripes;
 		
 		selectionBox = new FlxSprite().makeGraphic(1, 1, 0xFF3399FF);
@@ -462,7 +503,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		add(infoBox);
 
 		mainBox = new PsychUIBox(mainBoxPosition.x, mainBoxPosition.y, 340, 280, ['Charting', 'Data', 'Events', 'Note', 'Section', 'Song', 'Extras']);
-		mainBox.selectedName = 'Song';
+		mainBox.selectedName = (reopenTab != null) ? reopenTab : 'Song';
+		reopenTab = null;
 		mainBox.scrollFactor.set();
 		mainBox.cameras = [camUI];
 		add(mainBox);
@@ -747,7 +789,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		noteSplashesInputText.text = PlayState.SONG.splashSkin;
 
 		// EXTRAS TAB
-		curExtra = 0;
+		curExtra = keptExtra;
+		keptExtra = 0;
 		refreshExtrasTab();
 	}
 	
@@ -1372,14 +1415,14 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					{
 						if(note == null || note.isEvent) continue;
 	
-						var data:Int = note.songData[1];
+						var data:Int = columnOf(note.songData);
 						if(isFirst || data < movingNotesMinData) movingNotesMinData = data;
 						if(data > movingNotesMaxData) movingNotesMaxData = data;
 						isFirst = false;
 					}
 
 					var diff:Int = nData - movingNotesLastData;
-					var maxn:Int = (GRID_PLAYERS * GRID_COLUMNS_PER_PLAYER) - 1;
+					var maxn:Int = displayColumns - 1;
 					movingNotesMinData += diff;
 					movingNotesMaxData += diff;
 					if(movingNotesMinData < 0)
@@ -1391,7 +1434,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					{
 						if(note == null || note.isEvent) continue; //Events shouldn't change note data as they don't have one
 
-						note.changeNoteData(note.songData[1] + diff);
+						applyColumn(note, columnOf(note.songData) + diff);
 						positionNoteXByData(note);
 					}
 				}
@@ -1434,7 +1477,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					var closeNotes:Array<MetaNote> = curRenderedNotes.members.filter(function(note:MetaNote)
 					{
 						var chartY:Float = FlxG.mouse.y - note.chartY;
-						return ((note.isEvent && noteData < 0) || (!note.isEvent && note.songData[1] == noteData)) && chartY >= 0 && chartY < GRID_SIZE;
+						return ((note.isEvent && noteData < 0) || (!note.isEvent && columnOf(note.songData) == noteData)) && chartY >= 0 && chartY < GRID_SIZE;
 					});
 					closeNotes.sort(function(a:MetaNote, b:MetaNote) return Math.abs(a.strumTime - FlxG.mouse.y) < Math.abs(b.strumTime - FlxG.mouse.y) ? 1 : -1);
 
@@ -1481,10 +1524,18 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 							trace('Added note at time: $strumTime');
 							var didAdd:Bool = false;
 
-							var noteSetupData:Array<Dynamic> = [strumTime, noteData, 0];
+							// (on an extra character's field: a note of its side, sung by it)
+							var field:Int = Math.floor(noteData / GRID_COLUMNS_PER_PLAYER) - GRID_PLAYERS;
+							var lane:Int = (field >= 0) ? sideLane(extraColumns[field].side) + noteData % GRID_COLUMNS_PER_PLAYER : noteData;
+							var noteSetupData:Array<Dynamic> = [strumTime, lane, 0];
 							var typeSelected:String = noteTypes[noteTypeDropDown.selectedIndex].trim();
 							if(typeSelected != null && typeSelected.length > 0)
 								noteSetupData.push(typeSelected);
+							if(field >= 0)
+							{
+								if(noteSetupData.length < 4) noteSetupData.push('');
+								noteSetupData.push(Std.string(extraColumns[field].tag));
+							}
 
 							var noteAdded:MetaNote = createNote(noteSetupData);
 							for (num in sectionFirstNoteID...notes.length)
@@ -1611,7 +1662,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 					if(vortexPlaying)
 					{
-						var strumNote:StrumNote = strumLineNotes.members[note.songData[1]];
+						var strumNote:StrumNote = strumLineNotes.members[columnOf(note.songData)];
 						if(strumNote != null)
 						{
 							strumNote.playAnim('confirm', true);
@@ -1841,7 +1892,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		{
 			if(note == null) return false;
 			var chartY:Float = FlxG.mouse.y - note.chartY;
-			return ((note.isEvent && noteData < 0) || (!note.isEvent && note.songData[1] == noteData)) && chartY >= 0 && chartY < GRID_SIZE;
+			return ((note.isEvent && noteData < 0) || (!note.isEvent && columnOf(note.songData) == noteData)) && chartY >= 0 && chartY < GRID_SIZE;
 		});
 		return closeNotes[0];
 	}
@@ -2139,7 +2190,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			destroyed = true;
 		}
 
-		var columnCount:Int = (GRID_COLUMNS_PER_PLAYER * GRID_PLAYERS) + (SHOW_EVENT_COLUMN ? 1 : 0);
+		var columnCount:Int = displayColumns + (SHOW_EVENT_COLUMN ? 1 : 0);
 		gridBg = new ChartingGridSprite(columnCount, gridColors[0], gridColors[1]);
 		gridBg.screenCenter(X);
 
@@ -2351,7 +2402,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		swagNote.gfNote = (section.gfSection && gottaHitNote == section.mustHitSection);
 		swagNote.noteType = note[3];
 		swagNote.singers = (note.length > 4 && Std.isOfType(note[4], String)) ? note[4] : null;
-		swagNote.setSingerLabel(swagNote.singers);
+		refreshSingerLabel(swagNote);
 		swagNote.scrollFactor.x = 0;
 		var txt:FlxText = swagNote.findNoteTypeText(swagNote.noteType != null ? noteTypes.indexOf(swagNote.noteType) : 0);
 		if(txt != null) txt.visible = showNoteTypeLabels;
@@ -2653,7 +2704,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 	function positionNoteXByData(note:MetaNote, ?data:Null<Int> = null)
 	{
-		if(data == null) data = note.songData[1];
+		if(data == null) data = note.isEvent ? note.songData[1] : columnOf(note.songData);
 
 		var noteX:Float = gridBg.x + (GRID_SIZE - note.width) / 2;
 		if(SHOW_EVENT_COLUMN) noteX += GRID_SIZE;
@@ -2715,6 +2766,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					iconP2.changeIcon('gf');
 			}
 
+			fitHeadIcons();
 			if(mustHitSection)
 				mustHitIndicator.x = iconP1.x + iconP1.width/2;
 			else
@@ -3177,7 +3229,9 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	static final SIDE_NAMES:Array<String> = ['Opponent', 'Player', 'Girlfriend'];
 
 	var sungByDropDown:PsychUIDropDownMenu;
-	var curExtra:Int = 0;
+	var curExtra(default, set):Int = 0;
+	static var keptExtra:Int = 0;
+	function set_curExtra(v:Int):Int return keptExtra = curExtra = v;
 	var extraSelectDropDown:PsychUIDropDownMenu;
 	var extraCharDropDown:PsychUIDropDownMenu;
 	var extraSideDropDown:PsychUIDropDownMenu;
@@ -3216,7 +3270,135 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			data[4] = value;
 		}
 		note.singers = (value != null && value.length > 0) ? value : null;
-		note.setSingerLabel(note.singers);
+		refreshSingerLabel(note);
+		if(note.exists && gridBg != null) positionNoteXByData(note);
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// The fields of the extra characters on the grid (like Codename Engine's strumlines)
+	// ------------------------------------------------------------------------------------------
+
+	/** The most extra characters with a field of their own (the columns get smaller with each one). */
+	static inline final MAX_EXTRA_FIELDS:Int = 4;
+	/** The tab the editor goes back to when it's made again for a new field. */
+	static var reopenTab:String = null;
+
+	/** The extra characters that have a field, in order, after the opponent's. */
+	var extraColumns:Array<Dynamic> = [];
+	var extraIcons:Array<HealthIcon> = [];
+	var extraLabels:Array<FlxText> = [];
+
+	var displayColumns(get, never):Int;
+	inline function get_displayColumns():Int return GRID_COLUMNS_PER_PLAYER * (GRID_PLAYERS + extraColumns.length);
+
+	function setupExtraFields():Void
+	{
+		extraColumns = [];
+		var fromVSlice:Bool = (PlayState.SONG == null) #if MODS_ALLOWED || PolymodCompat.isVSliceChart(PlayState.SONG) #end;
+		if(!fromVSlice && PlayState.SONG.vortexCharacters != null)
+		{
+			for (extra in PlayState.SONG.vortexCharacters)
+				if(extra != null && extra.tag != null && extraColumns.length < MAX_EXTRA_FIELDS)
+					extraColumns.push(extra);
+		}
+
+		// smaller columns for more fields, so they all fit
+		GRID_SIZE = switch(GRID_PLAYERS + extraColumns.length)
+		{
+			case 3: 34;
+			case 4: 30;
+			case 5: 26;
+			case 6: 22;
+			default: 40;
+		}
+	}
+
+	// The first lane of a side on the chart: the player's notes are 0-3, the opponent's 4-7 (the girlfriend sings the opponent's)
+	inline function sideLane(side:String):Int
+		return (side == 'player') ? 0 : GRID_COLUMNS_PER_PLAYER;
+
+	function extraFieldOf(tag:String):Int
+	{
+		if(tag == null) return -1;
+		for (num => extra in extraColumns)
+			if(extra.tag == tag) return num;
+		return -1;
+	}
+
+	/**
+	 * The column a note is drawn in: on the field of the extra character that sings it alone, or its lane.
+	 */
+	function columnOf(data:Array<Dynamic>):Int
+	{
+		var lane:Int = Std.int(data[1]);
+		if(data.length > 4 && Std.isOfType(data[4], String))
+		{
+			var field:Int = extraFieldOf(data[4]);
+			if(field > -1 && Math.floor(lane / GRID_COLUMNS_PER_PLAYER) == Math.floor(sideLane(extraColumns[field].side) / GRID_COLUMNS_PER_PLAYER))
+				return (GRID_PLAYERS + field) * GRID_COLUMNS_PER_PLAYER + lane % GRID_COLUMNS_PER_PLAYER;
+		}
+		return lane;
+	}
+
+	// A note put on a column: on an extra's field it's that one's (on its side), off it it's the main ones'
+	function applyColumn(note:MetaNote, column:Int):Void
+	{
+		var field:Int = Math.floor(column / GRID_COLUMNS_PER_PLAYER) - GRID_PLAYERS;
+		if(field >= 0 && field < extraColumns.length)
+		{
+			var extra:Dynamic = extraColumns[field];
+			note.changeNoteData(sideLane(extra.side) + column % GRID_COLUMNS_PER_PLAYER);
+			setNoteSingers(note, Std.string(extra.tag));
+		}
+		else
+		{
+			if(note.singers != null && extraFieldOf(note.singers) > -1) setNoteSingers(note, null);
+			note.changeNoteData(column);
+		}
+	}
+
+	// The name of who sings it shows on a note, unless it's on that one's own field
+	function refreshSingerLabel(note:MetaNote):Void
+	{
+		var onOwnField:Bool = (columnOf(note.songData) >= GRID_PLAYERS * GRID_COLUMNS_PER_PLAYER);
+		note.setSingerLabel(onOwnField ? null : note.singers);
+	}
+
+	// With the fields of extra characters the columns are narrower: the icons on top of them too, so they don't cover each other
+	function fitHeadIcons():Void
+	{
+		if(extraColumns.length < 1) return;
+
+		var firstX:Float = gridBg.x + (SHOW_EVENT_COLUMN ? GRID_SIZE : 0);
+		var fieldWidth:Float = GRID_SIZE * GRID_COLUMNS_PER_PLAYER;
+		var all:Array<HealthIcon> = icons.concat(extraIcons);
+		for (num => icon in all)
+		{
+			if(icon == null) continue;
+			icon.setGraphicSize(0, Std.int(fieldWidth * 0.8));
+			icon.updateHitbox();
+			icon.x = firstX + fieldWidth * num + fieldWidth / 2 - icon.width / 2;
+		}
+		for (num => label in extraLabels)
+			label.y = extraIcons[num].y + extraIcons[num].height - 6;
+	}
+
+	function extraIconName(extra:Dynamic):String
+	{
+		var data:CharacterFile = loadCharacterFile(extra.character);
+		return (data != null && data.healthicon != null) ? data.healthicon : 'face';
+	}
+
+	/**
+	 * The editor is made again with the song as it is now: the grid has a field more or less.
+	 */
+	function rebuildForFields():Void
+	{
+		updateChartData();
+		reopenTab = mainBox.selectedName;
+		flixel.addons.transition.FlxTransitionableState.skipNextTransIn = true;
+		flixel.addons.transition.FlxTransitionableState.skipNextTransOut = true;
+		MusicBeatState.switchState(new ChartingState(false));
 	}
 
 	function addExtrasTab()
@@ -3237,10 +3419,14 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			var num:Int = list.length + 1;
 			while(extraTagExists('extra$num')) num++;
 			var opponent:String = (PlayState.SONG.player2 != null) ? PlayState.SONG.player2 : 'dad';
+			if(list.length >= MAX_EXTRA_FIELDS)
+			{
+				showOutput('A song can have up to $MAX_EXTRA_FIELDS extra characters', true);
+				return;
+			}
+			curExtra = list.length;
 			list.push({tag: 'extra$num', character: opponent, side: 'opponent', x: -250, y: 0, singsAll: false, behind: true});
-			curExtra = list.length - 1;
-			refreshExtrasTab();
-			showOutput('Added "extra$num". Who sings each note: Note tab, "Sung by"');
+			rebuildForFields();
 		}, 55);
 
 		extraRemoveButton = new PsychUIButton(objX + 195, objY, 'Remove', function()
@@ -3258,8 +3444,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			}
 			getExtras().remove(extra);
 			curExtra = Std.int(Math.max(0, curExtra - 1));
-			refreshExtrasTab();
-			showOutput('Removed "${extra.tag}"' + (count > 0 ? ' ($count of its notes went back to the default singers)' : ''));
+			rebuildForFields();
 		}, 70);
 		extraRemoveButton.normalStyle.bgColor = FlxColor.RED;
 		extraRemoveButton.normalStyle.textColor = FlxColor.WHITE;
@@ -3281,20 +3466,39 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				if(note != null && !note.isEvent && note.singers == oldTag)
 					setNoteSingers(note, cur);
 			extra.tag = cur;
+			var field:Int = extraColumns.indexOf(extra);
+			if(field > -1 && field < extraLabels.length) extraLabels[field].text = cur;
 			refreshExtraLists();
 		};
 
 		extraSideDropDown = new PsychUIDropDownMenu(objX + 140, objY, SIDE_NAMES, function(id:Int, label:String)
 		{
 			var extra:Dynamic = getCurExtra();
-			if(extra != null) extra.side = ExtraCharacter.SIDES[id];
+			if(extra == null || extra.side == ExtraCharacter.SIDES[id]) return;
+
+			var tag:String = Std.string(extra.tag);
+			var fieldNotes:Array<MetaNote> = [for (note in notes) if(note != null && !note.isEvent && note.singers == tag && columnOf(note.songData) >= GRID_PLAYERS * GRID_COLUMNS_PER_PLAYER) note];
+			extra.side = ExtraCharacter.SIDES[id];
+			for (note in fieldNotes)
+			{
+				note.changeNoteData(sideLane(extra.side) + Std.int(note.songData[1]) % GRID_COLUMNS_PER_PLAYER);
+				positionNoteXByData(note);
+			}
+			softReloadNotes();
 		}, 120);
 
 		objY += 40;
 		extraCharDropDown = new PsychUIDropDownMenu(objX, objY, [''], function(id:Int, character:String)
 		{
 			var extra:Dynamic = getCurExtra();
-			if(extra != null) extra.character = character;
+			if(extra == null) return;
+			extra.character = character;
+			var field:Int = extraColumns.indexOf(extra);
+			if(field > -1 && field < extraIcons.length)
+			{
+				extraIcons[field].changeIcon(extraIconName(extra));
+				fitHeadIcons();
+			}
 		}, 150);
 
 		objY += 40;
@@ -3693,9 +3897,15 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				eventsList.push([file, desc]);
 			}
 
-			for (id => event in defaultEvents)
-				if(!eventsList.contains(event))
-					eventsList.insert(id, event);
+			// (one of the mod's own with the name of one of these takes its place: it's the one that's done)
+			var ownNames:Array<String> = [for (event in eventsList) event[0]];
+			var at:Int = 0;
+			for (event in defaultEvents)
+			{
+				if(ownNames.contains(event[0])) continue;
+				eventsList.insert(at, event);
+				at++;
+			}
 			
 			var displayEventsList:Array<String> = [];
 			for (id => data in eventsList)

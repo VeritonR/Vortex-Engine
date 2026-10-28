@@ -44,7 +44,7 @@ class LuaUtils
 	// game's own is the one of who's playing, the dad's: scripts get it as Boyfriend's, or their bars and drains went the wrong way
 	// (The Basement Show's Reburning)
 	static inline function flipsHealth(instance:Dynamic, variable:String):Bool
-		return variable == 'health' && PlayState.instance != null && instance == PlayState.instance && PlayState.instance.playAsOpponent;
+		return variable == 'health' && PlayState.instance != null && instance == PlayState.instance && PlayState.instance.scriptHealthFlipped();
 
 	public static function setVarInArray(instance:Dynamic, variable:String, value:Dynamic, allowMaps:Bool = false):Any
 	{

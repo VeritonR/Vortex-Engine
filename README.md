@@ -122,7 +122,8 @@ Each of these is an option, and Psych mods get them too.
 </p>
 
 * **Chart Editor:** a music player bar at the bottom (like V-Slice's): drag it to go anywhere in the song, play/pause and skip with its buttons, and see the time left, beat, step, BPM and snap. Drag a box with the mouse to select notes, drag the selection to move it, cut / copy / paste and undo. Music plays when you leave it idle, like in V-Slice (`M` turns it off).
-* **Extra characters:** the chart editor's "Extras" tab adds characters besides the opponent, the player and the girlfriend (a character, a side, where it stands), and the Note tab's "Sung by" picks who sings each note: the main character, an extra one, or everyone on that side. They dance, sing, hold long notes and miss like the main ones; scripts get them by their tag. See section 8 of [`scripts.txt`](scripts.txt).
+* **Extra characters:** the chart editor's "Extras" tab adds characters besides the opponent, the player and the girlfriend (a character, a side, where it stands). Each one gets a field of its own on the grid, like Codename Engine's strumlines, to chart its notes; the Note tab's "Sung by" also picks who sings each note: the main character, an extra one, or everyone on that side. They dance, sing, hold long notes and miss like the main ones; scripts get them by their tag. See section 8 of [`scripts.txt`](scripts.txt).
+* **New chart events:** Flash Camera, Fade Screen, Set Camera Zoom, Fade HUD, Cinematic Bars, Lyrics, Camera Target, Camera Bop, Character Trail, Notes Fade and Camera Angle, with no script needed (see section 10 of [`scripts.txt`](scripts.txt)). A mod with its own event of the same name keeps its own.
 * **Stage, Character, Dialogue Portrait and Menu Character editors:** move things with the mouse, with undo.
 * **Character Select & Results editor (new):** place the characters, portraits and results animations of a playable character, with a live preview. What you save works in the official V-Slice too.
 
@@ -137,6 +138,7 @@ Each of these is an option, and Psych mods get them too.
 
 Everything Psych Engine's Lua and HScript can do still works, and so do V-Slice's `.hxc` scripts. On top of that, Vortex adds:
 
+* **State scripts:** a `states` folder with one `.hx` per screen (`MainMenuState.hx`, `LoadingState.hx`, ... and `Global.hx` for all of them) to change the menus and make your own loading screen. See the full guide below.
 * `VortexEngine`, `playAsOpponent`, `onlinePlay` and `onlineHost` variables.
 * Functions such as `setLaneUnderlay`, `setScoreCamera`, `setHiddenNotes`, `getTallies` and `startConversation` (V-Slice dialogue in Psych songs).
 * Callbacks such as `onBreakStart` and `onBreakEnd`.
@@ -144,6 +146,33 @@ Everything Psych Engine's Lua and HScript can do still works, and so do V-Slice'
 * Camera rotation without empty corners: no `zCameraFix` scripts needed.
 
 The full list, with examples, is in [`scripts.txt`](scripts.txt).
+
+### 🖼️ State scripts: change the menus and the loading screen
+
+Put HScript files in a `states` folder of your mod, named after the screen they're for, and they run on it:
+
+```
+mods/My Mod/states/
+├─ Global.hx           ← every screen
+├─ MainMenuState.hx    ← the main menu
+├─ FreeplayState.hx    ← Freeplay
+└─ LoadingState.hx     ← the loading screen before a song
+```
+
+```haxe
+// mods/My Mod/states/MainMenuState.hx
+function onCreatePost() {
+	var hello = new FlxText(20, FlxG.height - 70, 0, 'Hello from my mod!', 28);
+	add(hello);
+}
+```
+
+* Callbacks: `onCreate`, `onCreatePost`, `onUpdate`, `onUpdatePost`, `onStepHit`, `onBeatHit`, `onOpenSubState`, `onCloseSubState`, `onDestroy`.
+* The screen's own things are reached by their names (`optionsGear.visible = false;`), and `add()` / `insert()` / `remove()` work on it.
+* **Custom loading screens:** `onLoadingProgress(loaded, total, percent)`, and `onFinishedLoading()` returning `Function_Stop` keeps the screen on until `finishLoading()` (a minimum time, "Press ENTER to continue", a fade...).
+* `switchState('CreditsState')`, `debugPrint()`, `parseJson()` and `sharedData` (data kept from one screen to the next, or for the song's scripts).
+
+📖 **Full guide, with every screen name, callback and function, and complete examples: [`docs/STATE_SCRIPTS.md`](docs/STATE_SCRIPTS.md)** · Template: [`docs/scripts/StateTemplate.hx`](docs/scripts/StateTemplate.hx)
 
 > [!WARNING]
 > **Mods made with Vortex Engine are not recommended for other engines.**

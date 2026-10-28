@@ -84,6 +84,12 @@ class ModCompatibility
 			if(!finding.places.contains(place)) finding.places.push(place);
 		}
 
+		// the events the mod makes itself
+		var ownEvents:Array<String> = [];
+		if(FileSystem.exists(root + 'custom_events') && FileSystem.isDirectory(root + 'custom_events'))
+			for (file in FileSystem.readDirectory(root + 'custom_events'))
+				ownEvents.push(haxe.io.Path.withoutExtension(file).toLowerCase());
+
 		for (path in listFiles(root, ''))
 		{
 			var lower:String = path.toLowerCase();
@@ -94,7 +100,8 @@ class ModCompatibility
 			if(lower.endsWith('.xml') && (lower.contains('images/icons/') || lower.startsWith('icons/')))
 			{
 				var image:String = path.substr(0, path.length - 4) + '.png';
-				if(FileSystem.exists(root + image))
+				var sheet:String = read(root + path);
+				if(FileSystem.exists(root + image) && sheet != null && ~/name="normal/.match(sheet)) //(made the way Vortex animates)
 					add(NOTE, Language.getPhrase('compat_icon_name', 'Animated health icon'),
 						Language.getPhrase('compat_icon_effect', 'Vortex animates it by itself: other engines show the whole sheet as it is, unless a script of the mod animates it.'), path);
 				continue;
@@ -106,8 +113,19 @@ class ModCompatibility
 				if(text != null && text.contains('"vortexCharacters"') && !~/"vortexCharacters"\s*:\s*\[\s*\]/.match(text))
 					add(DIFFERS, Language.getPhrase('compat_extras_name', 'Extra characters on the chart'),
 						Language.getPhrase('compat_extras_effect', 'Only Vortex shows them: elsewhere they are missing and the main characters sing their notes.'), path);
+
+				// Vortex's own events (unless the mod has its own with that name)
+				if(text != null)
+					for (event in states.PlayState.VORTEX_EVENTS)
+						if(!ownEvents.contains(event.toLowerCase()) && text.contains('"$event"'))
+							add(DIFFERS, Language.getPhrase('compat_event_name', 'Event "{1}"', [event]),
+								Language.getPhrase('compat_event_effect', "One of Vortex Engine's own events: other engines do nothing with it (unless the mod has its own)."), path);
 				continue;
 			}
+
+			if(isHx && lower.startsWith('states/'))
+				add(DIFFERS, Language.getPhrase('compat_states_name', 'State scripts (states folder)'),
+					Language.getPhrase('compat_states_effect', 'Only Vortex runs the scripts of the "states" folder: elsewhere those screens stay as they are.'), path);
 
 			if(!isLua && !isHx) continue;
 			var text:String = read(root + path);

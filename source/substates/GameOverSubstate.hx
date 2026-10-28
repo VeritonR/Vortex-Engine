@@ -100,7 +100,19 @@ class GameOverSubstate extends MusicBeatSubstate
 
 		Conductor.songPosition = 0;
 
-		if(boyfriend == null)
+		// With Play as Opponent the one who lost is the opponent (see startOpponentDeath())
+		var game:PlayState = PlayState.instance;
+		opponentDeath = (game != null && game.playAsOpponent && game.dad != null);
+		if(opponentDeath)
+		{
+			var place:FlxPoint = game.dad.getScreenPosition();
+			boyfriend = game.dad;
+			boyfriend.setPosition(place.x, place.y);
+			boyfriend.scrollFactor.set(1, 1);
+			place.put();
+			fadingDeath = !boyfriend.hasAnimation('firstDeath'); //(almost no opponent has death animations of its own)
+		}
+		else if(boyfriend == null)
 		{
 			boyfriend = new Character(PlayState.instance.boyfriend.getScreenPosition().x, PlayState.instance.boyfriend.getScreenPosition().y, characterName, true);
 			boyfriend.x += boyfriend.positionArray[0] - PlayState.instance.boyfriend.positionArray[0];
@@ -113,19 +125,28 @@ class GameOverSubstate extends MusicBeatSubstate
 		FlxG.camera.scroll.set();
 		FlxG.camera.target = null;
 
-		boyfriend.playAnim('firstDeath');
+		if(fadingDeath) startOpponentDeath();
+		else boyfriend.playAnim('firstDeath');
 
 		camFollow = new FlxObject(0, 0, 1, 1);
 		camFollow.setPosition(boyfriend.getGraphicMidpoint().x + boyfriend.cameraPosition[0], boyfriend.getGraphicMidpoint().y + boyfriend.cameraPosition[1]);
 		FlxG.camera.focusOn(new FlxPoint(FlxG.camera.scroll.x + (FlxG.camera.width / 2), FlxG.camera.scroll.y + (FlxG.camera.height / 2)));
 		FlxG.camera.follow(camFollow, LOCKON, 0.01);
+		if(fadingDeath)
+		{
+			// (on it at once: it's gone in a moment)
+			var middle:FlxPoint = boyfriend.getGraphicMidpoint();
+			camFollow.setPosition(middle.x, middle.y);
+			middle.put();
+			FlxG.camera.snapToTarget();
+		}
 		add(camFollow);
 		
 		PlayState.instance.setOnScripts('inGameOver', true);
 		PlayState.instance.callOnScripts('onGameOverStart', []);
 		FlxG.sound.music.loadEmbedded(Paths.music(loopSoundName), true);
 
-		if(characterName == 'pico-dead')
+		if(characterName == 'pico-dead' && !opponentDeath)
 		{
 			overlay = new FlxSprite(boyfriend.x + 205, boyfriend.y - 80);
 			overlay.frames = Paths.getSparrowAtlas('Pico_Death_Retry');
@@ -178,7 +199,17 @@ class GameOverSubstate extends MusicBeatSubstate
 		PlayState.instance.callOnScripts('onUpdate', [elapsed]);
 
 		var justPlayedLoop:Bool = false;
-		if (!boyfriend.isAnimationNull() && boyfriend.getAnimationName() == 'firstDeath' && boyfriend.isAnimationFinished())
+		if (fadingDeath)
+		{
+			// (the music of the game over starts once the opponent is gone)
+			fadingTime += elapsed;
+			if(!fadingLooped && fadingTime >= FADE_DEATH_TIME)
+			{
+				fadingLooped = true;
+				justPlayedLoop = true;
+			}
+		}
+		else if (!boyfriend.isAnimationNull() && boyfriend.getAnimationName() == 'firstDeath' && boyfriend.isAnimationFinished())
 		{
 			boyfriend.playAnim('deathLoop');
 			if(overlay != null && overlay.animation.exists('deathLoop'))
@@ -293,6 +324,76 @@ class GameOverSubstate extends MusicBeatSubstate
 		PlayState.instance.callOnScripts('onUpdatePost', [elapsed]);
 	}
 
+	// ------------------------------------------------------------------------------------------
+	// The opponent losing, with Play as Opponent: mods have no death animations for it, so it takes the color of its health icon
+	// and fades away in little pieces of that color (and comes back when the song is tried again)
+	// ------------------------------------------------------------------------------------------
+
+	static inline final FADE_DEATH_TIME:Float = 2.6;
+
+	/** The one who died is the opponent (Play as Opponent). */
+	public var opponentDeath(default, null):Bool = false;
+	var fadingDeath:Bool = false;
+	var fadingTime:Float = 0;
+	var fadingLooped:Bool = false;
+	var deathColor:FlxColor = FlxColor.WHITE;
+	var deathPieces:Array<FlxSprite> = [];
+
+	function startOpponentDeath():Void
+	{
+		var char:Character = boyfriend;
+		if(char.healthColorArray != null && char.healthColorArray.length >= 3)
+			deathColor = FlxColor.fromRGB(char.healthColorArray[0], char.healthColorArray[1], char.healthColorArray[2]);
+
+		// the pose of a miss, held there (or the one it was in)
+		if(char.hasAnimation('singDOWNmiss')) char.playAnim('singDOWNmiss', true);
+		if(char.animation.curAnim != null) char.animation.curAnim.pause();
+		char.specialAnim = true;
+
+		FlxG.camera.shake(0.008, 0.35);
+		FlxTween.color(char, 0.45, FlxColor.WHITE, deathColor, {ease: FlxEase.quadOut});
+		FlxTween.tween(char, {alpha: 0, y: char.y - 40}, 1.8, {ease: FlxEase.quadIn, startDelay: 0.45});
+
+		// little pieces of it going up and away
+		var piecesX:Float = char.x;
+		var piecesY:Float = char.y;
+		var piecesW:Float = Math.max(40, char.width);
+		var piecesH:Float = Math.max(40, char.height);
+		for (i in 0...46)
+		{
+			var size:Int = FlxG.random.int(6, 16);
+			var piece:FlxSprite = new FlxSprite(piecesX + FlxG.random.float(0.1, 0.9) * piecesW, piecesY + FlxG.random.float(0.1, 0.95) * piecesH);
+			piece.makeGraphic(size, size, FlxColor.WHITE);
+			piece.color = FlxColor.interpolate(deathColor, FlxColor.WHITE, FlxG.random.float(0, 0.45));
+			piece.blend = openfl.display.BlendMode.ADD;
+			piece.alpha = 0;
+			piece.angle = FlxG.random.float(0, 360);
+			piece.angularVelocity = FlxG.random.float(-120, 120);
+			add(piece);
+			deathPieces.push(piece);
+
+			var delay:Float = 0.35 + FlxG.random.float(0, 1.3);
+			var life:Float = FlxG.random.float(0.9, 1.6);
+			FlxTween.tween(piece, {alpha: 1}, 0.15, {startDelay: delay, onComplete: function(_)
+			{
+				piece.velocity.set(FlxG.random.float(-50, 50), -FlxG.random.float(70, 180));
+				piece.acceleration.y = -40;
+				FlxTween.tween(piece, {alpha: 0}, life, {ease: FlxEase.quadIn});
+				FlxTween.tween(piece.scale, {x: 0.2, y: 0.2}, life, {ease: FlxEase.quadIn});
+			}});
+		}
+	}
+
+	// Tried again: it comes back before the song does
+	function reviveOpponent():Void
+	{
+		FlxTween.cancelTweensOf(boyfriend);
+		FlxTween.tween(boyfriend, {alpha: 1}, 0.5, {ease: FlxEase.quadOut});
+		FlxTween.color(boyfriend, 0.6, deathColor, FlxColor.WHITE, {ease: FlxEase.quadOut});
+		for (piece in deathPieces) piece.visible = false;
+		if(boyfriend.animation.curAnim != null) boyfriend.animation.curAnim.resume();
+	}
+
 	var isEnding:Bool = false;
 	function coolStartDeath(?volume:Float = 1):Void
 	{
@@ -305,7 +406,8 @@ class GameOverSubstate extends MusicBeatSubstate
 		if (!isEnding)
 		{
 			isEnding = true;
-			if(boyfriend.hasAnimation('deathConfirm'))
+			if(fadingDeath) reviveOpponent();
+			else if(boyfriend.hasAnimation('deathConfirm'))
 				boyfriend.playAnim('deathConfirm', true);
 			else if(boyfriend.hasAnimation('deathLoop'))
 				boyfriend.playAnim('deathLoop', true);

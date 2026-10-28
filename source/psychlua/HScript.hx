@@ -204,7 +204,9 @@ class HScript extends Iris
 		});
 		set('debugPrint', function(text:String, ?color:FlxColor = null) {
 			if(color == null) color = FlxColor.WHITE;
-			PlayState.instance.addTextToDebug(text, color);
+			// (out of a song, like the scripts of the menus: see psychlua.StateScripts)
+			if(PlayState.instance != null && FlxG.state == PlayState.instance) PlayState.instance.addTextToDebug(text, color);
+			else StateScripts.print(text, color);
 		});
 		set('getModSetting', function(saveTag:String, ?modName:String = null) {
 			if(modName == null)

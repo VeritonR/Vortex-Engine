@@ -311,6 +311,17 @@ class PlayState extends MusicBeatState
 
 	public var defaultCamZoom:Float = 1.05;
 
+	/**
+	 * With Play as Opponent the game's health is the one playing's (the dad's), and scripts get it as Boyfriend's, the way they
+	 * were made (a drain when the opponent sings goes the right way: The Basement Show's Reburning). Except when what they mean
+	 * is the player's: the health a song starts with (Gorefield's Cryfield starts it at 2 - a dead dad, flipped) and what they
+	 * take on a miss (noteMiss, noteMissPress: it healed the dad).
+	 */
+	public function scriptHealthFlipped():Bool
+		return playAsOpponent && !healthForPlayer && generatedMusic && !startingSong;
+	var healthForPlayer:Bool = false;
+	var stageCamZoom:Float = 1.05; //(the stage's, for "Set Camera Zoom" with no zoom)
+
 	// how big to stretch the pixel art assets
 	public static var daPixelZoom:Float = 6;
 	private var singAnimations:Array<String> = ['singLEFT', 'singDOWN', 'singUP', 'singRIGHT'];
@@ -486,7 +497,7 @@ class PlayState extends MusicBeatState
 
 		backend.StepLog.add('Song: reading the stage "$curStage"');
 		var stageData:StageFile = StageData.getStageFile(curStage);
-		defaultCamZoom = stageData.defaultZoom;
+		defaultCamZoom = stageCamZoom = stageData.defaultZoom;
 
 		stageUI = "normal";
 		if (stageData.stageUI != null && stageData.stageUI.trim().length > 0)
@@ -1928,12 +1939,15 @@ class PlayState extends MusicBeatState
 					holdLength = 0.0;
 
 				var gottaHitNote:Bool = (songNotes[1] < totalColumns);
+				var noteSingers:String = (songNotes.length > 4 && Std.isOfType(songNotes[4], String)) ? songNotes[4] : null;
 
 				if (i != 0) {
 					// CLEAR ANY POSSIBLE GHOST NOTES
 					for (evilNote in unspawnNotes) {
 						var matches: Bool = (noteColumn == evilNote.noteData && gottaHitNote == evilNote.mustPress && evilNote.noteType == noteType);
 						if (matches && Math.abs(spawnTime - evilNote.strumTime) < flixel.math.FlxMath.EPSILON) {
+							// (the same note for two singers, from the fields of the chart editor: one note both of them sing)
+							if (evilNote.singers != noteSingers) noteSingers = ExtraCharacter.mergeSingers(evilNote.singers, noteSingers);
 							if (evilNote.tail.length > 0)
 								for (tail in evilNote.tail)
 								{
@@ -1957,7 +1971,8 @@ class PlayState extends MusicBeatState
 				swagNote.sustainLength = holdLength;
 				swagNote.noteType = noteType;
 				// (the 5th value: who sings it, on Vortex charts with extra characters, or the parameters of a V-Slice note)
-				if(songNotes.length > 4 && Std.isOfType(songNotes[4], String)) swagNote.singers = songNotes[4];
+				if(noteSingers != null) swagNote.singers = noteSingers;
+				else if(songNotes.length > 4 && Std.isOfType(songNotes[4], String)) {}
 				else if(songNotes.length > 4 && songNotes[4] != null) swagNote.extraData.set('vsliceParams', songNotes[4]); //see funkin.play.notes.NoteSprite
 
 				swagNote.scrollFactor.set();
@@ -2742,6 +2757,7 @@ class PlayState extends MusicBeatState
 		setOnScripts('botPlay', cpuControlled);
 		callOnScripts('onUpdatePost', [elapsed]);
 		guardPlayableStrums(); //(what scripts did on this frame is seen before it's drawn)
+		guardPlayableNotesLate();
 		guardPlayableHud(elapsed);
         
         if (susWiggle != null) 
@@ -3179,6 +3195,7 @@ class PlayState extends MusicBeatState
 		// (an event of a V-Slice chart that was already done by its own rules is not one of these, even with the name of one.
 		// Nor is a "Change Character" with no character: see `eventPushedUnique()`)
 		if(eventName == 'Change Character' && (value2 == null || value2.trim().length < 1)) vsliceEvent = true;
+		if(!vsliceEvent) triggerVortexEvent(eventName, value1, value2);
 		switch(vsliceEvent ? '' : eventName) {
 			case 'Hey!':
 				var value:Int = 2;
@@ -3427,6 +3444,262 @@ class PlayState extends MusicBeatState
 
 		stagesFunc(function(stage:BaseStage) stage.eventCalled(eventName, value1, value2, flValue1, flValue2, strumTime));
 		callOnScripts('onEvent', [eventName, value1, value2, strumTime]);
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Vortex Engine's own chart events (the ones mods kept making themselves, see ChartingState.defaultEvents)
+	// ------------------------------------------------------------------------------------------
+
+	public static final VORTEX_EVENTS:Array<String> = ['Flash Camera', 'Fade Screen', 'Set Camera Zoom', 'Fade HUD', 'Cinematic Bars',
+		'Lyrics', 'Camera Target', 'Camera Bop', 'Character Trail', 'Notes Fade', 'Camera Angle'];
+
+	// A mod with an event of its own with the same name keeps its own: these aren't done for it too
+	var eventOwnedByMod:Map<String, Bool> = [];
+	function modOwnsEvent(name:String):Bool
+	{
+		if(!eventOwnedByMod.exists(name))
+		{
+			var owned:Bool = false;
+			#if MODS_ALLOWED
+			for (ext in ['.lua', '.hx'])
+				if(FileSystem.exists(Paths.modFolders('custom_events/$name$ext'))) owned = true;
+			#end
+			eventOwnedByMod.set(name, owned);
+		}
+		return eventOwnedByMod.get(name);
+	}
+
+	static function eventParts(value:String):Array<String>
+		return [for (part in (value != null ? value : '').split(',')) part.trim()];
+
+	static function eventNumber(parts:Array<String>, index:Int, def:Float):Float
+	{
+		if(index >= parts.length || parts[index].length < 1) return def;
+		var num:Float = Std.parseFloat(parts[index]);
+		return Math.isNaN(num) ? def : num;
+	}
+
+	static function eventColor(text:String, def:FlxColor):FlxColor
+	{
+		if(text == null || text.length < 1) return def;
+		var found:Null<FlxColor> = FlxColor.fromString((text.startsWith('#') || text.startsWith('0x')) ? text : '#' + text);
+		return (found != null) ? found : def;
+	}
+
+	function eventCamera(text:String):FlxCamera
+	{
+		return switch((text != null ? text : '').toLowerCase().trim())
+		{
+			case 'hud' | 'camhud': camHUD;
+			case 'other' | 'camother': camOther;
+			default: camGame;
+		}
+	}
+
+	static function eventEase(parts:Array<String>, index:Int):flixel.tweens.FlxEase.EaseFunction
+		return (index < parts.length && parts[index].length > 0) ? LuaUtils.getTweenEaseByString(parts[index]) : FlxEase.linear;
+
+	// A tween of an event, which takes the place of the last one it did on the same thing
+	var eventTweens:Map<String, FlxTween> = [];
+	function eventTween(id:String, object:Dynamic, values:Dynamic, duration:Float, ease:flixel.tweens.FlxEase.EaseFunction):Void
+	{
+		var last:FlxTween = eventTweens.get(id);
+		if(last != null) last.cancel();
+		if(duration <= 0)
+		{
+			for (field in Reflect.fields(values)) Reflect.setProperty(object, field, Reflect.field(values, field));
+			eventTweens.remove(id);
+			return;
+		}
+		eventTweens.set(id, FlxTween.tween(object, values, duration / playbackRate, {ease: ease, onComplete: function(_) eventTweens.remove(id)}));
+	}
+
+	var screenFade:FlxSprite;
+	var cinematicTop:FlxSprite;
+	var cinematicBottom:FlxSprite;
+	var lyricsText:FlxText;
+	var characterTrails:Map<Character, flixel.addons.effects.FlxTrail> = [];
+	/** Beats between the camera bops of "Camera Bop" (-1: on each section, as always; 0: none). */
+	public var camBopEvery:Int = -1;
+	public var camBopIntensity:Float = 1;
+
+	/**
+	 * Does one of Vortex's own events. False if it's not one of them, or the mod has its own with that name.
+	 */
+	function triggerVortexEvent(name:String, value1:String, value2:String):Bool
+	{
+		if(!VORTEX_EVENTS.contains(name) || modOwnsEvent(name)) return false;
+
+		var parts1:Array<String> = eventParts(value1);
+		var parts2:Array<String> = eventParts(value2);
+		switch(name)
+		{
+			case 'Flash Camera':
+				// Value 1: color, duration. Value 2: camera
+				if(!ClientPrefs.data.flashing) return true;
+				eventCamera(value2).flash(eventColor(parts1[0], FlxColor.WHITE), eventNumber(parts1, 1, 1) / playbackRate, null, true);
+
+			case 'Fade Screen':
+				// Value 1: color, alpha (0 to 1). Value 2: duration, ease
+				if(screenFade == null)
+				{
+					screenFade = new FlxSprite().makeGraphic(1, 1, FlxColor.WHITE);
+					screenFade.scale.set(FlxG.width * 2, FlxG.height * 2);
+					screenFade.updateHitbox();
+					screenFade.screenCenter();
+					screenFade.scrollFactor.set();
+					screenFade.cameras = [camOther];
+					screenFade.color = FlxColor.BLACK;
+					screenFade.alpha = 0;
+					add(screenFade);
+				}
+				if(parts1[0].length > 0) screenFade.color = eventColor(parts1[0], FlxColor.BLACK);
+				eventTween('fadeScreen', screenFade, {alpha: FlxMath.bound(eventNumber(parts1, 1, 1), 0, 1)}, eventNumber(parts2, 0, 1), eventEase(parts2, 1));
+
+			case 'Set Camera Zoom':
+				// Value 1: zoom (blank: the stage's). Value 2: duration, ease (blank: at once)
+				var zoom:Float = eventNumber(parts1, 0, stageCamZoom);
+				var duration:Float = eventNumber(parts2, 0, 0);
+				eventTween('camZoom', this, {defaultCamZoom: zoom}, duration, eventEase(parts2, 1));
+				eventTween('camZoomNow', FlxG.camera, {zoom: zoom}, duration, eventEase(parts2, 1));
+
+			case 'Fade HUD':
+				// Value 1: alpha (0 to 1). Value 2: duration, ease
+				eventTween('fadeHud', camHUD, {alpha: FlxMath.bound(eventNumber(parts1, 0, 1), 0, 1)}, eventNumber(parts2, 0, 0.5), eventEase(parts2, 1));
+
+			case 'Cinematic Bars':
+				// Value 1: size (blank: 100, 0: gone). Value 2: duration, ease
+				if(cinematicTop == null)
+				{
+					for (num in 0...2)
+					{
+						var bar:FlxSprite = new FlxSprite().makeGraphic(1, 1, FlxColor.BLACK);
+						bar.scale.set(FlxG.width * 2, FlxG.height / 2 + 100);
+						bar.updateHitbox();
+						bar.x = -FlxG.width / 2;
+						bar.scrollFactor.set();
+						bar.cameras = [camHUD];
+						insert(members.indexOf(uiGroup), bar); //(under the notes and the rest of the HUD)
+						if(num == 0) cinematicTop = bar;
+						else cinematicBottom = bar;
+					}
+					cinematicTop.y = -cinematicTop.height;
+					cinematicBottom.y = FlxG.height;
+				}
+				var size:Float = Math.max(0, eventNumber(parts1, 0, 100));
+				var duration:Float = eventNumber(parts2, 0, 0.5);
+				var ease:flixel.tweens.FlxEase.EaseFunction = eventEase(parts2, 1);
+				eventTween('cinematicTop', cinematicTop, {y: size - cinematicTop.height}, duration, ease);
+				eventTween('cinematicBottom', cinematicBottom, {y: FlxG.height - size}, duration, ease);
+
+			case 'Lyrics':
+				// Value 1: the text (blank: none; "\n" for a new line). Value 2: color
+				if(lyricsText == null)
+				{
+					lyricsText = new FlxText(50, FlxG.height * 0.7, FlxG.width - 100, '', 32);
+					lyricsText.setFormat(Paths.font('vcr.ttf'), 32, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+					lyricsText.borderSize = 2;
+					lyricsText.scrollFactor.set();
+					lyricsText.cameras = [camOther];
+					add(lyricsText);
+				}
+				var text:String = (value1 != null) ? value1.replace('\\n', '\n') : '';
+				lyricsText.text = text;
+				lyricsText.color = eventColor(value2, FlxColor.WHITE);
+				lyricsText.alpha = 1;
+				lyricsText.visible = text.trim().length > 0;
+
+			case 'Camera Target':
+				// Value 1: dad, bf, gf or the tag of an extra character (blank: back to following the sections)
+				var target:String = (value1 != null) ? value1.toLowerCase().trim() : '';
+				switch(target)
+				{
+					case '':
+						isCameraOnForcedPos = false;
+						moveCameraSection();
+						return true;
+					case 'dad' | 'opponent' | '1':
+						moveCamera(true);
+					case 'bf' | 'boyfriend' | 'player' | '0':
+						moveCamera(false);
+					case 'gf' | 'girlfriend' | '2':
+						if(gf == null) return true;
+						moveCameraToGirlfriend();
+					default:
+						var extra:ExtraCharacter = getExtraCharacter(value1);
+						if(extra == null || extra.char == null) return true;
+						var center = extra.char.getMidpoint();
+						camFollow.setPosition(center.x + extra.char.cameraPosition[0], center.y + extra.char.cameraPosition[1] - 100);
+						center.put();
+				}
+				isCameraOnForcedPos = true;
+
+			case 'Camera Bop':
+				// Value 1: beats between bops (blank: each section, 0: none). Value 2: how strong (1 is normal)
+				camBopEvery = (parts1[0].length < 1) ? -1 : Std.int(Math.max(0, eventNumber(parts1, 0, 4)));
+				camBopIntensity = eventNumber(parts2, 0, 1);
+
+			case 'Character Trail':
+				// Value 1: dad, bf, gf or the tag of an extra character. Value 2: color (blank: no trail)
+				var char:Character = null;
+				var group:FlxSpriteGroup = null;
+				switch((value1 != null ? value1 : '').toLowerCase().trim())
+				{
+					case 'dad' | 'opponent': char = dad; group = dadGroup;
+					case 'bf' | 'boyfriend' | 'player': char = boyfriend; group = boyfriendGroup;
+					case 'gf' | 'girlfriend': char = gf; group = gfGroup;
+					default:
+						var extra:ExtraCharacter = getExtraCharacter(value1);
+						if(extra != null)
+						{
+							char = extra.char;
+							group = (extra.side == 'player') ? boyfriendGroup : ((extra.side == 'gf' && gf != null) ? gfGroup : dadGroup);
+						}
+				}
+				if(char == null) return true;
+
+				var trail:flixel.addons.effects.FlxTrail = characterTrails.get(char);
+				if(value2 == null || value2.trim().length < 1)
+				{
+					if(trail != null)
+					{
+						remove(trail, true);
+						trail.destroy();
+						characterTrails.remove(char);
+					}
+					return true;
+				}
+				if(trail == null)
+				{
+					trail = new flixel.addons.effects.FlxTrail(char, null, 4, 24, 0.3, 0.069);
+					var at:Int = members.indexOf(group);
+					if(at > -1) insert(at, trail);
+					else add(trail);
+					characterTrails.set(char, trail);
+				}
+				trail.color = eventColor(value2, FlxColor.WHITE);
+
+			case 'Notes Fade':
+				// Value 1: player, opponent or both. Value 2: alpha, duration, ease
+				var side:String = (value1 != null ? value1 : '').toLowerCase().trim();
+				var groups:Array<FlxTypedGroup<StrumNote>> = switch(side)
+				{
+					case 'player' | 'bf' | 'boyfriend': [playerStrums];
+					case 'opponent' | 'dad': [opponentStrums];
+					default: [playerStrums, opponentStrums];
+				}
+				var alpha:Float = FlxMath.bound(eventNumber(parts2, 0, 0), 0, 1);
+				for (strums in groups)
+					for (num => strum in strums.members)
+						if(strum != null)
+							eventTween('notesFade' + (strums == playerStrums ? 'P' : 'O') + num, strum, {alpha: alpha}, eventNumber(parts2, 1, 0.5), eventEase(parts2, 2));
+
+			case 'Camera Angle':
+				// Value 1: game or hud. Value 2: angle, duration, ease
+				var cam:FlxCamera = eventCamera(value1);
+				eventTween('camAngle' + (cam == camHUD ? 'H' : (cam == camOther ? 'O' : 'G')), cam, {angle: eventNumber(parts2, 0, 0)}, eventNumber(parts2, 1, 0), eventEase(parts2, 2));
+		}
+		return true;
 	}
 
 	public function moveCameraSection(?sec:Null<Int>):Void {
@@ -4062,6 +4335,8 @@ class PlayState extends MusicBeatState
 			FlxTween.tween(numScore, {alpha: 0}, 0.2 / playbackRate, {
 				onComplete: function(tween:FlxTween)
 				{
+					// (out of the group first: scripts that go through it, like Gorefield's ratings, found destroyed ones there)
+					comboGroup.remove(numScore, true);
 					numScore.destroy();
 				},
 				startDelay: Conductor.crochet * 0.002 / playbackRate
@@ -4078,6 +4353,8 @@ class PlayState extends MusicBeatState
 		FlxTween.tween(comboSpr, {alpha: 0}, 0.2 / playbackRate, {
 			onComplete: function(tween:FlxTween)
 			{
+				comboGroup.remove(comboSpr, true);
+				comboGroup.remove(rating, true);
 				comboSpr.destroy();
 				rating.destroy();
 			},
@@ -4299,8 +4576,10 @@ class PlayState extends MusicBeatState
 		}
 
 		stagesFunc(function(stage:BaseStage) stage.noteMiss(daNote));
+		healthForPlayer = true;
 		var result:Dynamic = callOnLuas('noteMiss', [notes.members.indexOf(daNote), daNote.noteData, daNote.noteType, daNote.isSustainNote]);
 		if(result != LuaUtils.Function_Stop && result != LuaUtils.Function_StopHScript && result != LuaUtils.Function_StopAll) callOnHScript('noteMiss', [daNote]);
+		healthForPlayer = false;
 	}
 
 	function noteMissPress(direction:Int = 1):Void //You pressed a key when there was no notes to press for this key
@@ -4315,7 +4594,9 @@ class PlayState extends MusicBeatState
 
 		FlxG.sound.play(Paths.soundRandom('missnote', 1, 3), FlxG.random.float(0.1, 0.2));
 		stagesFunc(function(stage:BaseStage) stage.noteMissPress(direction));
+		healthForPlayer = true;
 		callOnScripts('noteMissPress', [direction]);
+		healthForPlayer = false;
 	}
 
 	function noteMissCommon(direction:Int, note:Note = null)
@@ -4807,6 +5088,13 @@ class PlayState extends MusicBeatState
 		iconP1.scale.set(1.2 * iconP1.baseScale, 1.2 * iconP1.baseScale);
 		iconP2.scale.set(1.2 * iconP2.baseScale, 1.2 * iconP2.baseScale);
 
+		// ("Camera Bop" every some beats instead of on each section)
+		if(camBopEvery > 0 && curBeat % camBopEvery == 0 && camZooming && FlxG.camera.zoom < 1.35 && ClientPrefs.data.camZooms)
+		{
+			FlxG.camera.zoom += 0.015 * camZoomingMult * camBopIntensity;
+			camHUD.zoom += 0.03 * camZoomingMult * camBopIntensity;
+		}
+
 		iconP1.updateHitbox();
 		iconP2.updateHitbox();
 
@@ -5014,10 +5302,10 @@ class PlayState extends MusicBeatState
 			if (generatedMusic && !endingSong && !isCameraOnForcedPos)
 				moveCameraSection();
 
-			if (camZooming && FlxG.camera.zoom < 1.35 && ClientPrefs.data.camZooms)
+			if (camZooming && FlxG.camera.zoom < 1.35 && ClientPrefs.data.camZooms && camBopEvery < 0)
 			{
-				FlxG.camera.zoom += 0.015 * camZoomingMult;
-				camHUD.zoom += 0.03 * camZoomingMult;
+				FlxG.camera.zoom += 0.015 * camZoomingMult * camBopIntensity;
+				camHUD.zoom += 0.03 * camZoomingMult * camBopIntensity;
 			}
 
 			if (SONG.notes[curSection].changeBPM)
@@ -5315,26 +5603,78 @@ class PlayState extends MusicBeatState
 			if(!strum.visible) strum.visible = true;
 			if(strum.alpha < GUARD_ALPHA) strum.alpha = GUARD_ALPHA;
 
-			// (moved to a camera that isn't being shown)
+			// (moved to a camera that isn't being shown, or one where it can't be played: see badPlayableCamera())
 			@:privateAccess
 			var own:Array<FlxCamera> = strum._cameras;
-			if(own != null && own.length > 0 && (own[0] == null || !own[0].visible || own[0].alpha <= 0 || !FlxG.cameras.list.contains(own[0])))
+			if(own != null && own.length > 0 && badPlayableCamera(own[0]))
+			{
 				strum.cameras = [camHUD];
+				guardRescuedUntil = Conductor.songPosition + 500;
+			}
+
+			// (and back where it was made, for a moment: the song placed it for that camera - on the HUD it'd be somewhere else -
+			// and does it with tweens that end right after)
+			if(Conductor.songPosition < guardRescuedUntil)
+			{
+				var home = guardHome[i];
+				strum.x = home.x;
+				strum.y = home.y;
+				strum.scale.set(home.scaleX, home.scaleY);
+				strum.angle = 0;
+				strum.direction = 90;
+			}
 		}
 
-		// The other side's receptors on top of these (songs that put the player's in the middle of the screen do it): they're
-		// still there, see-through, and so are their notes
-		for (other in otherStrums.members)
+		// The other side's receptors on top of these (songs that put the player's in the middle of the screen do it): they're not
+		// shown while they are, and neither are their notes (even see-through they got in the way). Only on the screen: they're
+		// shown again when the next frame starts, so they come back by themselves when they move away (see restoreGuardedHud())
+		for (lane => other in otherStrums.members)
 		{
-			if(other == null || !other.visible || other.alpha <= 0.3) continue;
+			if(other == null || !other.visible || other.alpha <= 0) continue;
 
 			for (strum in strums)
 			{
 				if(strum != null && Math.abs(other.x - strum.x) < Note.swagWidth * 0.9 && Math.abs(other.y - strum.y) < Note.swagWidth * 0.9)
 				{
-					other.alpha = 0.3;
+					other.visible = false;
+					guardHiddenStrums.push(other);
+					if(!guardHiddenLanes.contains(lane)) guardHiddenLanes.push(lane);
 					break;
 				}
+			}
+		}
+	}
+
+	var guardRescuedUntil:Float = -99999;
+	var guardHiddenStrums:Array<StrumNote> = [];
+	var guardHiddenLanes:Array<Int> = [];
+	var guardHiddenNotes:Array<Note> = [];
+
+	// After the scripts' "onUpdatePost": a song that hides the opponent's notes every frame hides the ones being played with
+	// Play as Opponent (Gorefield's Mondaylovania). They're shown again, and the other side's notes under them are hidden
+	function guardPlayableNotesLate():Void
+	{
+		if(!playAsOpponent || !generatedMusic || endingSong) return;
+
+		for (note in notes.members)
+		{
+			if(note == null || !note.alive) continue;
+
+			if(note.playable)
+			{
+				if(note.wasGoodHit || note.tooLate || note.missed) continue;
+				fixPlayableNoteCamera(note);
+				if(!note.visible && !hiddennotes) note.visible = true;
+				if(note.alpha < GUARD_NOTE_ALPHA)
+				{
+					var strum:StrumNote = playableStrums.members[note.noteData];
+					note.alpha = Math.max(GUARD_ALPHA, (strum != null) ? strum.alpha : 1) * (note.isSustainNote ? 0.6 : 1);
+				}
+			}
+			else if(note.visible && guardHiddenLanes.contains(note.noteData))
+			{
+				note.visible = false;
+				guardHiddenNotes.push(note);
 			}
 		}
 	}
@@ -5364,6 +5704,12 @@ class PlayState extends MusicBeatState
 
 	function restoreGuardedHud():Void
 	{
+		for (strum in guardHiddenStrums) if(strum != null && strum.exists) strum.visible = true;
+		for (note in guardHiddenNotes) if(note != null && note.exists) note.visible = true;
+		guardHiddenStrums.resize(0);
+		guardHiddenLanes.resize(0);
+		guardHiddenNotes.resize(0);
+
 		if(hudGuardAlpha == null) return;
 
 		if(camHUD != null)
@@ -5388,10 +5734,38 @@ class PlayState extends MusicBeatState
 		if(!note.copyX && Math.abs(note.x - (strum.psychX + note.offsetX)) > Note.swagWidth) note.copyX = true;
 		if(!note.copyY) note.copyY = true;
 
+		fixPlayableNoteCamera(note);
+	}
+
+	function fixPlayableNoteCamera(note:Note):Void
+	{
 		@:privateAccess
 		var own:Array<FlxCamera> = note._cameras;
-		if(own != null && own.length > 0 && own[0] != camHUD && own[0] != camSus && (own[0] == null || !own[0].visible || own[0].alpha <= 0 || !FlxG.cameras.list.contains(own[0])))
+		if(own != null && own.length > 0 && badPlayableCamera(own[0]))
 			note.cameras = [note.isSustainNote ? camSus : camHUD];
+	}
+
+	/**
+	 * If what the one playing has to hit can't be played on that camera, with Play as Opponent: not shown, turned on its side
+	 * (Gorefield's Ultra Field turns the opponent's notes 90 degrees on a camera of its own), or drawn under the characters (the
+	 * same song puts the characters on a camera above the notes'). Those effects stay for the side the computer plays.
+	 */
+	function badPlayableCamera(cam:FlxCamera):Bool
+	{
+		if(cam == null || !cam.visible || cam.alpha <= 0 || !FlxG.cameras.list.contains(cam)) return true;
+		if(cam == camHUD || cam == camSus || cam == camOther || (camLanes != null && cam == camLanes)) return false;
+
+		var angle:Float = ((cam.angle % 360) + 360) % 360;
+		if(angle > 35 && angle < 325) return true; //(a tilt some songs give their cameras is fine)
+
+		var index:Int = FlxG.cameras.list.indexOf(cam);
+		for (char in [boyfriend, dad])
+		{
+			if(char == null || !char.visible || char.alpha <= 0) continue;
+			var charCam:FlxCamera = char.camera;
+			if(charCam != null && charCam != cam && FlxG.cameras.list.indexOf(charCam) > index) return true;
+		}
+		return false;
 	}
 
 	function strumPlayAnim(isDad:Bool, id:Int, time:Float) {

@@ -602,7 +602,9 @@ class DirectPlay
 	{
 		if(songOpenedAt < 0)
 		{
-			if(PlayState.instance == null && !Std.isOfType(FlxG.state, OptionsState) && !Std.isOfType(FlxG.state, states.editors.ChartingState)) return;
+			// (the loading screen counts as the song: one a script keeps on waits for keys, see psychlua.StateScripts)
+			if(PlayState.instance == null && !Std.isOfType(FlxG.state, OptionsState) && !Std.isOfType(FlxG.state, states.editors.ChartingState)
+				&& !Std.isOfType(FlxG.state, states.LoadingState)) return;
 			songOpenedAt = haxe.Timer.stamp();
 		}
 

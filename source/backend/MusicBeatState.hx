@@ -240,6 +240,12 @@ class MusicBeatState extends FlxState
 			stage.stepHit();
 		});
 
+		if(psychlua.StateScripts.hasScripts)
+		{
+			psychlua.StateScripts.set('curStep', curStep);
+			psychlua.StateScripts.call('onStepHit');
+		}
+
 		if (curStep % 4 == 0)
 			beatHit();
 	}
@@ -248,6 +254,11 @@ class MusicBeatState extends FlxState
 	public function beatHit():Void
 	{
 		//trace('Beat: ' + curBeat);
+		if(psychlua.StateScripts.hasScripts)
+		{
+			psychlua.StateScripts.set('curBeat', curBeat);
+			psychlua.StateScripts.call('onBeatHit');
+		}
 		stagesFunc(function(stage:BaseStage) {
 			stage.curBeat = curBeat;
 			stage.curDecBeat = curDecBeat;

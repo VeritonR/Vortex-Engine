@@ -166,6 +166,7 @@ class LoadingState extends MusicBeatState
 
 		#if PSYCH_WATERMARKS // PSYCH LOADING SCREEN
 		var bg = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
+		defaultBg = bg;
 		bg.antialiasing = ClientPrefs.data.antialiasing;
 		bg.setGraphicSize(Std.int(FlxG.width));
 		bg.color = 0xFFD16FFF;
@@ -188,6 +189,7 @@ class LoadingState extends MusicBeatState
 
 		#else // BASE GAME LOADING SCREEN
 		var bg = new FlxSprite().makeGraphic(1, 1, 0xFFCAFF4D);
+		defaultBg = bg;
 		bg.scale.set(FlxG.width, FlxG.height);
 		bg.updateHitbox();
 		bg.screenCenter();
@@ -214,6 +216,7 @@ class LoadingState extends MusicBeatState
 	}
 
 	var transitioning:Bool = false;
+	var lastToldLoaded:Int = -1;
 	// How much was loaded the last time it moved forward, and when that was
 	var stuckLoaded:Int = -1;
 	var stuckSince:Float = 0;
@@ -258,6 +261,11 @@ class LoadingState extends MusicBeatState
 				}
 			}
 			intendedPercent = loaded / loadMax;
+			if(loaded != lastToldLoaded)
+			{
+				lastToldLoaded = loaded;
+				psychlua.StateScripts.call('onLoadingProgress', [loaded, loadMax, (loadMax > 0) ? loaded / loadMax : 1]);
+			}
 		}
 
 		if (curPercent != intendedPercent)
@@ -363,8 +371,21 @@ class LoadingState extends MusicBeatState
 	#end
 	
 	var finishedLoading:Bool = false;
+	var scriptAllowedFinish:Bool = false;
+	var waitingForScript:Bool = false;
 	function onLoad()
 	{
+		// (a state script can keep the loading screen on, after it's done: see psychlua.StateScripts)
+		if(!scriptAllowedFinish && psychlua.StateScripts.call('onFinishedLoading') == psychlua.LuaUtils.Function_Stop)
+		{
+			waitingForScript = true;
+			transitioning = true;
+			intendedPercent = curPercent = 1;
+			bar.scale.x = barWidth;
+			bar.updateHitbox();
+			backend.StepLog.add('Loading screen: everything loaded, a script keeps it on');
+			return;
+		}
 		backend.StepLog.add('Loading screen: everything loaded, going on');
 		_loaded();
 
@@ -377,6 +398,34 @@ class LoadingState extends MusicBeatState
 		transitioning = true;
 		finishedLoading = true;
 	}
+
+	/**
+	 * For state scripts that kept the loading screen on (returning Function_Stop on onFinishedLoading): goes on to the song.
+	 */
+	public function finishLoading():Void
+	{
+		if(!waitingForScript) return;
+		waitingForScript = false;
+		scriptAllowedFinish = true;
+		onLoad();
+	}
+
+	/**
+	 * Hides the loading screen's own picture (and the bar too, if asked), for a state script to show its own.
+	 */
+	public function hideDefaultScreen(hideBar:Bool = false):Void
+	{
+		#if PSYCH_WATERMARKS
+		var things:Array<FlxSprite> = [logo, loadingText];
+		#else
+		var things:Array<FlxSprite> = [funkay];
+		#end
+		for (thing in things)
+			if(thing != null) thing.visible = false;
+		if(defaultBg != null) defaultBg.visible = false;
+		if(hideBar) barGroup.visible = false;
+	}
+	var defaultBg:FlxSprite;
 
 	static function _loaded()
 	{

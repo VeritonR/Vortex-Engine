@@ -43,6 +43,10 @@ HScript/Hx:
 //------------------------------------------------------------------------------------------------------------------//
 VortexEngine     // Bool - always true on Vortex Engine (Lua and HScript)
 playAsOpponent   // Bool - (Lua) "Play as Opponent" is on: the player is hitting the opponent's notes.
+                 //        The health scripts get (getProperty('health'), getHealth...) is still Boyfriend's, as songs
+                 //        are made, except before the song starts (the health it starts with is the player's) and in
+                 //        noteMiss / noteMissPress (what's taken on a miss is the player's). Losing shows the opponent
+                 //        fading away in the color of its icon (or its own "firstDeath" animation, if it has one).
                  //        HScript: game.playAsOpponent
                  //        The sides of the chart don't change: mustPress / goodNoteHit are still the right side's notes,
                  //        and they're played by the computer. See "playable" in section 5.
@@ -223,7 +227,11 @@ On the chart editor, the "Extras" tab adds characters besides the opponent, the 
     Character  the character file
     X / Y      where it stands, from the spot of the main character of its side
     Sings every note of its side (duet) / Behind the main character
-Who sings each note: select notes and pick it on the Note tab, "Sung by":
+Each extra character gets a field of 4 columns of its own on the grid, after the opponent's (up to 4 of them; the columns
+get narrower to fit): a note put on it is a note of its side (the player's or the opponent's lanes - a girlfriend's extra
+uses the opponent's) that only it sings. Dragging notes from one field to another changes who sings them. The same note on
+two fields at the same time is one note in the game, sung by both.
+Who sings each note can also be picked on the Note tab, "Sung by":
     Default               the main character of the side (and the extra ones set to sing every note)
     Main character only   only the main one
     Everyone on its side  the main one and every extra one of that side
@@ -256,3 +264,82 @@ Vortex Engine has (everything in this file), with the file and line of each one:
     NOTE        usually fine (a variable that is just nil there, an option that reads as nothing)
 A mod with no ERROR or DIFFERENT should also work on Psych Engine 1.0.4 (or V-Slice, for V-Slice mods). Checking the
 VortexEngine variable before using something (section 1) is how a script can work on both.
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  10. EVENTS OF VORTEX ENGINE (on the chart editor's event list, no script needed)
+//------------------------------------------------------------------------------------------------------------------//
+Values with more than one part are separated by commas ("FF0000, 1.5"). Eases are the ones of Lua's tweens (quadOut,
+sineInOut, ...). A mod with a custom event of its own with one of these names keeps using its own.
+Flash Camera     V1: color, duration (FFFFFF, 1)           V2: camera: game, hud or other (game)
+                 (off when the player turned off Flashing Lights)
+Fade Screen      V1: color, alpha 0-1 (000000, 1)          V2: duration, ease (1, linear)
+                 a color over the whole screen: "000000, 1" fades to black, ", 0" back
+Set Camera Zoom  V1: zoom (blank: the stage's)            V2: duration, ease (blank: at once)
+Fade HUD         V1: alpha 0-1 (1)                         V2: duration, ease (0.5, linear)
+Cinematic Bars   V1: size in pixels (100; 0 takes them away) V2: duration, ease (0.5, linear)
+Lyrics           V1: text (blank clears it, \n = new line) V2: color (FFFFFF)
+Camera Target    V1: dad, bf, gf or the tag of an extra character (blank: follows the sections again)
+Camera Bop       V1: beats between bops (blank: each section, 0: none)   V2: how strong (1)
+Character Trail  V1: dad, bf, gf or the tag of an extra character        V2: color (blank removes the trail)
+Notes Fade       V1: player, opponent or both              V2: alpha, duration, ease (0, 0.5, linear)
+Camera Angle     V1: game, hud or other                    V2: angle, duration, ease (0, 0, linear)
+Scripts still get them on onEvent, like any other event.
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  11. STATE SCRIPTS (the game's screens: menus, the loading screen...) - folder "states"
+//------------------------------------------------------------------------------------------------------------------//
+(The full guide, with more examples: docs/STATE_SCRIPTS.md. A template: docs/scripts/StateTemplate.hx)
+HScript files (.hx) in a "states" folder, named after the screen they're for, run on that screen:
+    mods/My-Mod/states/MainMenuState.hx      (only while My-Mod is the mod being played, or if it runs globally)
+    mods/states/TitleState.hx                (for every mod)
+    states/Global.hx                         runs on every screen
+Some names: TitleState, MainMenuState, StoryMenuState, FreeplayState, FreeplayStateVslice, CharacterSelectState,
+CreditsState, OptionsState, ModsMenuState, LoadingState, ResultsState, GalleryState, MultiplayerMenuState,
+AchievementsMenuState (stateName says the one you're on). Songs (PlayState) keep their own scripts folders.
+
+"game" (and "state") is the screen: its things are reached by their names, add() / insert() / remove() work on it.
+Callbacks:
+    onCreate()                  before the screen makes its things
+    onCreatePost()              after it made them (hide, move or replace them here)
+    onUpdate(elapsed) / onUpdatePost(elapsed)
+    onStepHit() / onBeatHit()   with the menu music (curStep / curBeat)
+    onOpenSubState(name) / onCloseSubState()
+    onDestroy()                 the screen is being left
+Functions:
+    switchState('MainMenuState')   goes to a screen by its name (or one the script made)
+    resetState()
+    debugPrint(text, color)        shows a line on the screen (errors of these scripts show up the same way)
+    parseJson(text)                reads JSON text (haxe.Json can't be imported by scripts)
+    sharedData                     an object kept from one screen to the next (and for the song's scripts:
+                                   getPropertyFromClass('psychlua.StateScripts', 'sharedData.name') in Lua)
+
+LOADING SCREEN (states/LoadingState.hx):
+    onLoadingProgress(loaded, total, percent)   something more was loaded (percent from 0 to 1)
+    onFinishedLoading()                         everything is loaded: return Function_Stop to keep the screen on,
+                                                then call finishLoading() to go on to the song
+    hideLoadingScreen(hideBar)                  hides the screen's own picture (and the bar, if true)
+    The bar is "bar" (and "barGroup"), the loaded and total things are LoadingState.loaded / LoadingState.loadMax.
+Example - a loading screen that shows for at least 2 seconds:
+    var txt:FlxText;
+    var shown:Float = 0;
+    var waiting:Bool = false;
+    function onCreatePost() {
+        hideLoadingScreen(false);
+        txt = new FlxText(0, 330, FlxG.width, 'Loading...', 40);
+        txt.alignment = 'center';
+        add(txt);
+    }
+    function onLoadingProgress(loaded, total, percent) {
+        if (txt != null) txt.text = 'Loading ' + Math.floor(percent * 100) + '%';
+    }
+    function onFinishedLoading() {
+        if (shown < 2) { waiting = true; return Function_Stop; }
+        return Function_Continue;
+    }
+    function onUpdate(elapsed) {
+        shown += elapsed;
+        if (waiting && shown > 2) { waiting = false; finishLoading(); }
+    }
+(Psych's data/LoadingScreen.hx still works too.)

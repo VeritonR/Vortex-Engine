@@ -224,6 +224,28 @@ class MainMenuState extends MusicBeatState
 		optionsGear.x = FlxG.width - (optionsGear.width / 2);
 		add(optionsGear);
 
+		// the buttons of the top left corner: the achievements and the mods (LEFT picks them with the keyboard)
+		var cornerX:Float = 14;
+		#if ACHIEVEMENTS_ALLOWED
+		var trophy:FlxSprite = makeCornerButton('achievements', cornerX, 10, 0.42);
+		cornerX += trophy.width + 10;
+		#end
+		#if MODS_ALLOWED
+		var mods:FlxSprite = makeCornerButton('mods', cornerX, 0, 0.36);
+		mods.y = 10 + (cornerButtons[0].height - mods.height) / 2;
+		#end
+
+		#if ACHIEVEMENTS_ALLOWED
+		// Unlocks "Freaky on a Friday Night" achievement if it's a Friday and between 18:00 PM and 23:59 PM
+		var leDate = Date.now();
+		if (leDate.getDay() == 5 && leDate.getHours() >= 18)
+			Achievements.unlock('friday_night_play');
+
+		#if MODS_ALLOWED
+		Achievements.reloadList();
+		#end
+		#end
+
 		// Back from the options as a screen of their own (after "Adjust Delay and Combo"): the menu is opened again over this one,
 		// already there, and slides away. The static flag is reset right away, so it never happens twice
 		if (returningFromOptions) {
@@ -260,6 +282,101 @@ class MainMenuState extends MusicBeatState
 		#end
 	}
 
+	// ------------------------------------------------------------------------------------------
+	// The buttons of the top left corner (achievements, mods)
+	// ------------------------------------------------------------------------------------------
+
+	var cornerButtons:Array<FlxSprite> = [];
+	var cornerNames:Array<String> = [];
+	var cornerScales:Array<Float> = [];
+	var cornerSelected:Int = -1;
+	var cornerActive:Bool = false;
+	var controlsBlocked:Bool = false;
+
+	function makeCornerButton(name:String, x:Float, y:Float, size:Float):FlxSprite
+	{
+		var button:FlxSprite = new FlxSprite(x, y);
+		button.frames = Paths.getSparrowAtlas('mainmenu/menu_$name');
+		button.animation.addByPrefix('idle', '$name idle', 24, true);
+		button.animation.addByPrefix('selected', '$name selected', 24, true);
+		button.animation.play('idle');
+		button.antialiasing = ClientPrefs.data.antialiasing;
+		button.scrollFactor.set();
+		button.scale.set(size, size);
+		button.updateHitbox();
+		add(button);
+
+		cornerButtons.push(button);
+		cornerNames.push(name);
+		cornerScales.push(size);
+		return button;
+	}
+
+	function selectCorner(num:Int, ?playSound:Bool = true):Void
+	{
+		if(num == cornerSelected) return;
+		cornerSelected = num;
+		if(playSound) FlxG.sound.play(Paths.sound('scrollMenu'));
+
+		for (i => button in cornerButtons)
+		{
+			var picked:Bool = (i == cornerSelected);
+			button.animation.play(picked ? 'selected' : 'idle', true);
+			// (bigger while picked, from its middle)
+			var middleX:Float = button.x + button.width / 2;
+			var middleY:Float = button.y + button.height / 2;
+			var size:Float = cornerScales[i] * (picked ? 1.12 : 1);
+			button.scale.set(size, size);
+			button.updateHitbox();
+			button.setPosition(middleX - button.width / 2, middleY - button.height / 2);
+		}
+
+		// the list on the right looks unpicked while one of these is
+		for (num => item in menuItems.members)
+			if(item != null) item.alpha = (cornerSelected > -1) ? 0.6 : 1;
+		if(cornerSelected < 0) changeItem();
+	}
+
+	function openCorner(num:Int):Void
+	{
+		var name:String = cornerNames[num];
+		var button:FlxSprite = cornerButtons[num];
+		FlxG.sound.play(Paths.sound('confirmMenu'));
+		selectedSomethin = true;
+		FlxG.mouse.visible = false;
+
+		FlxFlicker.flicker(button, 1, 0.06, false, false, function(_)
+		{
+			switch(name)
+			{
+				#if ACHIEVEMENTS_ALLOWED
+				case 'achievements': MusicBeatState.switchState(new AchievementsMenuState());
+				#end
+				#if MODS_ALLOWED
+				case 'mods': MusicBeatState.switchState(new ModsMenuState());
+				#end
+			}
+		});
+		for (item in menuItems)
+			if(item != null) FlxTween.tween(item, {alpha: 0}, 0.4, {ease: FlxEase.quadOut});
+	}
+
+	// The mouse over one of them picks it, a click opens it. True if the mouse was on one (the list doesn't get the click)
+	function updateCornerMouse():Bool
+	{
+		if(!FlxG.mouse.visible && !FlxG.mouse.justMoved && !FlxG.mouse.justPressed) return false;
+
+		for (i => button in cornerButtons)
+		{
+			if(!FlxG.mouse.overlaps(button)) continue;
+			if(FlxG.mouse.justMoved || FlxG.mouse.justPressed) FlxG.mouse.visible = true;
+			selectCorner(i);
+			if(FlxG.mouse.justPressed) openCorner(i);
+			return true;
+		}
+		return false;
+	}
+
 	function createMenuItem(name:String, x:Float, y:Float):FlxSprite
 	{
 		var menuItem:FlxSprite = new FlxSprite(x, y);
@@ -290,8 +407,39 @@ class MainMenuState extends MusicBeatState
 
 		}
 
+		// the buttons of the top left corner (the mouse on them, or LEFT to go to them)
+		controlsBlocked = false;
+		if (!selectedSomethin && !isOptionsAnimating && subState == null && cornerButtons.length > 0)
+		{
+			var onCorner:Bool = updateCornerMouse();
+			if (!selectedSomethin)
+			{
+				if (controls.UI_LEFT_P)
+					selectCorner((cornerSelected + 1) % cornerButtons.length);
+				else if (cornerSelected > -1 && (controls.UI_UP_P || controls.UI_DOWN_P))
+					selectCorner(-1);
+				else if (cornerSelected > -1 && controls.ACCEPT)
+					openCorner(cornerSelected);
+				else if (onCorner)
+				{
+					// (the click was the corner's)
+				}
+				else if (cornerSelected > -1 && FlxG.mouse.justMoved && FlxG.mouse.visible)
+					selectCorner(-1, false);
+			}
+			cornerActive = (onCorner || cornerSelected > -1);
+		}
+		else cornerActive = false;
+		if (cornerActive && !selectedSomethin && controls.BACK)
+		{
+			selectCorner(-1);
+			cornerActive = false;
+			controlsBlocked = true;
+		}
+
 		// checked again because opening the options above already "selected something" this frame
-		if (!selectedSomethin)
+		// (and not while one of the corner's buttons is picked: the keys and the click are theirs)
+		if (!selectedSomethin && !cornerActive && !controlsBlocked)
 		{
 			if (controls.UI_UP_P)
 				changeItem(-1);

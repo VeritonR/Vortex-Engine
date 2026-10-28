@@ -118,8 +118,10 @@ class Main extends Sprite
 				msgInfo += '${newPos.lineNumber}:';
 			}
 			msgInfo += ' $x';
-			if (PlayState.instance != null)
+			if (PlayState.instance != null && FlxG.state == PlayState.instance)
 				PlayState.instance.addTextToDebug('WARNING: $msgInfo', FlxColor.YELLOW);
+			else
+				psychlua.StateScripts.print('WARNING: $msgInfo', FlxColor.YELLOW);
 		}
 		Iris.error = function(x, ?pos:haxe.PosInfos) {
 			Iris.logLevel(ERROR, x, pos);
@@ -136,9 +138,12 @@ class Main extends Sprite
 				msgInfo += '${newPos.lineNumber}:';
 			}
 			msgInfo += ' $x';
-			if (PlayState.instance != null)
+			if (PlayState.instance != null && FlxG.state == PlayState.instance)
 				PlayState.instance.addTextToDebug('ERROR: $msgInfo', FlxColor.RED);
+			else
+				psychlua.StateScripts.print('ERROR: $msgInfo', FlxColor.RED);
 		}
+		psychlua.StateScripts.init();
 		Iris.fatal = function(x, ?pos:haxe.PosInfos) {
 			Iris.logLevel(FATAL, x, pos);
 			var newPos:HScriptInfos = cast pos;

@@ -42,12 +42,18 @@ class HealthIcon extends FlxSprite
 			var graphic = Paths.image(name, null, allowGPU);
 			
 			isAnimated = Paths.fileExists('images/' + name + '.xml', TEXT);
-			
 			if (isAnimated)
 			{
 				frames = Paths.getSparrowAtlas(name, null, allowGPU);
-				
 				animation.addByPrefix('normal', 'normal', 24, true, isPlayer);
+
+				// (only the ones made the way Vortex's are, with a "normal" animation: mods made for Psych have an .xml of their own
+				// there for scripts that animate the icons themselves, reading this one's frame like Psych has it - Gorefield's)
+				if (!animation.exists('normal')) isAnimated = false;
+			}
+
+			if (isAnimated)
+			{
 				animation.addByPrefix('losing', 'losing', 24, true, isPlayer);
 				animation.addByPrefix('winning', 'winning', 24, true, isPlayer);
 				

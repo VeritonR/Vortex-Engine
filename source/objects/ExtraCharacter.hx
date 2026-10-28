@@ -38,6 +38,8 @@ class ExtraCharacter
 	/** On a note's 5th value: only the main character sings it / everyone of its side does. */
 	public static inline final MAIN:String = 'main';
 	public static inline final ALL:String = 'all';
+	/** Among other names: the ones a note with nothing set has (the main character and the extra ones that sing everything). */
+	public static inline final DEFAULT:String = 'default';
 
 	public var tag:String;
 	public var side:String;
@@ -90,14 +92,36 @@ class ExtraCharacter
 	/** If this one sings that note. */
 	public function sings(note:Note):Bool
 	{
-		if(note == null || char == null || side != sideOf(note)) return false;
+		if(note == null || char == null) return false;
 
+		// (named on it, it sings it whatever side it stands on: a girlfriend's extra singing notes of the opponent's lanes)
 		var who:String = note.singers;
-		if(who == null || who.length < 1) return singsAll;
-		if(who == ALL) return true;
-		for (name in who.split(','))
-			if(name.trim() == tag) return true;
-		return false;
+		if(who != null && who.length > 0 && who != ALL)
+		{
+			for (name in who.split(','))
+			{
+				name = name.trim();
+				if(name == tag) return true;
+				if(name == DEFAULT && singsAll && side == sideOf(note)) return true;
+			}
+			return false;
+		}
+		if(side != sideOf(note)) return false;
+		return (who == ALL) || singsAll;
+	}
+
+	/** Who sings a note that two charted notes were (the same one, put on the fields of two singers). */
+	public static function mergeSingers(a:String, b:String):String
+	{
+		if(a == ALL || b == ALL) return ALL;
+		var names:Array<String> = [];
+		for (list in [a, b])
+		{
+			var parts:Array<String> = (list == null || list.length < 1) ? [DEFAULT] : [for (name in list.split(',')) name.trim()];
+			for (name in parts)
+				if(name.length > 0 && !names.contains(name)) names.push(name);
+		}
+		return names.join(',');
 	}
 
 	/** If the main character of its side sings that note (the ones marked only for extra characters it doesn't). */
@@ -106,7 +130,10 @@ class ExtraCharacter
 		var who:String = (note != null) ? note.singers : null;
 		if(who == null || who.length < 1 || who == ALL) return true;
 		for (name in who.split(','))
-			if(name.trim() == MAIN) return true;
+		{
+			name = name.trim();
+			if(name == MAIN || name == DEFAULT) return true;
+		}
 		return false;
 	}
 }
