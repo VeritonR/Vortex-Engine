@@ -209,6 +209,9 @@ game.conversation                              // the V-Slice dialogue on the sc
 Animated health icons: put an .xml next to the icon's .png (images/icons/NAME.png + NAME.xml) with the animations
     "normal", "losing" and "winning" (by prefix, 24 fps, looped).
 Winning icons: an icon image with 3 frames side by side (normal, losing, winning) instead of 2.
+Mouse cursor: an image at images/cursor.png (the game's or a mod's: the mod being played comes first) is the cursor on every
+    screen. images/cursor.txt next to it, optional: "scale, x, y" - its size and the pixel that clicks ("2, 0, 0", "1, 16, 16").
+    Scripts can still change it at any time with FlxG.mouse.load(...): it's set again on the next screen.
 Camera angle: turning a camera (setProperty('camGame.angle', 10) / camHUD) no longer leaves empty corners - scripts
     like "zCameraFix" aren't needed anymore.
 Play as Opponent and V-Slice scripts: what V-Slice scripts know as "playerStrumline" is the side being played and

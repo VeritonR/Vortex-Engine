@@ -1,0 +1,4 @@
+# Makes export/clean: the built game without the base game's songs and weeks, for people making mods.
+# Run it from the engine's folder (only Haxe is needed):  haxe art/export_clean_build.hxml [--zip] [--dry] [<game folder> <output folder>]
+-cp art/tools
+--run ExportCleanBuild

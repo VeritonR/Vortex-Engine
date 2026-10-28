@@ -1,0 +1,4 @@
+# Makes assets/base_game/vslice out of V-Slice's own assets (only Haxe is needed). From the engine's folder:
+#   haxe art/build_vslice_base.hxml "F:/Funkin/assets" "F:/Vortex Engine/assets" "F:/Vortex Engine/assets/base_game/vslice" [--dry] [--list=FILE]
+-cp art/tools
+--run BuildVSliceBase

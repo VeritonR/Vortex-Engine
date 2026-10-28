@@ -175,6 +175,7 @@ class Main extends Sprite
 		else FlxG.signals.postGameStart.addOnce(function() FlxG.scaleMode = new backend.GameScaleMode());
 		backend.RotatedCameras.install();
 		backend.WindowFocus.install();
+		backend.CustomCursor.init(); //(images/cursor.png, if there's one)
 
 		#if !mobile
 		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);

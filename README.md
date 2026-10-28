@@ -197,6 +197,57 @@ To start you off, disabling *Video Cutscenes* should be simple: delete the line 
 
 Same goes for *Lua Scripts*: comment out or delete the line with `LUA_ALLOWED`. This and other customization options are all available within the `Project.xml` file.
 
+### A build for mod makers (no base songs)
+
+A copy of the engine **without the songs and weeks of the base game** (Psych's and V-Slice's), so that only a mod's own songs show up in Freeplay and Story Mode. It's meant for people making a mod with Vortex Engine, or shipping their own modified version of it, who would otherwise have to delete the base songs by hand.
+
+Nothing besides Haxe has to be installed: the export runs with Haxe itself, the same one that builds the game (on Windows, Linux and Mac). There's no Python or anything else to set up.
+
+**Step by step**
+
+1. Build the game as usual, with your own changes to the source if you made any:
+   ```
+   lime build windows
+   ```
+2. Export the clean version. On Windows, double click `art/export_clean_build.bat`. On any system, open a terminal in the engine's folder (the one with `Project.xml`) and run:
+   ```
+   haxe art/export_clean_build.hxml
+   ```
+3. The result is in `export/clean`. Open `VortexEngine.exe` there to check it: the menus work, Freeplay and Story Mode are empty, and every song added under `mods/` shows up alone.
+4. To share it, add `--zip` (`haxe art/export_clean_build.hxml --zip`, or `export_clean_build.bat --zip` in a terminal) and send `export/clean.zip`.
+
+It prints what was copied and what was left out, like this:
+
+```
+Copied: 2299 files, 477.0 MB
+Left out (base songs): 6, 448.2 MB
+Left out (base cutscene): 3, 26.5 MB
+Left out (base song chart): 29, 2.0 MB
+Left out (base weeks): 10, 0.0 MB
+```
+
+**What's in it:** the engine, the characters, the stages and their images, the note skins, the menus, Freeplay's DJs, Character Select, the results screen, the sounds and music of the menus, and the V-Slice base content that mods use (characters, stages, note styles...).
+
+**What's left out:**
+- Psych's songs: their audio (`assets/songs`), their charts (`assets/shared/data/<song>`), the weeks (`assets/shared/weeks`) and the cutscene videos (`assets/videos`).
+- V-Slice's base songs: their audio, charts and levels (`assets/vslice/songs`, `data/songs`, `data/levels`), their scripts (`scripts/songs`) and their videos (`assets/vslice/videos`).
+- What's only on your computer: your `mods` folder (a clean one with its `readme.txt` and the mod template takes its place), the chart editor's backups, the mods list, the logs and the script error files.
+
+**Options** (after the command, or after the `.bat` in a terminal):
+
+| Option | What it does |
+| --- | --- |
+| `--zip` | Also makes `export/clean.zip`, ready to share. |
+| `--dry` | Only shows what would be copied and left out. Nothing is written. |
+| `<game folder> <output folder>` | Uses other folders. For example, for a Linux build: `haxe art/export_clean_build.hxml export/release/linux/bin export/clean-linux` |
+| `--force` | The output folder is made again from nothing on every export. If it has something an export didn't put there (a file you saved in it, a mod inside its `mods` folder), the export stops and lists it instead of deleting it. `--force` deletes it anyway. |
+
+The scripts are in `art/tools/`: `ExportCleanBuild.hx` is the export, and the folder lists at its top (`SKIP_ROOT`, `SKIP_DIRS`, `DATA_KEEP`) say what's left out, if your version of the engine needs other folders kept or removed.
+
+### Custom mouse cursor
+
+Put an image at `images/cursor.png` (the game's `assets/shared/images/`, or a mod's `images/` folder - the mod being played comes first) and it becomes the cursor on every screen. An optional `images/cursor.txt` next to it sets its size and the pixel that clicks: `scale, x, y` (for example `2, 0, 0`, or `1, 16, 16` for a 32x32 crosshair clicking with its middle).
+
 ---
 
 ## Credits

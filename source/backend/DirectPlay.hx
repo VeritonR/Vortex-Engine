@@ -595,6 +595,22 @@ class DirectPlay
 			else if(Std.isOfType(current, Int)) value = Std.parseInt(text);
 			else if(Std.isOfType(current, Float)) value = Std.parseFloat(text);
 			Reflect.setField(ClientPrefs.data, name, value);
+
+			// (the game goes at that speed right away, like when it's changed on the options)
+			if(name == 'framerate')
+			{
+				var fps:Int = Std.int(FlxMath.bound(value, 30, 1000));
+				if(fps > FlxG.drawFramerate)
+				{
+					FlxG.updateFramerate = fps;
+					FlxG.drawFramerate = fps;
+				}
+				else
+				{
+					FlxG.drawFramerate = fps;
+					FlxG.updateFramerate = fps;
+				}
+			}
 		}
 	}
 

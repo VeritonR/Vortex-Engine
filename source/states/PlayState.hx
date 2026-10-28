@@ -317,6 +317,28 @@ class PlayState extends MusicBeatState
 	 * is the player's: the health a song starts with (Gorefield's Cryfield starts it at 2 - a dead dad, flipped) and what they
 	 * take on a miss (noteMiss, noteMissPress: it healed the dad).
 	 */
+	/**
+	 * Camera filters made from a shader that isn't there are taken off: the camera came out all black with them. Scripts make them
+	 * from the shader of one of their sprites, which there's none of with the "Shaders" option off (The Skeleton's grayscale).
+	 */
+	function dropEmptyShaderFilters():Void
+	{
+		for (camera in FlxG.cameras.list)
+		{
+			if(camera == null || camera.filters == null || camera.filters.length < 1) continue;
+
+			var empty:Bool = false;
+			for (filter in camera.filters)
+			{
+				var shaderFilter:openfl.filters.ShaderFilter = Std.downcast(filter, openfl.filters.ShaderFilter);
+				if(filter == null || (shaderFilter != null && shaderFilter.shader == null)) empty = true;
+			}
+			if(!empty) continue;
+
+			camera.setFilters([for (filter in camera.filters) if(filter != null && !(Std.isOfType(filter, openfl.filters.ShaderFilter) && cast(filter, openfl.filters.ShaderFilter).shader == null)) filter]);
+		}
+	}
+
 	public function scriptHealthFlipped():Bool
 		return playAsOpponent && !healthForPlayer && generatedMusic && !startingSong;
 	var healthForPlayer:Bool = false;
@@ -775,7 +797,7 @@ class PlayState extends MusicBeatState
         restportrait.alpha = 0;
 		uiGroup.add(restportrait); //(with the rest of the timer: on the HUD, hidden with it)
 
-		showBreakTimer = ClientPrefs.data.breakTimer;
+		showBreakTimer = ClientPrefs.data.breakTimer && !ClientPrefs.data.hideHud; //(part of the HUD: "Hide HUD" hides it too)
 
 		botplayTxt = new FlxText(400, healthBar.y - 90, FlxG.width - 800, Language.getPhrase("AI Gameplay").toUpperCase(), 32);
 		botplayTxt.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
@@ -2756,6 +2778,7 @@ class PlayState extends MusicBeatState
 
 		setOnScripts('botPlay', cpuControlled);
 		callOnScripts('onUpdatePost', [elapsed]);
+		dropEmptyShaderFilters();
 		guardPlayableStrums(); //(what scripts did on this frame is seen before it's drawn)
 		guardPlayableNotesLate();
 		guardPlayableHud(elapsed);
@@ -5945,7 +5968,7 @@ class PlayState extends MusicBeatState
 
 	function startSongCredits()
 	{
-		if(!ClientPrefs.data.songCredits) return;
+		if(!ClientPrefs.data.songCredits || ClientPrefs.data.hideHud) return;
 
 		var songName:String = PlayState.SONG.song;
 		var composer:String = "Unknown";
