@@ -1,0 +1,375 @@
+/*
+ * Vortex Engine - GameBanana Browsing Uberstyle
+ * Pink and purple, like the engine's logo, with a slow vortex spinning behind the site.
+ * Upload it in GameBanana: Settings > Appearance > Browsing Uberstyle (a .css file, up to 102.4 kB).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+
+/* ---------------------------------------------------------------------------------
+ * Colors: GameBanana's own variables, so every page follows them
+ * ("html:root" weighs more than the site's ":root", so these win in any order)
+ * --------------------------------------------------------------------------------- */
+html:root {
+	--VortexPink: #FF3DB4;
+	--VortexHotPink: #FF6FCF;
+	--VortexPurple: #9B4DFF;
+	--VortexDeepPurple: #6A1FD1;
+	--VortexLavender: #F1E4FF;
+	--VortexNight: #10061C;
+	--VortexPanel: rgba(30, 12, 52, 0.82);
+	--VortexPanelSolid: #1E0C34;
+	--VortexLine: rgba(255, 61, 180, 0.22);
+	--VortexGradient: linear-gradient(90deg, #FF3DB4, #C64BFF 55%, #8A3BFF);
+
+	--DefaultTextFontFamily: "Nunito", "Open Sans", sans-serif;
+	--ModuleTitleFontFamily: "Fredoka", "Nunito", sans-serif;
+	--NavPaneTitleFontFamily: "Fredoka", "Nunito", sans-serif;
+
+	--BodyBackground: var(--VortexNight);
+	--BodyWrapperBackground: transparent;
+	--FixedMainContentHeaderBackground: rgba(22, 8, 40, 0.95);
+	--PrimaryNavBackgroundColor: rgba(20, 7, 36, 0.92);
+	--PrimaryNavBottomBorder: 1px solid var(--VortexLine);
+	--SecondaryNavBackgroundColor: #170929;
+	--NavPaneBackgroundColor: #150826;
+	--ModalWindowBG: #1E0C34;
+
+	--DefaultTextColor: #EDE3F7;
+	--LinkColor: var(--VortexHotPink);
+	--LinkHoverColor: #FFFFFF;
+	--PageTitleColor: #FFFFFF;
+	--DefaultBlueColor: #B78BFF;
+	--DefaultPurpleColor: var(--VortexPink);
+	--DefaultYellowColor: #FFD84D;
+	--NavUpdatesIndicatorColor: var(--VortexPink);
+
+	--ModuleBorderColor: var(--VortexLine);
+	--ModuleTitleUnderlineColor: var(--VortexPink);
+	--ModuleDescriptionFontColor: #A992C4;
+	--AuxiliaryColumnBackground: rgba(255, 255, 255, 0.02);
+	--AuxiliaryColumnModuleBorderColor: var(--VortexLine);
+	--EmbeddedWindowBackgroundColor: rgba(0, 0, 0, 0.25);
+
+	--SubNavigatorBorderColor: var(--VortexLine);
+	--SubNavigatorActiveTabFontColor: var(--VortexPink);
+	--SubNavigatorActiveTabBorderColor: var(--VortexPink);
+	--SubNavigatorTabHoverBorderColor: var(--VortexPurple);
+	--SubNavigatorDropdownBackgroundColor: #170929;
+	--ActiveTabBorderColor: var(--VortexPink);
+	--ActiveTabBackgroundColor: rgba(255, 61, 180, 0.1);
+	--AdvancedElementTabsActiveTabFontColor: var(--VortexPink);
+	--AdvancedElementTabsBorderColor: var(--VortexLine);
+	--TabBackground: #241040;
+	--TabBorder: #3A1A60;
+
+	--InputBackgroundColor: #261143;
+	--InputHoverBackgroundColor: #2E1550;
+	--InputFocusBackgroundColor: #34185C;
+	--InputTextColor: #F4ECFF;
+	--InputPlaceholderColor: #ffffff70;
+	--InputTitleUnderlineColor: var(--VortexPurple);
+
+	--ButtonBackground: linear-gradient(180deg, #FF4FBE, #B23BEA);
+	--ButtonFontColor: #FFFFFF;
+	--ButtonHoverBackgroundColor: #C64BFF;
+	--ButtonHoverFontColor: #FFFFFF;
+
+	--PaginatorPageNumberBackgroundColor: #1B0A30;
+	--MasterLogBackgroundColor: #150826;
+	--StateLabelBackground: #3A1A60;
+	--TableColumnTitleBackground: rgba(255, 61, 180, 0.12);
+	--TableColumnTitleFontColor: #F1D6FF;
+}
+
+/* ---------------------------------------------------------------------------------
+ * The vortex: two soft swirls turning slowly behind everything
+ * --------------------------------------------------------------------------------- */
+body {
+	background: var(--VortexNight);
+	color: var(--DefaultTextColor);
+}
+
+body::before,
+body::after {
+	content: "";
+	position: fixed;
+	left: 50%;
+	top: 50%;
+	width: 180vmax;
+	height: 180vmax;
+	margin: -90vmax 0 0 -90vmax;
+	z-index: -1;
+	pointer-events: none;
+	border-radius: 50%;
+}
+
+body::before {
+	background:
+		radial-gradient(circle at center, rgba(16, 6, 28, 0) 0, var(--VortexNight) 62%),
+		conic-gradient(from 0deg,
+			rgba(255, 61, 180, 0.30), rgba(106, 31, 209, 0.05) 12%,
+			rgba(155, 77, 255, 0.28) 25%, rgba(16, 6, 28, 0) 37%,
+			rgba(255, 61, 180, 0.26) 50%, rgba(106, 31, 209, 0.05) 62%,
+			rgba(155, 77, 255, 0.30) 75%, rgba(16, 6, 28, 0) 87%,
+			rgba(255, 61, 180, 0.30));
+	filter: blur(40px);
+	animation: VortexSpin 90s linear infinite;
+}
+
+body::after {
+	background:
+		repeating-conic-gradient(from 45deg, rgba(255, 255, 255, 0.025) 0deg 4deg, transparent 4deg 18deg);
+	-webkit-mask: radial-gradient(circle, #000 0, transparent 55%);
+	mask: radial-gradient(circle, #000 0, transparent 55%);
+	animation: VortexSpin 160s linear infinite reverse;
+}
+
+@keyframes VortexSpin {
+	to { transform: rotate(360deg); }
+}
+
+/* (people who turned off animations in their system get a still vortex) */
+@media (prefers-reduced-motion: reduce) {
+	body::before, body::after { animation: none; }
+}
+
+#BodyWrapper,
+#MainContent,
+#MainContentWrapper {
+	background: transparent;
+}
+
+/* The game's banner behind the page title: tinted to match */
+#PageBackground {
+	opacity: 0.35;
+	filter: saturate(0.7) hue-rotate(-20deg);
+}
+
+/* ---------------------------------------------------------------------------------
+ * Top bar
+ * --------------------------------------------------------------------------------- */
+#PrimaryNav {
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	border-bottom: 0;
+	box-shadow: 0 1px 0 rgba(255, 61, 180, 0.35), 0 6px 24px rgba(106, 31, 209, 0.25);
+}
+
+#PrimaryNav::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 2px;
+	background: var(--VortexGradient);
+	opacity: 0.8;
+}
+
+#SiteLogo img {
+	filter: drop-shadow(0 0 6px rgba(255, 61, 180, 0.45));
+}
+
+#SearchInput {
+	border-radius: 999px 0 0 999px;
+	border: 1px solid var(--VortexLine);
+}
+
+#SearchForm button {
+	border-radius: 0 999px 999px 0;
+	background: var(--ButtonBackground);
+	color: #fff;
+}
+
+/* ---------------------------------------------------------------------------------
+ * Page title: the logo's gradient, with a dark outline
+ * --------------------------------------------------------------------------------- */
+#MainContentHeader {
+	background: linear-gradient(180deg, rgba(16, 6, 28, 0) 40%, rgba(16, 6, 28, 0.85));
+}
+
+#PageTitle {
+	font-family: "Fredoka", "Nunito", sans-serif;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	color: #fff;
+	text-shadow:
+		0 3px 0 #3B0E63,
+		0 0 18px rgba(255, 61, 180, 0.55);
+}
+
+@supports (-webkit-background-clip: text) {
+	#PageTitle {
+		background: linear-gradient(180deg, #FF6FCF 0%, #FFFFFF 45%, #E8C8FF 60%, #A65BFF 100%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		text-shadow: none;
+		filter: drop-shadow(0 3px 0 #3B0E63) drop-shadow(0 0 14px rgba(255, 61, 180, 0.45));
+	}
+}
+
+/* ---------------------------------------------------------------------------------
+ * Modules (the boxes of every page): glass panels with a pink edge
+ * --------------------------------------------------------------------------------- */
+#ContentGrid module.PageModule,
+#ContentGrid modulegroup {
+	background: var(--VortexPanel);
+	border: 1px solid var(--VortexLine);
+	border-radius: 14px;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+	transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+#ContentGrid modulegroup module.PageModule {
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+}
+
+#ContentGrid module.PageModule:hover,
+#ContentGrid modulegroup:hover {
+	border-color: rgba(255, 61, 180, 0.5);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 61, 180, 0.18);
+}
+
+#ContentGrid modulegroup module.PageModule:hover {
+	box-shadow: none;
+}
+
+module > h2 {
+	font-family: "Fredoka", "Nunito", sans-serif;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: #fff;
+	border-bottom: 2px solid transparent;
+	border-image: var(--VortexGradient) 1;
+}
+
+module > h2 a {
+	color: #fff;
+}
+
+module > h2 a:hover {
+	color: var(--VortexHotPink);
+}
+
+/* Submission cards in lists */
+.Record,
+.RecordsGrid > * {
+	border-radius: 12px;
+	transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.RecordsGrid > *:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 10px 24px rgba(106, 31, 209, 0.35), 0 0 0 1px rgba(255, 61, 180, 0.45);
+}
+
+.Record img,
+.RecordsGrid img {
+	border-radius: 10px;
+}
+
+/* ---------------------------------------------------------------------------------
+ * Tabs under the title
+ * --------------------------------------------------------------------------------- */
+#SubNavigator {
+	background: rgba(20, 7, 36, 0.75);
+	border-radius: 12px;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+
+/* ---------------------------------------------------------------------------------
+ * Links, buttons, inputs
+ * --------------------------------------------------------------------------------- */
+a,
+.Linklike {
+	transition: color 0.15s, text-shadow 0.15s;
+}
+
+a:hover,
+.Linklike:hover {
+	text-shadow: 0 0 8px rgba(255, 111, 207, 0.6);
+}
+
+button,
+.Button,
+input[type="submit"],
+input[type="button"] {
+	border-radius: 10px;
+	font-weight: 700;
+	transition: filter 0.15s, transform 0.15s;
+}
+
+button:hover,
+.Button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+	filter: brightness(1.12);
+}
+
+button:active,
+.Button:active {
+	transform: translateY(1px);
+}
+
+input,
+textarea,
+select {
+	border-radius: 8px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+	outline: 2px solid rgba(255, 61, 180, 0.55);
+	outline-offset: 1px;
+}
+
+::selection {
+	background: rgba(255, 61, 180, 0.45);
+	color: #fff;
+}
+
+/* ---------------------------------------------------------------------------------
+ * Scrollbar
+ * --------------------------------------------------------------------------------- */
+html {
+	scrollbar-color: #B23BEA #12061F;
+}
+
+::-webkit-scrollbar {
+	width: 12px;
+	height: 12px;
+}
+
+::-webkit-scrollbar-track {
+	background: #12061F;
+}
+
+::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, #FF3DB4, #8A3BFF);
+	border-radius: 999px;
+	border: 3px solid #12061F;
+}
+
+/* ---------------------------------------------------------------------------------
+ * Footer
+ * --------------------------------------------------------------------------------- */
+#PageFooter {
+	background: linear-gradient(180deg, rgba(16, 6, 28, 0.6), #0B0414);
+	border-top: 2px solid transparent;
+	border-image: var(--VortexGradient) 1;
+}
+
+#PageFooter strong {
+	font-family: "Fredoka", "Nunito", sans-serif;
+	color: var(--VortexHotPink);
+	letter-spacing: 0.03em;
+}
