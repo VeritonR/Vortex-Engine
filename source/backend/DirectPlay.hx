@@ -152,6 +152,7 @@ class DirectPlay
 			if(mode == 'host') NetworkManager.hostServer();
 			else if(mode.startsWith('join:')) NetworkManager.joinServer(mode.substr(5));
 			states.MultiplayerMenuState.testSong = options.get('onlinesong');
+			states.MultiplayerMenuState.testAcceptMods = options.exists('onlineaccept');
 			if(options.exists('onlinewin')) states.MultiplayerMenuState.testWinCondition = options.get('onlinewin');
 			if(options.exists('time')) PlayState.startOnTime = Math.max(0, number('time', 0)) * 1000; //(both sides start the match there)
 			states.MultiplayerMenuState.testDifficulty = options.get('difficulty');
@@ -232,11 +233,8 @@ class DirectPlay
 			var files:Array<String> = options.get('checkimports').split(',');
 			try
 			{
-				var missing:Array<String> = VSliceScripts.unresolvedImports(File.getContent(files[0]).replace('
-', '').split('
-'));
-				File.saveContent(files[1], missing.join('
-'));
+				var missing:Array<String> = VSliceScripts.unresolvedImports(File.getContent(files[0]).replace('\r', '').split('\n'));
+				File.saveContent(files[1], missing.join('\n'));
 				trace('Imports checked: ' + missing.length + ' missing');
 			}
 			catch(e:Dynamic) trace('Could not check the imports: $e');
@@ -277,6 +275,11 @@ class DirectPlay
 			if(options.exists('botplay')) ClientPrefs.data.gameplaySettings.set('botplay', true);
 			ClientPrefs.data.gameplaySettings.set('practice', options.exists('practice'));
 			ClientPrefs.data.gameplaySettings.set('playasopponent', options.exists('opponent'));
+			// (the newer changers: off unless the run asks, like the others the user may have on)
+			ClientPrefs.data.gameplaySettings.set('onlysick', options.exists('onlysick'));
+			ClientPrefs.data.gameplaySettings.set('randomchart', options.exists('randomchart'));
+			for (name in ['scrollswap', 'notefadein', 'notefadeout', 'randomspeed'])
+				ClientPrefs.data.gameplaySettings.set(name, options.exists(name));
 			if(options.exists('rate')) ClientPrefs.data.gameplaySettings.set('songspeed', FlxMath.bound(number('rate', 1), 0.5, 4));
 			if(options.exists('volume')) FlxG.sound.volume = FlxMath.bound(number('volume', 1), 0, 1);
 
@@ -572,8 +575,14 @@ class DirectPlay
 	}
 
 	// Options of the game given for this run, each as the kind of value it already is
+	static var chatTyped:Bool = false;
+
 	static function applyPrefs():Void
 	{
+		#if flxanimate
+		// (atlas symbols with a blend mode drawn the library's way, on a bitmap first: to compare with the engine's own way)
+		if(options.exists('libraryblend')) flxanimate.PsychFlxAnimate.directBlendModes = false;
+		#end
 		if(!options.exists('pref')) return;
 
 		for (pair in options.get('pref').split(','))
@@ -611,6 +620,7 @@ class DirectPlay
 					FlxG.updateFramerate = fps;
 				}
 			}
+			if(name == 'supersampling') Supersampling.apply(Std.string(value));
 		}
 	}
 
@@ -643,6 +653,17 @@ class DirectPlay
 			}
 		}
 		runMouse(elapsed);
+		// "--chattype=SECONDS:text": typed on the online chat, when it's open (the letters of a real keyboard come another way)
+		if(options.exists('chattype') && !chatTyped)
+		{
+			var entry:String = options.get('chattype');
+			var colon:Int = entry.indexOf(':');
+			if(colon > 0 && elapsed >= Std.parseFloat(entry.substr(0, colon)))
+			{
+				chatTyped = true;
+				backend.OnlineChat.testType(entry.substr(colon + 1));
+			}
+		}
 		// "--members=SECONDS": what's on the state at that time, in its order (what covers what)
 		if(options.exists('members') && !membersListed && elapsed >= number('members', 0))
 		{
@@ -658,9 +679,7 @@ class DirectPlay
 				line += ' cams=' + cams.join('/');
 				lines.push(line);
 			}
-			trace('MEMBERS at ' + elapsed + 's (cameras: ' + [for (i => c in FlxG.cameras.list) '$i a=' + c.alpha + (c.visible ? '' : ' hidden')].join(', ') + ')
-' + lines.join('
-'));
+			trace('MEMBERS at ' + elapsed + 's (cameras: ' + [for (i => c in FlxG.cameras.list) '$i a=' + c.alpha + (c.visible ? '' : ' hidden')].join(', ') + ')\n' + lines.join('\n'));
 		}
 		// "--fullscreenat=SECONDS": the window goes fullscreen then, like with ALT+ENTER (not through the game's option)
 		if(options.exists('fullscreenat') && !wentFullscreen && elapsed >= number('fullscreenat', 0))
@@ -852,7 +871,8 @@ class DirectPlay
 				+ (char.isAnimationFinished() ? ' over' : '') + (char.specialAnim ? ' special' : '') + (char.visible ? '' : ' hidden');
 			if(options.exists('places'))
 				line += ' at ' + Math.round(char.x) + ',' + Math.round(char.y) + ' size ' + Math.round(char.width) + 'x' + Math.round(char.height) + ' a=' + char.alpha
-					+ ' scale=' + char.scale.x + ' order=' + drawOrder(game, char) + ' image=' + ((char.graphic != null) ? Std.string(char.graphic.key) : 'none');
+					+ ' scale=' + char.scale.x + ' order=' + drawOrder(game, char) + ' image=' + ((char.graphic != null) ? Std.string(char.graphic.key) : 'none')
+					#if flxanimate + (char.isAnimateAtlas && char.atlas != null ? ' atlas ' + Math.round(char.atlas.x) + ',' + Math.round(char.atlas.y) + ' off ' + Math.round(char.offset.x) + ',' + Math.round(char.offset.y) : '') #end;
 		}
 		if(options.exists('places'))
 			line += ' | camera ' + Math.round(FlxG.camera.scroll.x) + ',' + Math.round(FlxG.camera.scroll.y) + ' zoom ' + (Math.round(FlxG.camera.zoom * 100) / 100);

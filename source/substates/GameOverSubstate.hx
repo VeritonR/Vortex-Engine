@@ -43,6 +43,60 @@ class GameOverSubstate extends MusicBeatSubstate
 		super();
 	}
 
+	// The character that dies, made ahead of time by preload() (null when the song's own one is used)
+	static var preloadedCharacter:Character = null;
+	static var preloadedName:String = null;
+
+	/**
+	 * Gets the game over ready while the song loads, so dying shows it at once: the dead character is made, its images go to the
+	 * graphics card, and its sounds and music are decoded. Called after the scripts' `onCreatePost()`, which is where they change them.
+	 * What a script changes later is still loaded when the player dies, like before.
+	 */
+	public static function preload(game:PlayState):Void
+	{
+		dropPreloaded();
+		if(game == null) return;
+
+		for (sound in [deathSoundName])
+			try { if(Paths.fileExists('sounds/$sound.ogg', SOUND)) Paths.sound(sound); } catch(e:Dynamic) {}
+		for (music in [loopSoundName, endSoundName])
+			try { if(Paths.fileExists('music/$music.ogg', MUSIC)) Paths.music(music); } catch(e:Dynamic) {}
+
+		// the same choice new() and create() make: the song's own character dies when it can
+		var player:Character = game.boyfriend;
+		if(game.playAsOpponent || player == null) return;
+		if(player.curCharacter == characterName) return;
+		if(player.isVSlice && characterName == 'bf-dead' && player.hasAnimation('firstDeath')) return;
+		if(!Character.characterExists(characterName)) return;
+
+		try
+		{
+			preloadedCharacter = new Character(0, 0, characterName, true);
+			preloadedName = characterName;
+		}
+		catch(e:Dynamic)
+		{
+			preloadedCharacter = null;
+			preloadedName = null;
+		}
+
+		if(characterName == 'pico-dead')
+		{
+			Paths.image('Pico_Death_Retry');
+			if(game.gf != null && game.gf.curCharacter == 'nene') Paths.image('NeneKnifeToss');
+		}
+	}
+
+	/**
+	 * Lets go of the character preload() made, if it wasn't used.
+	 */
+	public static function dropPreloaded():Void
+	{
+		if(preloadedCharacter != null) preloadedCharacter.destroy();
+		preloadedCharacter = null;
+		preloadedName = null;
+	}
+
 	public static function resetVariables() {
 		characterName = 'bf-dead';
 		deathSoundName = 'fnf_loss_sfx';
@@ -114,7 +168,17 @@ class GameOverSubstate extends MusicBeatSubstate
 		}
 		else if(boyfriend == null)
 		{
-			boyfriend = new Character(PlayState.instance.boyfriend.getScreenPosition().x, PlayState.instance.boyfriend.getScreenPosition().y, characterName, true);
+			var place:FlxPoint = PlayState.instance.boyfriend.getScreenPosition();
+			if(preloadedCharacter != null && preloadedName == characterName && preloadedCharacter.exists)
+			{
+				// (made while the song loaded, see preload())
+				boyfriend = preloadedCharacter;
+				boyfriend.setPosition(place.x, place.y);
+				preloadedCharacter = null;
+				preloadedName = null;
+			}
+			else boyfriend = new Character(place.x, place.y, characterName, true);
+			place.put();
 			boyfriend.x += boyfriend.positionArray[0] - PlayState.instance.boyfriend.positionArray[0];
 			boyfriend.y += boyfriend.positionArray[1] - PlayState.instance.boyfriend.positionArray[1];
 		}

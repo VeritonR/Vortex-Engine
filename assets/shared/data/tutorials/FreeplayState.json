@@ -1,0 +1,9 @@
+{
+	"button": "top-center",
+	"steps": [
+		{"text": "Freeplay: any song you want. UP/DOWN pick one, LEFT/RIGHT the difficulty, and ENTER plays it."},
+		{"text": "The songs, with the icons of their characters.", "target": "grpSongs", "zoom": 1.2},
+		{"text": "Your best score and accuracy on this difficulty.", "target": ["scoreBG", "scoreText", "diffText"], "zoom": 1.6},
+		{"text": "SPACE plays the song here, CTRL opens the gameplay changers (Play as Opponent, Only Sick, Random Chart...) and RESET erases the score.", "target": "bottomText", "zoom": 1.3}
+	]
+}

@@ -1,0 +1,8 @@
+{
+	"button": "top-right",
+	"steps": [
+		{"text": "These are the editors, where everything of a mod is made. UP/DOWN pick one and ENTER opens it."},
+		{"text": "Chart Editor: the notes and events of a song. Character Editor: animations and offsets. Stage Editor: the objects of a stage. Week Editor: the weeks of Story Mode. And more!", "target": "grpTexts", "zoom": 1.3},
+		{"text": "If you have mods, LEFT/RIGHT pick which mod's folder the editors work in.", "target": "directoryTxt", "zoom": 2}
+	]
+}

@@ -449,7 +449,10 @@ class CharacterSelectState extends MusicBeatState
 		withPlayerMod(player, function()
 		{
 			var atlasKey:String = 'charSelect/${key}Chill';
-			if(Paths.fileExists('images/$atlasKey/Animation.json', TEXT))
+			if(player != null && player.playerSheet != null)
+				preview = CharSelectSheet.make(cutoutSize, 0, player.playerSheet, CharSelectSheet.PLAYER_ROLES, onPreviewAnimFinished);
+			if(preview != null) {}
+			else if(Paths.fileExists('images/$atlasKey/Animation.json', TEXT))
 				preview = new CharSelectAtlas(cutoutSize, 0, atlasKey, onPreviewAnimFinished);
 			else if(player != null)
 				preview = makeCharacterPreview(player);
@@ -486,14 +489,18 @@ class CharacterSelectState extends MusicBeatState
 
 	function getGF(player:PlayableCharacter):FlxSprite
 	{
-		if(player == null || player.gfAsset == null) return null;
-		if(gfSprites.exists(player.gfAsset)) return gfSprites.get(player.gfAsset);
+		if(player == null || (player.gfAsset == null && player.gfSheet == null)) return null;
+		var cacheKey:String = (player.gfSheet != null) ? 'sheet:' + player.id : player.gfAsset;
+		if(gfSprites.exists(cacheKey)) return gfSprites.get(cacheKey);
 
 		var gf:FlxSprite = null;
 		withPlayerMod(player, function()
 		{
 			var key:String = player.gfAsset;
-			if(Paths.fileExists('images/$key/Animation.json', TEXT))
+			if(player.gfSheet != null)
+				gf = CharSelectSheet.make(cutoutSize, 0, player.gfSheet, CharSelectSheet.GF_ROLES, onGFAnimFinished);
+			if(gf != null || key == null) {}
+			else if(Paths.fileExists('images/$key/Animation.json', TEXT))
 				gf = new CharSelectAtlas(cutoutSize, 0, key, onGFAnimFinished);
 			else
 			{
@@ -515,19 +522,21 @@ class CharacterSelectState extends MusicBeatState
 			gf.visible = false;
 			gfGroup.add(gf);
 		}
-		gfSprites.set(player.gfAsset, gf);
+		gfSprites.set(cacheKey, gf);
 		return gf;
 	}
 
 	// Returns false if the sprite isn't an atlas or doesn't have that animation
 	function playPreviewAnim(sprite:FlxSprite, name:String, looped:Bool = false):Bool
 	{
-		var atlas:CharSelectAtlas = Std.downcast(sprite, CharSelectAtlas);
-		return atlas != null && atlas.playAnim(name, looped);
+		if(sprite == null || !Std.isOfType(sprite, CharSelectSprite)) return false;
+		var animated:CharSelectSprite = cast sprite;
+		return animated.playAnim(name, looped);
 	}
 
-	function onPreviewAnimFinished(atlas:CharSelectAtlas, name:String)
+	function onPreviewAnimFinished(atlas:CharSelectSprite, name:String)
 	{
+		var sprite:FlxSprite = cast atlas;
 		switch(name)
 		{
 			case 'slidein':
@@ -537,13 +546,13 @@ class CharacterSelectState extends MusicBeatState
 			case 'deselect':
 				if(!atlas.playAnim('deselect loop start')) atlas.playAnim('idle');
 			case 'slideout':
-				if(atlas != curPreview) atlas.visible = false;
+				if(sprite != curPreview) sprite.visible = false;
 			case 'idle':
-				if(atlas == previews.get(LOCKED)) atlas.playAnim('idle'); //Mr. Static doesn't wait for the beat
+				if(sprite == previews.get(LOCKED)) atlas.playAnim('idle'); //Mr. Static doesn't wait for the beat
 		}
 	}
 
-	function onGFAnimFinished(atlas:CharSelectAtlas, name:String)
+	function onGFAnimFinished(atlas:CharSelectSprite, name:String)
 	{
 		if(name == 'deselect') atlas.playAnim('idle');
 	}
@@ -704,7 +713,7 @@ class CharacterSelectState extends MusicBeatState
 		{
 			if(sprite == null) continue;
 
-			var atlas:CharSelectAtlas = Std.downcast(sprite, CharSelectAtlas);
+			var atlas:CharSelectSprite = Std.isOfType(sprite, CharSelectSprite) ? cast sprite : null;
 			if(atlas != null)
 			{
 				if(atlas.curAnim == 'idle' && atlas.animFinished && (sprite != curGF || curBeat % 2 == 0))
@@ -760,7 +769,7 @@ class CharacterSelectState extends MusicBeatState
 		// back to dancing once the music is back to normal, like on V-Slice ("deselect loop start" goes on until then)
 		deselectTimer.start(1, function(_)
 		{
-			var atlas:CharSelectAtlas = Std.downcast(curPreview, CharSelectAtlas);
+			var atlas:CharSelectSprite = Std.isOfType(curPreview, CharSelectSprite) ? cast curPreview : null;
 			if(atlas == null || (atlas.curAnim != 'deselect' && atlas.curAnim != 'deselect loop start')) return;
 
 			atlas.playAnim('idle');
@@ -824,14 +833,14 @@ class CharacterSelectState extends MusicBeatState
 /**
  * Texture atlas whose animations are the frame labels of its main timeline, like the Character Select ones from V-Slice.
  */
-class CharSelectAtlas extends FlxAnimate
+class CharSelectAtlas extends FlxAnimate implements CharSelectSprite
 {
 	public var curAnim(default, null):String = null;
 	public var animFinished(default, null):Bool = true;
 
-	var onFinish:CharSelectAtlas->String->Void;
+	var onFinish:CharSelectSprite->String->Void;
 
-	public function new(x:Float, y:Float, key:String, ?onFinish:CharSelectAtlas->String->Void)
+	public function new(x:Float, y:Float, key:String, ?onFinish:CharSelectSprite->String->Void)
 	{
 		super(x, y);
 		this.onFinish = onFinish;
@@ -875,5 +884,108 @@ class CharSelectAtlas extends FlxAnimate
 			animFinished = true;
 			if(onFinish != null) onFinish(this, curAnim);
 		}
+	}
+}
+
+/**
+ * What Character Select plays animations on: a texture atlas (`CharSelectAtlas`) or a spritesheet (`CharSelectSheet`).
+ */
+interface CharSelectSprite
+{
+	public var curAnim(default, null):String;
+	public var animFinished(default, null):Bool;
+	public function hasAnim(name:String):Bool;
+	public function playAnim(name:String, looped:Bool = false):Bool;
+}
+
+/**
+ * Vortex only: a player (or its girlfriend) on Character Select from a spritesheet instead of a texture atlas
+ * ("charSelect.vortexSheet" and "charSelect.gf.vortexSheet" of the player's file), with the name of each animation chosen in it:
+ *
+ *     "vortexSheet": {"assetPath": "charSelect/bfSheet", "scale": 1, "offsets": [0, 0], "fps": 24,
+ *         "animations": {"start": "bf slide in", "loop": "bf idle", "confirm": "bf select", "cancel": "bf deselect", "leave": "bf slide out"}}
+ *
+ * Each is played where V-Slice plays its frame label: start = "slidein", loop = "idle", confirm = "select" (the girlfriend's "confirm"),
+ * cancel = "deselect", leave = "slideout". V-Slice doesn't know the field: there the texture atlas of the usual place is used.
+ */
+class CharSelectSheet extends FlxSprite implements CharSelectSprite
+{
+	public static final PLAYER_ROLES:Array<Array<String>> = [['start', 'slidein'], ['loop', 'idle'], ['confirm', 'select'], ['cancel', 'deselect'], ['leave', 'slideout']];
+	public static final GF_ROLES:Array<Array<String>> = [['loop', 'idle'], ['confirm', 'confirm'], ['cancel', 'deselect']];
+
+	public var curAnim(default, null):String = null;
+	public var animFinished(default, null):Bool = true;
+
+	var onFinish:CharSelectSprite->String->Void;
+	var loopCurrent:Bool = false;
+
+	/**
+	 * The sprite of a sheet of a player's file, null if its image isn't there.
+	 */
+	public static function make(x:Float, y:Float, sheet:Dynamic, roles:Array<Array<String>>, ?onFinish:CharSelectSprite->String->Void):CharSelectSheet
+	{
+		if(sheet == null) return null;
+		var path:String = backend.VSliceConvert.stripLibrary(backend.VSliceConvert.str(sheet.assetPath, ''));
+		if(path.length < 1 || !Paths.fileExists('images/$path.png', IMAGE)) return null;
+		try
+		{
+			return new CharSelectSheet(x, y, sheet, roles, onFinish);
+		}
+		catch(e:Dynamic)
+		{
+			trace('Character Select: the spritesheet "$path" could not be used: $e');
+			return null;
+		}
+	}
+
+	public function new(x:Float, y:Float, sheet:Dynamic, roles:Array<Array<String>>, ?onFinish:CharSelectSprite->String->Void)
+	{
+		super(x, y);
+		this.onFinish = onFinish;
+		antialiasing = ClientPrefs.data.antialiasing;
+
+		var path:String = backend.VSliceConvert.stripLibrary(backend.VSliceConvert.str(sheet.assetPath, ''));
+		frames = Paths.getSparrowAtlas(path);
+		var fps:Float = backend.VSliceConvert.num(sheet.fps, 24);
+		var names:Dynamic = sheet.animations;
+		for (role in roles)
+		{
+			var prefix:String = (names != null) ? backend.VSliceConvert.str(Reflect.field(names, role[0]), '') : '';
+			if(prefix.length > 0) animation.addByPrefix(role[1], prefix, fps, false);
+		}
+
+		var size:Float = backend.VSliceConvert.num(sheet.scale, 1);
+		scale.set(size, size);
+		updateHitbox();
+		var offsets:Array<Float> = backend.VSliceConvert.pair(sheet.offsets, 0, 0);
+		this.x += offsets[0];
+		this.y += offsets[1];
+	}
+
+	public function hasAnim(name:String):Bool
+		return animation.exists(name);
+
+	public function playAnim(name:String, looped:Bool = false):Bool
+	{
+		if(!hasAnim(name)) return false;
+		animation.play(name, true);
+		loopCurrent = looped;
+		curAnim = name;
+		animFinished = false;
+		return true;
+	}
+
+	override function update(elapsed:Float)
+	{
+		super.update(elapsed);
+		if(animFinished || curAnim == null || animation.curAnim == null || !animation.curAnim.finished) return;
+
+		if(loopCurrent)
+		{
+			animation.play(curAnim, true);
+			return;
+		}
+		animFinished = true;
+		if(onFinish != null) onFinish(this, curAnim);
 	}
 }

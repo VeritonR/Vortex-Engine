@@ -494,6 +494,32 @@ class Paths
 		return parentFrames;
 	}
 
+	/**
+	 * The spritesheets of a V-Slice character ("multisparrow"), put together the way V-Slice does (`FlxAnimateFrames.combineAtlas()`
+	 * with the main one last): a frame keeps the name it has in the main sheet, and the other sheets only add the frames it doesn't have.
+	 * Between two of the others, the later one wins. Psych's `getMultiAtlas()` keeps every frame, so an animation that has the same
+	 * name in two sheets plays both mixed: Boyfriend's Christmas outfit kept turning into his usual clothes, because his death
+	 * animations come from his usual sheet, which has "BF idle dance", "BF NOTE UP"... too.
+	 *
+	 * @param keys 	The main sheet first, then the others in the order the character's animations use them.
+	 */
+	static public function getVSliceMultiAtlas(keys:Array<String>, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
+	{
+		var main:FlxAtlasFrames = Paths.getAtlas(keys[0].trim(), parentFolder, allowGPU);
+		if(keys.length < 2 || main == null) return main;
+
+		var combined:FlxAtlasFrames = new FlxAtlasFrames(main.parent);
+		combined.addAtlas(main, false);
+		var index:Int = keys.length - 1;
+		while(index > 0)
+		{
+			var extraFrames:FlxAtlasFrames = Paths.getAtlas(keys[index].trim(), parentFolder, allowGPU);
+			if(extraFrames != null) combined.addAtlas(extraFrames, false);
+			index--;
+		}
+		return combined;
+	}
+
 	inline static public function getSparrowAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		if(key.contains('psychic')) trace(key, parentFolder, allowGPU);

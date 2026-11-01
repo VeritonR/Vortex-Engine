@@ -13,6 +13,8 @@ import backend.VSliceConvert;
 import objects.AtlasSprite;
 import objects.freeplay.FreeplayDJ;
 import states.CharacterSelectState.CharSelectAtlas;
+import states.CharacterSelectState.CharSelectSheet;
+import states.CharacterSelectState.CharSelectSprite;
 import states.editors.content.Prompt;
 
 /**
@@ -48,8 +50,8 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 	var djScene:FlxTypedGroup<FlxBasic>;
 	var resultsScene:FlxTypedGroup<FlxBasic>;
 
-	var gfSprite:CharSelectAtlas;
-	var playerSprite:CharSelectAtlas;
+	var gfSprite:FlxSprite; //(a CharSelectAtlas, or a CharSelectSheet: see the "Player Sheet" tab)
+	var playerSprite:FlxSprite;
 	var nametag:FlxSprite;
 	var icons:FlxTypedGroup<FlxSprite>;
 	var playerIcon:FlxSprite;
@@ -239,11 +241,15 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			gfSprite = null;
 		}
 
-		var key:String = VSliceConvert.stripLibrary(VSliceConvert.str(gfData.assetPath, ''));
-		if(key.length < 1 || !Paths.fileExists('images/$key/Animation.json', TEXT)) return;
-
-		gfSprite = new CharSelectAtlas(0, 0, key);
-		gfSprite.playAnim('idle', true); //(looped)
+		var sheet:CharSelectSheet = CharSelectSheet.make(0, 0, PlayableCharacters.validSheet(gfData.vortexSheet), CharSelectSheet.GF_ROLES);
+		if(sheet != null) gfSprite = sheet;
+		else
+		{
+			var key:String = VSliceConvert.stripLibrary(VSliceConvert.str(gfData.assetPath, ''));
+			if(key.length < 1 || !Paths.fileExists('images/$key/Animation.json', TEXT)) return;
+			gfSprite = new CharSelectAtlas(0, 0, key);
+		}
+		animated(gfSprite).playAnim('idle', true); //(looped)
 		// (behind the player, in front of the stage)
 		charSelectScene.insert(Std.int(Math.min(3, charSelectScene.length)), gfSprite);
 	}
@@ -257,11 +263,15 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			playerSprite = null;
 		}
 
-		var key:String = 'charSelect/${playerId}Chill';
-		if(!Paths.fileExists('images/$key/Animation.json', TEXT)) return;
-
-		playerSprite = new CharSelectAtlas(0, 0, key);
-		playerSprite.playAnim('idle', true);
+		var sheet:CharSelectSheet = CharSelectSheet.make(0, 0, PlayableCharacters.validSheet(data.charSelect.vortexSheet), CharSelectSheet.PLAYER_ROLES);
+		if(sheet != null) playerSprite = sheet;
+		else
+		{
+			var key:String = 'charSelect/${playerId}Chill';
+			if(!Paths.fileExists('images/$key/Animation.json', TEXT)) return;
+			playerSprite = new CharSelectAtlas(0, 0, key);
+		}
+		animated(playerSprite).playAnim('idle', true);
 		var place:Int = (gfSprite != null) ? charSelectScene.members.indexOf(gfSprite) + 1 : Std.int(Math.min(3, charSelectScene.length));
 		charSelectScene.insert(place, playerSprite);
 	}
@@ -392,7 +402,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 
 	function makeMainBox():Void
 	{
-		mainBox = new PsychUIBox(FlxG.width - 320, 10, 310, 400, ['Player', 'Girlfriend', 'Freeplay DJ', 'Results']);
+		mainBox = new PsychUIBox(FlxG.width - 320, 10, 310, 400, ['Player', 'Player Sheet', 'Girlfriend', 'Freeplay DJ', 'Results']);
 		mainBox.scrollFactor.set();
 		add(mainBox);
 
@@ -453,6 +463,21 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		tab.add(gfAnimInfoInput);
 		tab.add(visualizerCheck);
 		tab.add(gfReload);
+		gfSheetFields = makeSheetFields(tab, 175, CharSelectSheet.GF_ROLES, sheetOf(gfData, false));
+
+		// ---- Player Sheet
+		var tab = mainBox.getTab('Player Sheet').menu;
+		playerSheetFields = makeSheetFields(tab, 10, CharSelectSheet.PLAYER_ROLES, sheetOf(data.charSelect, false));
+		var sheetReload:PsychUIButton = new PsychUIButton(10, 300, 'Reload player', function() withPlayerMod(function()
+		{
+			reloadGF();
+			reloadPlayerSprite();
+			reloadPreviewTargets();
+		}));
+		tab.add(sheetReload);
+		var sheetHelp:FlxText = new FlxText(10, 325, 290, 'Leave the spritesheet empty to use the texture atlas ("charSelect/' + playerId + 'Chill"). Only Vortex Engine shows spritesheets here: V-Slice uses the texture atlas.', 8);
+		sheetHelp.wordWrap = true;
+		tab.add(sheetHelp);
 
 		// ---- Freeplay DJ
 		var tab = mainBox.getTab('Freeplay DJ').menu;
@@ -493,6 +518,95 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 
 		makeResultsTab();
 	}
+
+	// ------------------------------------------------------------------------------------------
+	// Spritesheets instead of texture atlases (Vortex only, see CharSelectSheet)
+	// ------------------------------------------------------------------------------------------
+
+	var playerSheetFields:SheetFields;
+	var gfSheetFields:SheetFields;
+
+	static final ROLE_LABELS:Map<String, String> = ['start' => 'Start:', 'loop' => 'Loop:', 'confirm' => 'Confirm:', 'cancel' => 'Cancel:', 'leave' => 'Leave:'];
+
+	// The "vortexSheet" of the player's "charSelect" or of its girlfriend, made when asked to
+	static function sheetOf(owner:Dynamic, make:Bool):Dynamic
+	{
+		if(owner.vortexSheet == null && make) owner.vortexSheet = {assetPath: '', scale: 1, offsets: [0, 0], fps: 24, animations: {}};
+		return owner.vortexSheet;
+	}
+
+	function makeSheetFields(tab:FlxSpriteGroup, y:Float, roles:Array<Array<String>>, sheet:Dynamic):SheetFields
+	{
+		var fields:SheetFields = {asset: null, scale: null, x: null, y: null, fps: null, names: []};
+		var offsets:Array<Float> = (sheet != null) ? VSliceConvert.pair(sheet.offsets, 0, 0) : [0, 0];
+
+		tab.add(new FlxText(10, y, 0, 'Spritesheet instead (inside "images", Vortex only):'));
+		fields.asset = new PsychUIInputText(10, y + 15, 280, (sheet != null) ? VSliceConvert.str(sheet.assetPath, '') : '', 8);
+		tab.add(new FlxText(10, y + 37, 0, 'Scale:'));
+		tab.add(new FlxText(80, y + 37, 0, 'X:'));
+		tab.add(new FlxText(150, y + 37, 0, 'Y:'));
+		tab.add(new FlxText(220, y + 37, 0, 'FPS:'));
+		fields.scale = new PsychUINumericStepper(10, y + 52, 0.05, (sheet != null) ? VSliceConvert.num(sheet.scale, 1) : 1, 0.05, 10, 2, 60);
+		fields.x = new PsychUINumericStepper(80, y + 52, 1, offsets[0], -9999, 9999, 0, 60);
+		fields.y = new PsychUINumericStepper(150, y + 52, 1, offsets[1], -9999, 9999, 0, 60);
+		fields.fps = new PsychUINumericStepper(220, y + 52, 1, (sheet != null) ? VSliceConvert.num(sheet.fps, 24) : 24, 1, 120, 0, 60);
+		tab.add(new FlxText(10, y + 75, 0, 'Animations (their names in the .xml):'));
+
+		var row:Float = y + 92;
+		for (role in roles)
+		{
+			var name:String = (sheet != null && sheet.animations != null) ? VSliceConvert.str(Reflect.field(sheet.animations, role[0]), '') : '';
+			tab.add(new FlxText(10, row + 3, 0, ROLE_LABELS.get(role[0])));
+			var input:PsychUIInputText = new PsychUIInputText(70, row, 220, name, 8);
+			fields.names.set(role[0], input);
+			row += 23;
+		}
+
+		// (the inputs last, over the texts)
+		for (stepper in [fields.scale, fields.x, fields.y, fields.fps]) tab.add(stepper);
+		for (role in roles) tab.add(fields.names.get(role[0]));
+		tab.add(fields.asset);
+		return fields;
+	}
+
+	// What a text field or stepper of a sheet changes: true if it was one of them
+	function sheetFieldChanged(sender:Dynamic, ?typed:Null<Float>):Bool
+	{
+		for (pair in [{fields: playerSheetFields, owner: data.charSelect}, {fields: gfSheetFields, owner: gfData}])
+		{
+			var fields:SheetFields = pair.fields;
+			if(fields == null) continue;
+			var sheet:Dynamic = null;
+			// (a stepper's value is what was typed on it, it only becomes its value when it's left)
+			inline function valueOf(stepper:PsychUINumericStepper):Float return (sender == stepper && typed != null) ? typed : stepper.value;
+			if(sender == fields.asset) (sheet = sheetOf(pair.owner, true)).assetPath = fields.asset.text.trim();
+			else if(sender == fields.scale) (sheet = sheetOf(pair.owner, true)).scale = valueOf(fields.scale);
+			else if(sender == fields.x || sender == fields.y) (sheet = sheetOf(pair.owner, true)).offsets = [valueOf(fields.x), valueOf(fields.y)];
+			else if(sender == fields.fps) (sheet = sheetOf(pair.owner, true)).fps = Std.int(valueOf(fields.fps));
+			else
+			{
+				for (role => input in fields.names)
+				{
+					if(sender != input) continue;
+					sheet = sheetOf(pair.owner, true);
+					if(sheet.animations == null) sheet.animations = {};
+					Reflect.setField(sheet.animations, role, input.text.trim());
+				}
+			}
+			if(sheet != null) return true;
+		}
+		return false;
+	}
+
+	// If the player or its girlfriend is shown from a spritesheet when it's saved
+	function usesSheets():Bool
+	{
+		return PlayableCharacters.validSheet(data.charSelect.vortexSheet) != null
+			|| (data.charSelect.gf != null && PlayableCharacters.validSheet(data.charSelect.gf.vortexSheet) != null);
+	}
+
+	static inline function animated(sprite:FlxSprite):CharSelectSprite
+		return cast sprite;
 
 	// Which sprite is being previewed, and its animation
 	var previewTargets:Array<String> = [];
@@ -543,8 +657,8 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		previewAnims = [];
 		switch(previewTarget)
 		{
-			case 'Player': previewAnims = atlasAnims(playerSprite);
-			case 'Girlfriend': previewAnims = atlasAnims(gfSprite);
+			case 'Player': previewAnims = spriteAnims(playerSprite);
+			case 'Girlfriend': previewAnims = spriteAnims(gfSprite);
 			case 'Freeplay DJ': previewAnims = dj.animationNames();
 			default:
 		}
@@ -554,11 +668,13 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		selectAnim((idle > -1) ? idle : 0, true);
 	}
 
-	static function atlasAnims(sprite:CharSelectAtlas):Array<String>
+	static function spriteAnims(sprite:FlxSprite):Array<String>
 	{
 		if(sprite == null) return [];
+		var atlas:CharSelectAtlas = Std.downcast(sprite, CharSelectAtlas);
+		if(atlas == null) return sprite.animation.getNameList();
 		@:privateAccess
-		return [for (name in sprite.anim.animsMap.keys()) name];
+		return [for (name in atlas.anim.animsMap.keys()) name];
 	}
 
 	function selectAnim(index:Int, play:Bool):Void
@@ -582,8 +698,8 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		var loop:Bool = (name == 'idle'); //(the menus play it again and again)
 		switch(previewTarget)
 		{
-			case 'Player': playerSprite.playAnim(name, loop);
-			case 'Girlfriend': gfSprite.playAnim(name, loop);
+			case 'Player': animated(playerSprite).playAnim(name, loop);
+			case 'Girlfriend': animated(gfSprite).playAnim(name, loop);
 			case 'Freeplay DJ': dj.previewAnimation(name, loop);
 			default:
 		}
@@ -594,15 +710,33 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 	{
 		return switch(previewTarget)
 		{
-			case 'Player': playerSprite;
-			case 'Girlfriend': gfSprite;
+			case 'Player': Std.downcast(playerSprite, CharSelectAtlas);
+			case 'Girlfriend': Std.downcast(gfSprite, CharSelectAtlas);
 			case 'Freeplay DJ': dj;
+			default: null;
+		}
+	}
+
+	// The spritesheet being previewed (see the "Player Sheet" tab)
+	function previewSheet():CharSelectSheet
+	{
+		return switch(previewTarget)
+		{
+			case 'Player': Std.downcast(playerSprite, CharSelectSheet);
+			case 'Girlfriend': Std.downcast(gfSprite, CharSelectSheet);
 			default: null;
 		}
 	}
 
 	function stepFrame(change:Int):Void
 	{
+		var sheet:CharSelectSheet = previewSheet();
+		if(sheet != null && sheet.animation.curAnim != null)
+		{
+			sheet.animation.curAnim.pause();
+			sheet.animation.curAnim.curFrame = FlxMath.wrap(sheet.animation.curAnim.curFrame + change, 0, sheet.animation.curAnim.numFrames - 1);
+			return;
+		}
 		var atlas:FlxAnimate = previewAtlas();
 		if(atlas == null || atlas.anim.curSymbol == null) return;
 
@@ -648,6 +782,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			else if(sender == gfAnimInfoInput) gfData.animInfoPath = gfAnimInfoInput.text.trim();
 			else if(sender == djAssetInput) djData().assetPath = djAssetInput.text.trim();
 			else if(djTextInputs.contains(sender)) Reflect.setField(djData(), 'text${djTextInputs.indexOf(sender) + 1}', sender.text);
+			else if(sheetFieldChanged(sender)) {}
 			else if(!resultsTextChanged(sender)) return;
 			unsaved = true;
 		}
@@ -670,6 +805,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 	// Returns true if it was one of the editor's
 	function stepperChanged(stepper:PsychUINumericStepper, value:Float):Bool
 	{
+		if(sheetFieldChanged(stepper, value)) return true;
 		if(stepper == positionStepper)
 		{
 			data.charSelect.position = Std.int(value);
@@ -766,8 +902,14 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			statusText.text = lines.join('\n');
 			return;
 		}
+		var sheet:CharSelectSheet = previewSheet();
 		var atlas:FlxAnimate = previewAtlas();
-		if(atlas != null && previewAnims.length > 0 && atlas.anim.curSymbol != null)
+		if(sheet != null && previewAnims.length > 0 && sheet.animation.curAnim != null)
+		{
+			var anim = sheet.animation.curAnim;
+			lines.push('$previewTarget (spritesheet): ${previewAnims[previewAnim]}, frame ${anim.curFrame + 1}/${anim.numFrames}' + (anim.paused ? ' (paused)' : ''));
+		}
+		else if(atlas != null && previewAnims.length > 0 && atlas.anim.curSymbol != null)
 		{
 			var line:String = '$previewTarget: ${previewAnims[previewAnim]}, frame ${atlas.anim.curFrame + 1}/${atlas.anim.length}'
 				+ (atlas.anim.isPlaying ? '' : ' (paused)');
@@ -1259,10 +1401,22 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 	// ------------------------------------------------------------------------------------------
 
 	var file:FileReference = null;
+	var sheetWarningAccepted:Bool = false;
 
 	function saveFile():Void
 	{
 		if(file != null) return;
+		if(usesSheets() && !sheetWarningAccepted)
+		{
+			openSubState(new Prompt('Spritesheets only work\nin Vortex Engine!\nV-Slice shows the texture\natlas instead. Save?',
+				function() { sheetWarningAccepted = true; saveFile(); }, null, 'Save', 'Cancel'));
+			return;
+		}
+		sheetWarningAccepted = false;
+		// (an empty spritesheet isn't kept in the file)
+		for (owner in [data.charSelect, data.charSelect.gf])
+			if(owner != null && owner.vortexSheet != null && PlayableCharacters.validSheet(owner.vortexSheet) == null)
+				Reflect.deleteField(owner, 'vortexSheet');
 
 		var text:String = OrderedJson.stringify(data);
 		if(lineBreak != '\n') text = text.split('\n').join(lineBreak);
@@ -1293,4 +1447,14 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		file.removeEventListener(IOErrorEvent.IO_ERROR, onSaveEnd);
 		file = null;
 	}
+}
+
+typedef SheetFields =
+{
+	var asset:PsychUIInputText;
+	var scale:PsychUINumericStepper;
+	var x:PsychUINumericStepper;
+	var y:PsychUINumericStepper;
+	var fps:PsychUINumericStepper;
+	var names:Map<String, PsychUIInputText>;
 }

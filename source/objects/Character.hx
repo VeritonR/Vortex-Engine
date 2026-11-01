@@ -203,7 +203,7 @@ class Character extends FlxSprite
 
 		if(!isAnimateAtlas)
 		{
-			frames = Paths.getMultiAtlas(json.image.split(','));
+			frames = isVSlice ? Paths.getVSliceMultiAtlas(json.image.split(',')) : Paths.getMultiAtlas(json.image.split(','));
 		}
 		#if flxanimate
 		else
@@ -248,6 +248,8 @@ class Character extends FlxSprite
 
 		// data
 		healthIcon = json.healthicon;
+		var vsliceIcon:Dynamic = Reflect.field(json, 'vsliceIcon');
+		if(vsliceIcon != null) HealthIcon.useVSliceSize(healthIcon, vsliceIcon.isPixel == true, vsliceIcon.scale);
 		singDuration = json.sing_duration;
 		flipX = (json.flip_x != isPlayer);
 		healthColorArray = (json.healthbar_colors != null && json.healthbar_colors.length > 2) ? json.healthbar_colors : [161, 161, 161];
@@ -969,6 +971,23 @@ class Character extends FlxSprite
 			else if(hasAnimation('idle' + idleSuffix))
 				playAnim('idle' + idleSuffix, force);
 		}
+	}
+
+	/**
+	 * The `offset` the character has while playing an animation (what playAnim() sets), null if it doesn't have it.
+	 */
+	public function offsetOf(anim:String):Array<Float>
+	{
+		if(!hasAnimation(anim) || animOffsets.get(anim) == null) return null;
+		var offsets = animOffsets.get(anim);
+		var x:Float = offsets[0];
+		var y:Float = offsets[1];
+		if(cornerPosition && !isAnimateAtlas)
+		{
+			x += hitboxOffsetX;
+			y += hitboxOffsetY;
+		}
+		return [x, y];
 	}
 
 	public function playAnim(AnimName:String, Force:Bool = false, Reversed:Bool = false, Frame:Int = 0):Void

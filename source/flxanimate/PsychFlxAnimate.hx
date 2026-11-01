@@ -31,6 +31,11 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 	 */
 	public static var atlasBlendModes:Bool = true;
 
+	/**
+	 * If a symbol with a blend mode that's a single image is drawn straight with it (see `isDirectBlend()`), instead of on a bitmap first.
+	 */
+	public static var directBlendModes:Bool = true;
+
 	// OpenFL's blend modes its GPU renderer has: add, darken, lighten, multiply, screen and subtract (`OpenGLRenderer.__setBlendMode()`)
 	static final DRAWN_BLEND_MODES:Array<Int> = [0, 2, 8, 9, 12, 14];
 
@@ -661,7 +666,10 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 			// a symbol with a blend mode that is just one image: drawn straight with that blend mode. The library would draw it on a
 			// bitmap of its own first, again each time it moves, the size it's shown at (Pico's Freeplay flashes cover the screen, and
 			// the game went at a few frames a second while they were on)
-			if(directBlend == null && filterInstance == null && instance != null && instance.visible && isDirectBlend(instance))
+			// (also while the whole atlas goes on its texture: the library would render the symbol on a bitmap of its own there too, and
+			// put it back in the wrong place - Darnell's lighter glow and Sky's red eyes in Manifest showed up away from them)
+			if(directBlendModes && directBlend == null && (filterInstance == null || isWholePass(filterInstance)) && instance != null
+				&& instance.visible && isDirectBlend(instance))
 			{
 				directBlend = instance.symbol.blendMode;
 				var skipFilters:Bool = anim.metadata.skipFilters;
@@ -681,6 +689,10 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 
 	// While a symbol with one of those blend modes is drawn: the cameras its pieces go on instead of each camera
 	var blendLayers:haxe.ds.ObjectMap<FlxCamera, FlxCamera> = null;
+
+	// If what's being drawn is the whole atlas going on its own texture (see `drawWhole()`), not a bitmap the library makes for a filter
+	function isWholePass(filterInstance:{?instance:FlxElement}):Bool
+		return _drawingWhole && filterInstance != null && filterInstance.instance == anim.curInstance;
 
 	// The blend mode the images of the symbol being drawn straight get (see `isDirectBlend()`)
 	var directBlend:openfl.display.BlendMode = null;
@@ -1172,7 +1184,7 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 	override function drawLimb(limb:flixel.graphics.frames.FlxFrame, _matrix:FlxMatrix, ?colorTransform:ColorTransform = null, filterin:Bool = false,
 		?blendMode:openfl.display.BlendMode, ?scrollFactor:FlxPoint = null, cameras:Array<FlxCamera> = null)
 	{
-		if(directBlend != null && !filterin && (blendMode == null || blendMode == NORMAL)) blendMode = directBlend;
+		if(directBlend != null && (!filterin || _drawingWhole) && (blendMode == null || blendMode == NORMAL)) blendMode = directBlend;
 
 		if(blendLayers != null && !filterin)
 		{

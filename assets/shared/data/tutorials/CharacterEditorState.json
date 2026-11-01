@@ -1,0 +1,13 @@
+{
+	"button": "top-center",
+	"steps": [
+		{"text": "The Character Editor! Here you set the animations, offsets, position and colors of a character."},
+		{"text": "This is the character. Drag it with the right mouse button (or use the arrow keys) to move the offset of the animation being played.", "target": "character", "zoom": 1.5},
+		{"text": "The animations and their offsets. W/S go through them, SPACE plays it again and A/D go frame by frame.", "target": "animsTxt", "zoom": 2},
+		{"text": "Animations: add or change one with its name, its name in the .xml (or the symbol of the atlas), its framerate and if it loops.", "target": "UI_characterbox", "set": {"UI_characterbox.selectedName": "Animations"}},
+		{"text": "Character: the image, the health icon, the scale, where it stands and where the camera looks, the color of the health bar and the postfix of its vocals.", "target": "UI_characterbox", "set": {"UI_characterbox.selectedName": "Character"}},
+		{"text": "Ghost shows another animation behind it, to line up the offsets. Settings: which character is open, and if it's a player.", "target": "UI_box"},
+		{"text": "The health bar and the icon, to check the colors.", "target": ["healthBar", "healthIcon"], "zoom": 2},
+		{"text": "The camera: E/Q or the wheel zoom, I/J/K/L or the middle button move it, R resets it. F1 shows every shortcut. Don't forget to save!"}
+	]
+}

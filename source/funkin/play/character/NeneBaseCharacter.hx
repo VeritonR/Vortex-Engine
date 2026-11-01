@@ -69,20 +69,23 @@ class NeneBaseCharacter extends AnimateAtlasCharacter
 		stereoBG = speaker.bg;
 		eyeWhites = speaker.eyeBg;
 		pupil = speaker.eyes;
+		// (it's put on the stage by setupAbot(), like on V-Slice: a Nene that never gets there, as a copy a script keeps aside, has none)
+	}
 
-		// behind the character
+	// Puts the speaker in the game, behind the character
+	function addSpeaker():Void
+	{
 		var game:states.PlayState = states.PlayState.instance;
-		if(game != null)
-		{
-			var front:flixel.FlxBasic = character;
-			for (group in [game.gfGroup, game.dadGroup, game.boyfriendGroup])
-				if(group != null && group.members.contains(character))
-					front = group;
+		if(game == null || speaker == null || game.members.contains(speaker)) return;
 
-			var index:Int = game.members.indexOf(front);
-			if(index > -1) game.insert(index, speaker);
-			else game.add(speaker);
-		}
+		var front:flixel.FlxBasic = character;
+		for (group in [game.gfGroup, game.dadGroup, game.boyfriendGroup])
+			if(group != null && group.members.contains(character))
+				front = group;
+
+		var index:Int = game.members.indexOf(front);
+		if(index > -1) game.insert(index, speaker);
+		else game.add(speaker);
 	}
 
 	override public function onUpdate(event:UpdateScriptEvent):Void
@@ -109,6 +112,7 @@ class NeneBaseCharacter extends AnimateAtlasCharacter
 	{
 		hasSetupAbot = true;
 		if(speaker == null || character == null) return;
+		addSpeaker();
 
 		// V-Slice places it from the top left corner of the character: (-95, 384). Psych's characters don't have theirs on the same spot
 		// (texture atlases aren't drawn from it), so the area her pose takes is used

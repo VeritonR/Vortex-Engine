@@ -18,7 +18,9 @@
 | | |
 |---|---|
 | 🧩 **V-Slice mod support** | Play mods made for the official game (Polymod, `.hxc` scripts) next to your Psych mods, with no porting. |
-| 🌐 **Online multiplayer** | Host or join a match by IP and play a song against a friend: each player sings one side. |
+| 🌐 **Online multiplayer** | Host or join a match by IP and play a song against a friend: each player sings one side. The port opens by itself (UPnP), there's a chat, and a missing mod can be sent to the other player. |
+| 🎓 **Tutorials** | A "Tutorial" button on the menus and editors: Boyfriend zooms into each part of the screen and explains it. Mods can add their own. |
+| 📸 **Screenshots & Gallery** | `F3` takes a screenshot anywhere, with a flash and a preview; the Gallery shows them and saves copies. |
 | 🎤 **V-Slice menus for everyone** | Freeplay with the DJ, Character Select, the Results screen and the sticker transition, for Psych songs too. |
 | 🎮 **New gameplay options** | Play as Opponent, Health Drain, Break Timer, Lane Underlay, Ghost Notes, Hold Note Covers and more. |
 | 👥 **Extra characters** | Add more singers to a song in the chart editor (a duet, a third character...) and pick who sings each note, with no script. |
@@ -71,8 +73,12 @@ Each of these is an option, and Psych mods get them too.
 
 <img src="docs/img/vortex/online.jpg" width="45%" align="right">
 
-* **Host Game** waits for a friend; **Join Game** connects with the host's IP (port `8888`).
+* **Host Game** waits for a friend; **Join Game** connects with the host's IP (port `8888`). `CTRL+V` pastes the IP.
+* **No Radmin or Hamachi needed (when the router allows it):** hosting asks the router to open the port by itself (UPnP) and shows the IP to send to your friend (`C` copies it). If the router can't (UPnP off, or an internet provider that shares one IP between many homes, called CGNAT), the screen says so, and a VPN like Radmin still works.
 * Choose your nickname in the lobby (`TAB`).
+* **Chat:** `T` opens it on any screen of the match (the lobby, the song, the results). Its key can be changed in Controls.
+* **The other player's preferences:** `P` in the lobby shows them (downscroll, middlescroll, lane underlay, ghost tapping, note skin, offset, FPS). With the option **Online: Opponent's View**, you see their notes the way they do: going down if they use downscroll, with dark lanes if they use Lane Underlay.
+* **Sending a mod:** if the host picks a song from a mod the other player doesn't have, the other player is asked if they want it (with its size, and a warning that mods can have scripts). If they accept, the host sends the mod's files, it's installed and turned on, and the match starts. A mod they have but turned off is only turned on.
 * Each player plays one side of the chart, and both see each other's notes, misses and animations as they happen.
 * **Match setup:** after picking the song, the host chooses how the match is won (**Score**, **Misses** or **Accuracy**) and the sides; the other player watches it live.
 * During the song, the other player's score, misses and accuracy are in a corner, with who's ahead. Getting knocked out loses; if nobody is, a results screen shows both players side by side and who won.
@@ -94,7 +100,12 @@ Each of these is an option, and Psych mods get them too.
 * **Play as Opponent:** play the opponent's notes while the computer plays Boyfriend's.
 * **Health Drain:** every note the opponent hits takes a little health (it never kills you).
 * **Speed Up on Miss:** every miss makes the song 5% faster, up to 2x.
-* **Ghost Notes:** two notes of the same character close together leave an afterimage of the first pose.
+* **Ghost Notes:** two notes of the same character close together leave an afterimage of the first pose, in the animation the character was in.
+* **Only Sick:** anything worse than a Sick counts as a miss.
+* **Random Chart:** every note goes to a random column (notes at the same time never land on the same one).
+* **Random Scroll Invert:** every 16 beats, the receptors may glide to the other side of the screen, and the notes turn around with them.
+* **Fade In / Fade Out:** the notes appear only near the receptors, or disappear before reaching them.
+* **Random Note Speed:** each note comes at its own speed.
 
 **New options**
 * **Break Timer:** a countdown when there are 3 seconds or more without notes.
@@ -105,6 +116,9 @@ Each of these is an option, and Psych mods get them too.
 * **Song Credits Card:** the song's name, composer and charter slide in when the song starts.
 * **Animated health icons** (an `.xml` next to the icon) and **winning icons** (3 frames).
 * **Window Mode** (windowed or fullscreen) and **Sharpness**.
+* **Supersampling:** the game is drawn bigger than the window and shrunk to it, for smoother edges (like DSR on NVIDIA cards).
+* **The options menu** is one panel with tabs (Gameplay, Graphics, Visuals, V-Slice, Vortex Engine and More), usable with the keyboard or the mouse.
+* **Controls:** two actions on the same key that work during a song (a note key that's also the chat's, for example) get a warning.
 
 <p align="center">
   <img src="docs/img/vortex/options.jpg" width="49%">
@@ -125,12 +139,53 @@ Each of these is an option, and Psych mods get them too.
 * **Extra characters:** the chart editor's "Extras" tab adds characters besides the opponent, the player and the girlfriend (a character, a side, where it stands). Each one gets a field of its own on the grid, like Codename Engine's strumlines, to chart its notes; the Note tab's "Sung by" also picks who sings each note: the main character, an extra one, or everyone on that side. They dance, sing, hold long notes and miss like the main ones; scripts get them by their tag. See section 8 of [`scripts.txt`](scripts.txt).
 * **New chart events:** Flash Camera, Fade Screen, Set Camera Zoom, Fade HUD, Cinematic Bars, Lyrics, Camera Target, Camera Bop, Character Trail, Notes Fade and Camera Angle, with no script needed (see section 10 of [`scripts.txt`](scripts.txt)). A mod with its own event of the same name keeps its own.
 * **Stage, Character, Dialogue Portrait and Menu Character editors:** move things with the mouse, with undo.
-* **Character Select & Results editor (new):** place the characters, portraits and results animations of a playable character, with a live preview. What you save works in the official V-Slice too.
+* **Character Select & Results editor (new):** place the characters, portraits and results animations of a playable character, with a live preview. What you save works in the official V-Slice too. The character can also be a spritesheet (`.png` + `.xml`) instead of a texture atlas, in the "Player Sheet" tab (Vortex only: V-Slice needs the atlas).
+* Every editor has a **Tutorial** button (see below).
 
 <p align="center">
   <img src="docs/img/vortex/charselect_editor.jpg" width="49%">
   <img src="docs/img/vortex/stage_editor.jpg" width="49%">
 </p>
+
+---
+
+## 🎓 Tutorials
+
+The menus and the editors that have a tutorial show a **Tutorial** button (`F6` also opens it). Boyfriend comes in, the screen zooms into each part he talks about, and a speech bubble explains it. `ENTER` or a click goes on, `BACKSPACE` goes back, `ESC` leaves.
+
+There are tutorials for the main menu, Freeplay (both styles), the options, Online, the mods menu, the Gallery, the editors menu, and the Chart, Character, Stage and Character Select editors.
+
+The button can be hidden in Options → Vortex Engine → **Tutorial Button**.
+
+**Making one for your mod:** add `data/tutorials/<ScreenName>.json` to the mod, named after the screen's class (`MainMenuState`, `ChartingState`, a custom state's class...). A mod's tutorial replaces the game's one for that screen.
+
+```json
+{
+	"button": "top-right",
+	"steps": [
+		{"text": "Hi! This step has no target: the whole screen is shown."},
+		{"text": "This is the song list.", "target": "grpSongs", "zoom": 1.5},
+		{"text": "The Note tab.", "target": "mainBox", "set": {"mainBox.selectedName": "Note"}},
+		{"text": "A spot of the screen.", "rect": [100, 100, 300, 200], "pose": "up"}
+	]
+}
+```
+
+* `target`: the name of something on the screen (a variable of the state), or several in a list. Dots go inside it: `"mainBox.tabs.Note"`, `"menuItems.members.2"`.
+* `rect`: a place on the screen instead, `[x, y, width, height]` (the screen is 1280x720). `area` picks a part of the target the same way, from its corner.
+* `zoom`: how close it goes (2 by default; it never goes closer than what fits).
+* `set`: values changed while the step is shown (a tab, a menu opened...). Everything goes back to how it was when the tutorial ends.
+* `pose`: what Boyfriend does: `hey`, `left`, `down`, `up`, `right` or `idle`. By default he looks at what he's showing.
+* `button`: where the button goes: `top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, `bottom-right`, or `[x, y]`.
+* Translations: add `"key": "mymod_menu"` to the file, and the language files' `mymod_menu_1`, `mymod_menu_2`... replace the steps' texts (counting from 1). The game's own tutorials use `tutorial_<screenname>`.
+
+---
+
+## 📸 Screenshots and the Gallery
+
+`F3` (it can be changed in Controls) takes a screenshot of the game anywhere, with a flash (if Flashing Lights is on), a camera sound and a small preview in the corner. Clicking the preview opens the folder.
+
+The pictures go to `mods/images/gallery`, and the **Gallery** shows them along with the images of the game and of the mods. `S` (or its button) saves a copy anywhere on the computer.
 
 ---
 

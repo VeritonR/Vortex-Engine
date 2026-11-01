@@ -78,6 +78,12 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 		optionsArray.push(new GameplayOption('Ghost Notes', 'hiddennotes', BOOL, false));
 		optionsArray.push(new GameplayOption('Speed Up on Miss', 'speedmiss', BOOL, false));
 		optionsArray.push(new GameplayOption('Instakill on Miss', 'instakill', BOOL, false));
+		optionsArray.push(new GameplayOption('Only Sick', 'onlysick', BOOL, false));
+		optionsArray.push(new GameplayOption('Random Chart', 'randomchart', BOOL, false));
+		optionsArray.push(new GameplayOption('Random Scroll Invert', 'scrollswap', BOOL, false));
+		optionsArray.push(new GameplayOption('Fade In', 'notefadein', BOOL, false));
+		optionsArray.push(new GameplayOption('Fade Out', 'notefadeout', BOOL, false));
+		optionsArray.push(new GameplayOption('Random Note Speed', 'randomspeed', BOOL, false));
 		optionsArray.push(new GameplayOption('Practice Mode', 'practice', BOOL, false));
 		optionsArray.push(new GameplayOption('Botplay', 'botplay', BOOL, false));
 	}

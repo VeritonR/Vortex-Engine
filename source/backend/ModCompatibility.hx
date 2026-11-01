@@ -54,8 +54,8 @@ class ModCompatibility
 		'laneUnderlays', 'camSus', 'camLanes', 'susWiggle', 'grpHoldCovers', 'onlineStatsTxt', 'conversation', 'extraCharacters'];
 	static final OPTIONS:Array<String> = ['ghostNotes', 'breakTimer', 'iconBop', 'sustainWiggle', 'laneUnderlay', 'holdCovers',
 		'scoreCamera', 'smoothHealthBar', 'songCredits', 'resultsScreen', 'stickerTransition', 'freeplayStyle', 'naughtyness',
-		'windowMode', 'sharpness'];
-	static final CHANGERS:Array<String> = ['healthdrain', 'hiddennotes', 'speedmiss'];
+		'windowMode', 'sharpness', 'supersampling'];
+	static final CHANGERS:Array<String> = ['healthdrain', 'hiddennotes', 'speedmiss', 'onlysick', 'randomchart', 'scrollswap', 'notefadein', 'notefadeout', 'randomspeed'];
 	static final BLENDS:Array<String> = ['overlay', 'hardlight', 'difference', 'invert'];
 
 	// (files bigger than this aren't scripts or charts anyone wrote by hand: skipped)

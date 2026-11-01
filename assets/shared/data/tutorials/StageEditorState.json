@@ -1,0 +1,12 @@
+{
+	"button": "top-center",
+	"steps": [
+		{"text": "The Stage Editor! Here you place the objects of a stage around the characters."},
+		{"text": "The objects, from the back to the front. Move Up and Move Down change the order; New, Duplicate and Delete do what they say.", "target": "spriteList_box"},
+		{"text": "Click an object to select it and drag it to move it. CTRL+Z undoes a move. E/Q or the wheel zoom the camera.", "rect": [300, 80, 680, 520], "zoom": 1, "pose": "hey"},
+		{"text": "Object: the image of the selected object, its animations, color, scale, scroll factor, opacity, angle and in which quality it shows up.", "target": "UI_box", "set": {"UI_box.selectedName": "Object"}},
+		{"text": "Data: where the characters stand, the camera offsets, the zoom, the camera speed and the style of the UI.", "target": "UI_box", "set": {"UI_box.selectedName": "Data"}},
+		{"text": "Meta: the characters shown to test it, the files to load first, and Save.", "target": "UI_box", "set": {"UI_box.selectedName": "Meta"}},
+		{"text": "F1 shows every shortcut. Have fun building!"}
+	]
+}

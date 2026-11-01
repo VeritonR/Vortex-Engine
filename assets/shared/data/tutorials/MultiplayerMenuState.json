@@ -1,0 +1,11 @@
+{
+	"button": "top-right",
+	"steps": [
+		{"text": "Online! Here you play a song against a friend, each one singing a side."},
+		{"text": "Host Game waits for your friend. Join Game connects to the IP of the host (CTRL+V pastes it).", "target": "connectionMenu", "zoom": 1.5},
+		{"text": "Your nickname: TAB changes it.", "target": "nicknameText", "zoom": 2},
+		{"text": "When you host, the game asks your router to open the port (UPnP). If it can't, your friend can join with Radmin VPN or Hamachi, or you can open the port 8888 on the router."},
+		{"text": "In the lobby the host picks the song (UP/DOWN), the difficulty (LEFT/RIGHT) and the side (SHIFT), and ENTER sets up how the match is won."},
+		{"text": "T opens the chat and P shows the preferences of your friend. If your friend doesn't have the mod of the song, the host can send it (they're asked first)."}
+	]
+}

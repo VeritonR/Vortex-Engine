@@ -87,10 +87,14 @@ class NetworkManager {
     // ==========================================
     // CRIAR O SERVIDOR (HOST)
     // ==========================================
+    /** Waiting for the other player as the host (`busy` is also set while joining). */
+    public static var hosting(default, null):Bool = false;
+
     public static function hostServer() {
         #if sys
         if (busy || connected) return;
         busy = true;
+        hosting = true;
         startPinging();
         statusString = Language.getPhrase('online_status_waiting', "Waiting for player 2...");
         var mySession:Int = session;
@@ -102,6 +106,14 @@ class NetworkManager {
                 listener.bind(new Host("0.0.0.0"), PORT); // Abre a porta 8888
                 listener.listen(1);
                 server = listener;
+
+                // the port is asked to the router too (UPnP), for the other player to join from anywhere without Radmin
+                // (not on test runs: nothing is changed on the router for them)
+                if (!testLog) Thread.create(function() {
+                    var result:String = Upnp.openPort(PORT);
+                    log('UPnP: ' + result);
+                    if (mySession != session) Upnp.closePort(); //(cancelled meanwhile)
+                });
 
                 var client:Socket = listener.accept(); // O código fica pausado aqui até alguém entrar!
 
@@ -132,6 +144,7 @@ class NetworkManager {
         #if sys
         if (busy || connected) return;
         busy = true;
+        hosting = false;
         startPinging();
         statusString = Language.getPhrase('online_status_connecting', "Connecting to {1}...", [ip]);
         var mySession:Int = session;
@@ -172,6 +185,14 @@ class NetworkManager {
         server = null;
         connecting = null;
         statusString = Language.getPhrase('online_status_disconnected', "Disconnected");
+        closeUpnpPort();
+        #end
+    }
+
+    // The port opened on the router by the host (UPnP) is taken out again, waiting on the router away from the game
+    static function closeUpnpPort() {
+        #if sys
+        if (Upnp.result == Upnp.OPEN) Thread.create(function() Upnp.closePort());
         #end
     }
 
@@ -193,6 +214,7 @@ class NetworkManager {
         mutex.acquire();
         incomingMessages = [];
         mutex.release();
+        closeUpnpPort();
         #end
         pendingLoadSong = null;
         latency = 0;
@@ -212,6 +234,8 @@ class NetworkManager {
         pendingLoadSong = null;
         latency = 0;
         recentPings = [];
+        OnlineChat.clear(); //(a new match: the last one's messages are gone)
+        opponentPrefs = new Map();
 
         socket = client;
         isHost = host;
@@ -273,6 +297,13 @@ class NetworkManager {
                 case "NICK_EXCHANGE":
                     var nick:String = msg.substr(name.length + 1);
                     if (nick.length > 0) opponentNickname = nick;
+                case "PREFS":
+                    var prefs:Map<String, String> = new Map();
+                    for (pair in msg.substr(name.length + 1).split("|")) {
+                        var equals:Int = pair.indexOf("=");
+                        if (equals > 0) prefs.set(pair.substr(0, equals), pair.substr(equals + 1));
+                    }
+                    opponentPrefs = prefs; //(a new map, never one being changed: the game reads it on its own thread)
                 case "SYNC_TIME":
                     // where the host's song was, and when that got here (the game reads it a frame later, or more)
                     var hostTime:Float = Std.parseFloat(msg.substr(10));
@@ -282,6 +313,28 @@ class NetworkManager {
                         if (timeSamples.length > 16) timeSamples.shift();
                         mutex.release();
                     }
+                case "CHAT":
+                    OnlineChat.receive(msg.substr(5));
+                // a mod being sent by the host (see ModTransfer): its files are written here, as they come
+                case "MOD_FILE":
+                    var parts:Array<String> = msg.split("|");
+                    ModTransfer.beginFile(parts.length > 1 ? parts[1] : null);
+                case "MOD_BIN":
+                    var length:Null<Int> = Std.parseInt(msg.substr(8));
+                    if (length == null || length < 0 || length > 16 * 1024 * 1024) break; //(not one of ours: the connection can't be read anymore)
+                    if (modBuffer == null || modBuffer.length < length) modBuffer = haxe.io.Bytes.alloc(length);
+                    try {
+                        client.input.readFullBytes(modBuffer, 0, length);
+                    } catch(e:Dynamic) {
+                        if (mySession == session) {
+                            connected = false;
+                            statusString = Language.getPhrase('online_status_lost', "Connection lost.");
+                        }
+                        break;
+                    }
+                    ModTransfer.writeBlock(modBuffer, length);
+                case "MOD_FILE_END":
+                    ModTransfer.closeFile();
                 case "LOADSONG":
                     pendingLoadSong = msg;
                     log('received ' + msg);
@@ -309,6 +362,49 @@ class NetworkManager {
     }
 
     #if sys
+    /**
+     * The other player's preferences, from their last "PREFS" (empty until it comes): "downscroll", "middlescroll", "lane",
+     * "ghosttapping", "noteskin", "offset", "framerate".
+     */
+    public static var opponentPrefs(default, null):Map<String, String> = new Map();
+
+    /**
+     * Tells the other player the preferences of this one (sent when the lobby opens, so a change made in the options goes too).
+     */
+    public static function sendPrefs() {
+        var data = ClientPrefs.data;
+        var flag = function(on:Bool) return on ? "1" : "0";
+        send("PREFS|downscroll=" + flag(data.downScroll) + "|middlescroll=" + flag(data.middleScroll) + "|lane=" + flag(data.laneUnderlay)
+            + "|ghosttapping=" + flag(data.ghostTapping) + "|noteskin=" + data.noteSkin.replace("|", "") + "|offset=" + data.noteOffset
+            + "|framerate=" + data.framerate);
+    }
+
+    /**
+     * One of the other player's preferences that's on or off: null when they haven't said (an older game).
+     */
+    public static function opponentFlag(name:String):Null<Bool> {
+        var value:String = opponentPrefs.get(name);
+        return (value == null) ? null : (value == "1");
+    }
+
+    // (where the blocks of a mod are read into)
+    static var modBuffer:haxe.io.Bytes = null;
+
+    /**
+     * A block of bytes, right after a "MOD_BIN|length" line (see ModTransfer): the other side reads it as it is.
+     */
+    public static function sendBinary(bytes:haxe.io.Bytes, length:Int) {
+        var target:Socket = socket;
+        if (target == null || !connected) return;
+        sendMutex.acquire();
+        try {
+            target.output.writeString("MOD_BIN|" + length + "\n");
+            target.output.writeFullBytes(bytes, 0, length);
+            target.output.flush();
+        } catch(e:Dynamic) {}
+        sendMutex.release();
+    }
+
     static function sendNow(msg:String) {
         var target:Socket = socket;
         if (target == null) return;
@@ -466,6 +562,12 @@ class NetworkManager {
         'healthgain' => 1.0,
         'healthloss' => 1.0,
         'instakill' => false,
+        'onlysick' => false,
+        'randomchart' => false, //(each PC would put the notes somewhere else)
+        'scrollswap' => false,
+        'notefadein' => false,
+        'notefadeout' => false,
+        'randomspeed' => false,
         'practice' => false,
         'botplay' => false
     ];

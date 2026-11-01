@@ -1,0 +1,10 @@
+{
+	"button": "top-center",
+	"steps": [
+		{"text": "Hi! I'm Boyfriend, and I'll be showing you around Vortex Engine. This is the main menu: UP/DOWN pick, ENTER opens."},
+		{"text": "Story Mode plays the weeks in order, Freeplay any song you want, and Online lets you play against a friend.", "target": "menuItems", "zoom": 1.5},
+		{"text": "Up here are the achievements and the mods menu, where mods are turned on and off. LEFT picks them with the keyboard.", "target": "cornerButtons", "zoom": 2.5},
+		{"text": "The gear opens the options, right over the menu.", "target": "optionsGear", "zoom": 2.5},
+		{"text": "And 7 opens the editors: charts, characters, stages, weeks... Every screen with this button has a tutorial of its own!"}
+	]
+}

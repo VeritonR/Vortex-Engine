@@ -176,6 +176,9 @@ class Main extends Sprite
 		backend.RotatedCameras.install();
 		backend.WindowFocus.install();
 		backend.CustomCursor.init(); //(images/cursor.png, if there's one)
+		backend.OnlineChat.init(); //(the online matches' chat, over every screen)
+		backend.Screenshots.init(); //(the screenshot key, see the Controls menu)
+		backend.Tutorial.init(); //(the "Tutorial" button of the screens that have one)
 
 		#if !mobile
 		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);

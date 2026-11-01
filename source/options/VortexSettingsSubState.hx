@@ -63,6 +63,21 @@ slides in when a song starts.",
 			BOOL);
 		addOption(option);
 
+		var option:Option = new Option('Tutorial Button',
+			"If checked, the screens that have a tutorial show a \"Tutorial\" button
+(the Tutorial key works either way).",
+			'tutorialButton',
+			BOOL);
+		addOption(option);
+
+		var option:Option = new Option("Online: Opponent's View",
+			"If checked, when playing online the other player's notes are shown
+the way they see them: scrolling down if they use Downscroll,
+and with the dark lanes if they use Lane Underlay.",
+			'opponentView',
+			BOOL);
+		addOption(option);
+
 		super();
 	}
 }

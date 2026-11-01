@@ -1,0 +1,100 @@
+{
+	"button": "top-right",
+	"steps": [
+		{
+			"text": "Hey! This is the Chart Editor, where the notes of a song are made. I'll show you around!\nENTER (or a click) goes on, BACKSPACE goes back and ESC leaves."
+		},
+		{
+			"text": "This is the grid, the song going from top to bottom. Each column is an arrow: the opponent's 4 on one side and the player's 4 on the other.\nClick a square to put a note there, and click it again to take it away.",
+			"target": "gridBg",
+			"tall": true,
+			"zoom": 1.4
+		},
+		{
+			"text": "The icons say whose notes each side is. The little arrow above them points to the side the camera follows in this section.",
+			"target": ["icons", "mustHitIndicator"],
+			"zoom": 2.2
+		},
+		{
+			"text": "The first column, with this icon, is for events: camera moves, flashes, character changes... They don't hit anything, they just happen at that time.",
+			"target": "eventIcon",
+			"zoom": 3
+		},
+		{
+			"text": "This is the music player. Click or drag the bar to go anywhere in the song, and its buttons play, pause and skip. SPACE plays and pauses too.",
+			"target": "playbar",
+			"zoom": 1.6
+		},
+		{
+			"text": "To move around: W/S or the mouse wheel go through the song, A/D change the section, Z/X zoom the grid and LEFT/RIGHT change the snap (how close notes can be).\nQ/E make the selected long note shorter or longer.",
+			"target": "gridBg",
+			"tall": true,
+			"zoom": 1.2,
+			"pose": "hey"
+		},
+		{
+			"text": "To change many notes at once: drag a box on an empty spot (or hold the right button) and drag the selected notes to move them.\nCTRL+C, CTRL+X and CTRL+V copy, cut and paste, and CTRL+Z undoes.",
+			"target": "gridBg",
+			"tall": true,
+			"zoom": 1.2
+		},
+		{
+			"text": "Information: where you are in the song (the time, the section, the beat and the step), and the snap.",
+			"target": "infoBox",
+			"zoom": 2
+		},
+		{
+			"text": "Now the tabs. Song: the song's name, BPM and scroll speed, the characters and the stage. Reload Audio and Reload JSON load the files again.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Song"}
+		},
+		{
+			"text": "Section: \"Must Hit Sec.\" puts the camera on the player, \"Change BPM\" changes the tempo from this section on. The buttons copy, paste, swap, mirror or clear the notes of the whole section.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Section"}
+		},
+		{
+			"text": "Note: with a note selected, its sustain length, its exact time and its type (Hurt Note, Alt Animation...). \"Sung by\" picks which extra character sings it.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Note"}
+		},
+		{
+			"text": "Events: click the events column to put one there, then pick what it is and its two values here. + and - add or remove events at that same time.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Events"}
+		},
+		{
+			"text": "Charting: the volume of the music and of each voice (or mute them), and hitsounds and a metronome to check the timing.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Charting"}
+		},
+		{
+			"text": "Data: the game over character, sound and music, and the textures of the notes and splashes of this song.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Data"}
+		},
+		{
+			"text": "Extras: more singers! Add a character, pick its side and where it stands, and it gets a field of its own on the grid for its notes.",
+			"target": "mainBox",
+			"set": {"mainBox.selectedName": "Extras"}
+		},
+		{
+			"text": "File: start a new chart, open one, save it (CTRL+S does it too), and save or convert charts between Psych and V-Slice. Preview and Playtest are here too.",
+			"target": "upperBox",
+			"set": {"upperBox.isMinimized": false, "upperBox.selectedName": "File"}
+		},
+		{
+			"text": "Edit: undo and redo, select everything, lock the events, the autosave settings, and clear all notes or all events.",
+			"target": "upperBox",
+			"set": {"upperBox.isMinimized": false, "upperBox.selectedName": "Edit"}
+		},
+		{
+			"text": "View: show the last and next sections, the names of note types, the waveform, go to a time, the theme, and the Vortex Editor (with it on, the 1-8 keys put notes while the song plays).",
+			"target": "upperBox",
+			"set": {"upperBox.isMinimized": false, "upperBox.selectedName": "View"}
+		},
+		{
+			"text": "That's it! ENTER plays the chart from here, F12 previews it without leaving, and F1 shows every shortcut. Have fun charting!"
+		}
+	]
+}

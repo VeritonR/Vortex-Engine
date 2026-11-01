@@ -1,6 +1,9 @@
 package states;
 
 import backend.NetworkManager;
+import backend.Upnp;
+import backend.OnlineChat;
+import backend.ModTransfer;
 import backend.Highscore;
 import backend.Song;
 import backend.ClientPrefs;
@@ -22,6 +25,23 @@ class MultiplayerMenuState extends MusicBeatState
 
     var titleText:FlxText;
     var statusText:FlxText;
+    var upnpText:FlxText;
+
+    // A mod the other player doesn't have, sent by the host after they accept it (see backend.ModTransfer)
+    var transferBg:FlxSprite;
+    var transferText:FlxText;
+    // the host: "checking" (asked if the other one has the song), "offered", "sending"; null when nothing is going on
+    var transferStage:String = null;
+    var transferTime:Float = 0;
+    var transferFolder:String = null;
+    // the one who joined: what the host offers, until it's answered
+    var pendingOffer:{folder:String, bytes:Float, files:Int} = null;
+
+    // The other player's preferences (P in the lobby)
+    var prefsHint:FlxText;
+    var prefsBg:FlxSprite;
+    var prefsText:FlxText;
+    var showingPrefs:Bool = false;
 
     var connectionMenu:flixel.group.FlxGroup.FlxTypedGroup<Alphabet>;
     var connOptions:Array<String> = [t('host_game', 'Host Game'), t('join_game', 'Join Game')];
@@ -54,6 +74,8 @@ class MultiplayerMenuState extends MusicBeatState
 
     // Test runs (see DirectPlay): the host picks this song as soon as the other player is there
     public static var testSong:String = null;
+    // Test runs: a mod offered by the host is taken right away ("--onlineaccept")
+    public static var testAcceptMods:Bool = false;
     public static var testDifficulty:String = null;
     public static var testRole:String = 'bf';
     public static var testRounds:Int = 1;
@@ -108,6 +130,12 @@ class MultiplayerMenuState extends MusicBeatState
         statusText = new FlxText(0, 80, FlxG.width, NetworkManager.statusString, 32);
         statusText.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.YELLOW, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         add(statusText);
+
+        // (while hosting: if the router opened the port by itself, see backend.Upnp)
+        upnpText = new FlxText(80, 140, FlxG.width - 160, "", 20);
+        upnpText.setFormat(Paths.font("vcr.ttf"), 20, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+        upnpText.visible = false;
+        add(upnpText);
 
         diffText = new FlxText(FlxG.width - 400, 20, 380, "< HARD >", 36);
         diffText.setFormat(Paths.font("vcr.ttf"), 36, FlxColor.WHITE, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
@@ -207,6 +235,28 @@ class MultiplayerMenuState extends MusicBeatState
 
         makeSetupPanel();
 
+        transferBg = new FlxSprite().makeGraphic(FlxG.width - 160, 230, 0xE01C0A30);
+        transferBg.screenCenter();
+        transferBg.visible = false;
+        add(transferBg);
+        transferText = new FlxText(transferBg.x + 20, transferBg.y + 20, transferBg.width - 40, "", 24);
+        transferText.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+        transferText.visible = false;
+        add(transferText);
+
+        prefsHint = new FlxText(FlxG.width - 410, 10, 400, "", 18);
+        prefsHint.setFormat(Paths.font("vcr.ttf"), 18, FlxColor.WHITE, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+        prefsHint.visible = false;
+        add(prefsHint);
+        prefsBg = new FlxSprite().makeGraphic(560, 330, 0xE01C0A30);
+        prefsBg.screenCenter();
+        prefsBg.visible = false;
+        add(prefsBg);
+        prefsText = new FlxText(prefsBg.x + 24, prefsBg.y + 20, prefsBg.width - 48, "", 22);
+        prefsText.setFormat(Paths.font("vcr.ttf"), 22, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+        prefsText.visible = false;
+        add(prefsText);
+
         changeConnSelection(0);
         super.create();
 
@@ -251,6 +301,8 @@ class MultiplayerMenuState extends MusicBeatState
             status = notice;
         }
         statusText.text = status;
+        updateUpnpText();
+        OnlineChat.blocked = typingIP || typingNickname; //(the chat key types a letter there)
 
         // A conexão caiu (ou o outro saiu): de volta à escolha de criar ou entrar
         if (inLobby && !NetworkManager.connected) {
@@ -265,6 +317,7 @@ class MultiplayerMenuState extends MusicBeatState
             typingIP = false;
 
             NetworkManager.send("NICK_EXCHANGE|" + NetworkManager.myNickname);
+            NetworkManager.sendPrefs();
 
             if (NetworkManager.isHost) {
                 hostLobby.visible = true;
@@ -286,17 +339,9 @@ class MultiplayerMenuState extends MusicBeatState
                         currentRole = testRole;
                         if (testWinCondition != null) winCondition = NetworkManager.validCondition(testWinCondition);
                         NetworkManager.winCondition = winCondition;
-                        var chosen:String = songList[curSongSelected];
-                        var diffName:String = Difficulty.list[curDifficulty];
-                        var role:String = currentRole;
-                        var condition:String = winCondition;
-                        // (a moment for the other player to be in the lobby too)
-                        new flixel.util.FlxTimer().start(1, function(_) {
-                            forceLoadSong(curSongSelected, curDifficulty, (role == 'dad'), function() {
-                                NetworkManager.log('asking for ' + chosen + ' (' + diffName + ')');
-                                NetworkManager.sendLoadSong(chosen, curDifficulty, role, diffName, songFolders[curSongSelected], condition);
-                            });
-                        });
+                        // (a moment for the other player to be in the lobby too, then the same way as picking it:
+                        // they're offered the mod if they don't have it)
+                        new flixel.util.FlxTimer().start(1, function(_) startMatch());
                     }
                 }
                 sendLobbyView();
@@ -347,6 +392,7 @@ class MultiplayerMenuState extends MusicBeatState
                     sendLobbyView();
                 }
                 else if (StringTools.startsWith(msg, "LOBBY_VIEW|") && !NetworkManager.isHost) lobbyView = msg;
+                else if (StringTools.startsWith(msg, "HAS_") || StringTools.startsWith(msg, "MOD_")) transferMessage(msg);
             }
             if (lobbyView != null && inLobby) showLobbyView(lobbyView);
 
@@ -382,6 +428,30 @@ class MultiplayerMenuState extends MusicBeatState
                     FlxG.sound.play(Paths.sound('cancelMenu'));
                 }
             }
+        }
+
+        updateTransferText(elapsed);
+        if (pendingOffer != null) {
+            answerOffer();
+            return;
+        }
+
+        prefsHint.visible = inLobby;
+        if (inLobby) prefsHint.text = t('prefs_hint', "P: {1}'s preferences", [NetworkManager.opponentNickname]);
+        if (!inLobby || OnlineChat.typing || typingNickname || typingIP) showingPrefs = false;
+        else if (FlxG.keys.justPressed.P) {
+            showingPrefs = !showingPrefs;
+            FlxG.sound.play(Paths.sound(showingPrefs ? 'scrollMenu' : 'cancelMenu'));
+        }
+        prefsBg.visible = prefsText.visible = showingPrefs;
+        if (showingPrefs) {
+            updatePrefsText();
+            // (the panel takes the keys while it's open: ESC closes it)
+            if (controls.BACK || controls.ACCEPT) {
+                showingPrefs = false;
+                FlxG.sound.play(Paths.sound('cancelMenu'));
+            }
+            return;
         }
 
         if (FlxG.keys.justPressed.TAB && !typingIP && !typingNickname) {
@@ -431,10 +501,22 @@ class MultiplayerMenuState extends MusicBeatState
         else if (typingIP)
         {
             var cursor = (Math.floor(FlxG.game.ticks / 500) % 2 == 0) ? "_" : "";
-            promptText.text = t('type_ip', "Type HOST IP (Radmin/Hamachi):\n\n{1}\n\n(Press ENTER to connect or ESC to back)", [typedIP + cursor]);
+            promptText.text = t('type_ip', "Type HOST IP (Radmin/Hamachi):\n\n{1}\n\n(Press ENTER to connect or ESC to back)", [typedIP + cursor])
+                + '\n' + t('paste_ip', "(CTRL+V to paste)");
             promptText.visible = true;
 
-            if (FlxG.keys.justPressed.BACKSPACE && typedIP.length > 0) {
+            // the IP the host copied ([C] on their screen, or from Radmin): only its numbers and dots
+            if (FlxG.keys.pressed.CONTROL && FlxG.keys.justPressed.V) {
+                var pasted:String = lime.system.Clipboard.text;
+                if (pasted != null) {
+                    for (i in 0...pasted.length) {
+                        var code:Int = pasted.charCodeAt(i);
+                        if (((code >= 48 && code <= 57) || code == 46) && typedIP.length < 39) typedIP += pasted.charAt(i);
+                    }
+                    FlxG.sound.play(Paths.sound('scrollMenu'));
+                }
+            }
+            else if (FlxG.keys.justPressed.BACKSPACE && typedIP.length > 0) {
                 typedIP = typedIP.substring(0, typedIP.length - 1);
                 FlxG.sound.play(Paths.sound('scrollMenu'));
             }
@@ -458,6 +540,12 @@ class MultiplayerMenuState extends MusicBeatState
         {
             // Esperando alguém entrar (ou o host responder): ESC cancela
             if (NetworkManager.busy) {
+                // the host's internet address, to send to the other player (it isn't shown whole: people stream the game)
+                if (FlxG.keys.justPressed.C && Upnp.result == Upnp.OPEN && Upnp.externalIp != null) {
+                    lime.system.Clipboard.text = Upnp.externalIp;
+                    FlxG.sound.play(Paths.sound('confirmMenu'));
+                    showNotice(t('upnp_copied', "Your IP was copied! Paste it to your friend."));
+                }
                 if (controls.BACK) {
                     FlxG.sound.play(Paths.sound('cancelMenu'));
                     NetworkManager.cancel();
@@ -522,6 +610,32 @@ class MultiplayerMenuState extends MusicBeatState
                 leaveLobby();
             }
         }
+    }
+
+    // What the router said about the port, while waiting for the other player as the host
+    function updateUpnpText() {
+        var waitingAsHost:Bool = NetworkManager.busy && !NetworkManager.connected && NetworkManager.hosting;
+        upnpText.visible = waitingAsHost && Upnp.result != null;
+        if (!upnpText.visible) return;
+
+        var color:FlxColor = FlxColor.WHITE;
+        var text:String = switch (Upnp.result) {
+            case Upnp.SEARCHING: t('upnp_searching', "Opening the port on your router (UPnP)...");
+            case Upnp.OPEN:
+                color = FlxColor.LIME;
+                t('upnp_open', "Port {1} opened by UPnP! Your IP: {2}\n[C] Copy the IP to send to your friend", [NetworkManager.PORT, Upnp.maskedAddress(Upnp.externalIp)]);
+            case Upnp.CGNAT:
+                color = FlxColor.ORANGE;
+                t('upnp_cgnat', "Your internet provider shares your IP (CGNAT): friends outside your network can't join you directly.\nUse Radmin VPN (or another VPN) and give them the Radmin IP.");
+            case Upnp.NO_ROUTER:
+                color = FlxColor.ORANGE;
+                t('upnp_no_router', "Your router didn't answer (UPnP may be off). Open port {1} on it, or use Radmin VPN.", [NetworkManager.PORT]);
+            default:
+                color = FlxColor.ORANGE;
+                t('upnp_failed', "Your router didn't open the port. Open port {1} on it, or use Radmin VPN.", [NetworkManager.PORT]);
+        }
+        if (upnpText.text != text) upnpText.text = text;
+        upnpText.color = color;
     }
 
     // What was on the screen before typing a nickname
@@ -637,6 +751,170 @@ class MultiplayerMenuState extends MusicBeatState
 
     // The host starts the song it picked, the way it was set up
     function startMatch() {
+        // a song of a mod: the other player is asked if they have it first, and is offered the mod if they don't
+        var folder:String = songFolders[curSongSelected];
+        if (folder != null && ModTransfer.validFolder(folder) && transferStage == null) {
+            transferStage = "checking";
+            transferTime = 0;
+            transferFolder = folder;
+            NetworkManager.send("HAS_SONG|" + songList[curSongSelected] + "|" + folder);
+            return;
+        }
+        startMatchNow();
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // A mod sent to the other player (see backend.ModTransfer)
+    // ------------------------------------------------------------------------------------------
+
+    function transferMessage(msg:String) {
+        var data:Array<String> = msg.split("|");
+        switch (data[0]) {
+            // the one who joined
+            case "HAS_SONG" if (!NetworkManager.isHost):
+                var folder:String = (data.length > 2) ? data[2] : "";
+                if (findSong(data[1], folder) > -1) NetworkManager.send("HAS_SONG_OK");
+                else NetworkManager.send("HAS_SONG_MISSING|" + folder + "|" + (ModTransfer.isDisabled(folder) ? "1" : "0"));
+            case "MOD_OFFER" if (!NetworkManager.isHost):
+                var bytes:Null<Float> = Std.parseFloat(data[2]);
+                var files:Null<Int> = Std.parseInt(data[3]);
+                if (!ModTransfer.validFolder(data[1])) { NetworkManager.send("MOD_DECLINE"); return; }
+                pendingOffer = {folder: data[1], bytes: (bytes == null || Math.isNaN(bytes)) ? 0 : bytes, files: (files != null) ? files : 0};
+                FlxG.sound.play(Paths.sound('scrollMenu'));
+            case "MOD_DONE" if (!NetworkManager.isHost):
+                if (ModTransfer.finishReceiving()) {
+                    NetworkManager.send("MOD_INSTALLED|" + data[1]);
+                    FlxG.sound.play(Paths.sound('confirmMenu'));
+                    // (the lists of songs again, with the mod's)
+                    MusicBeatState.switchState(new MultiplayerMenuState());
+                } else {
+                    NetworkManager.send("MOD_FAILED|" + data[1]);
+                    showNotice(t('mod_failed', "The mod couldn't be saved."));
+                }
+            case "MOD_FAILED" if (!NetworkManager.isHost):
+                ModTransfer.cancelReceiving();
+                showNotice(t('mod_failed', "The mod couldn't be saved."));
+
+            // the host
+            case "HAS_SONG_OK" if (transferStage == "checking"):
+                transferStage = null;
+                startMatchNow();
+            case "HAS_SONG_MISSING" if (transferStage == "checking"):
+                transferStage = "offered";
+                transferTime = 0;
+                // (they have it, turned off: they're only asked to turn it on)
+                if (data.length > 2 && data[2] == "1") NetworkManager.send("MOD_OFFER|" + transferFolder + "|-1|0");
+                else ModTransfer.offer(transferFolder);
+            case "MOD_ACCEPT" if (transferStage == "offered"):
+                transferStage = "sending";
+                ModTransfer.sendMod(transferFolder);
+            case "MOD_DECLINE":
+                transferStage = null;
+                showNotice(t('mod_declined', "{1} didn't want the mod.", [NetworkManager.opponentNickname]));
+            case "MOD_INSTALLED" if (transferStage != null):
+                transferStage = null;
+                FlxG.sound.play(Paths.sound('confirmMenu'));
+                // (a moment for their lobby to open again with it)
+                new flixel.util.FlxTimer().start(1.5, function(_) if (NetworkManager.connected && inLobby) startMatchNow());
+            case "MOD_FAILED":
+                transferStage = null;
+                showNotice(t('mod_failed_other', "{1} couldn't save the mod.", [NetworkManager.opponentNickname]));
+            default:
+        }
+    }
+
+    // The one who joined, while an offer is open: ENTER takes it, ESC doesn't
+    function answerOffer() {
+        if (FlxG.keys.justPressed.ENTER || testAcceptMods) {
+            var offer = pendingOffer;
+            pendingOffer = null;
+            FlxG.sound.play(Paths.sound('confirmMenu'));
+            if (offer.bytes < 0) {
+                // already there, turned off
+                ModTransfer.enable(offer.folder);
+                NetworkManager.send("MOD_INSTALLED|" + offer.folder);
+                MusicBeatState.switchState(new MultiplayerMenuState());
+            }
+            else if (ModTransfer.startReceiving(offer.folder, offer.bytes)) NetworkManager.send("MOD_ACCEPT|" + offer.folder);
+            else {
+                NetworkManager.send("MOD_DECLINE");
+                showNotice(t('mod_failed', "The mod couldn't be saved."));
+            }
+        }
+        else if (FlxG.keys.justPressed.ESCAPE || FlxG.keys.justPressed.BACKSPACE) {
+            pendingOffer = null;
+            NetworkManager.send("MOD_DECLINE");
+            FlxG.sound.play(Paths.sound('cancelMenu'));
+        }
+    }
+
+    // The other player's preferences, as they said them (see NetworkManager.sendPrefs)
+    function updatePrefsText() {
+        var prefs = NetworkManager.opponentPrefs;
+        var text:String = t('prefs_title', "{1}'s preferences", [NetworkManager.opponentNickname]) + "\n\n";
+        if (!prefs.exists("downscroll")) text += t('prefs_unknown', "They haven't sent them (an older version of the game?).");
+        else {
+            var onOff = function(name:String) return (prefs.get(name) == "1") ? Language.getPhrase('options_on', "ON") : Language.getPhrase('options_off', "OFF");
+            var line = function(label:String, value:String) return label + ": " + value + "\n";
+            text += line(Language.getPhrase('setting_downscroll', "Downscroll"), onOff("downscroll"));
+            text += line(Language.getPhrase('setting_middlescroll', "Middlescroll"), onOff("middlescroll"));
+            text += line(Language.getPhrase('setting_lane_underlay', "Lane Underlay"), onOff("lane"));
+            text += line(Language.getPhrase('setting_ghost_tapping', "Ghost Tapping"), onOff("ghosttapping"));
+            text += line(Language.getPhrase('setting_note_skins', "Note Skins"), prefs.get("noteskin"));
+            text += line(t('prefs_offset', "Note Offset"), prefs.get("offset") + " ms");
+            text += line(Language.getPhrase('setting_framerate', "Framerate"), prefs.get("framerate") + " FPS");
+            text += "\n" + (ClientPrefs.data.opponentView
+                ? t('prefs_view_on', "In the song you see their notes the way they do.")
+                : t('prefs_view_off', "\"Online: Opponent's View\" is off: their notes look like yours."));
+        }
+        text += "\n\n" + t('prefs_close', "P / ESC: close");
+        if (prefsText.text != text) prefsText.text = text;
+    }
+
+    static function megabytes(bytes:Float):String
+        return Std.string(Math.round(bytes / 1048576 * 10) / 10);
+
+    function updateTransferText(elapsed:Float) {
+        var text:String = null;
+        if (pendingOffer != null) {
+            text = (pendingOffer.bytes < 0)
+                ? t('mod_enable_offer', "To play this song you need the mod \"{1}\", which you have turned off.\n\nENTER: turn it on | ESC: no", [pendingOffer.folder])
+                : t('mod_offer', "{1} wants to send you the mod \"{2}\" ({3} MB, {4} files) to play this song.\nMods can have scripts: only take them from people you trust.\n\nENTER: accept | ESC: decline",
+                    [NetworkManager.opponentNickname, pendingOffer.folder, megabytes(pendingOffer.bytes), pendingOffer.files]);
+        }
+        else if (ModTransfer.receiving) {
+            var percent:Int = (ModTransfer.expectedBytes > 0) ? Std.int(Math.min(100, ModTransfer.receivedBytes / ModTransfer.expectedBytes * 100)) : 0;
+            text = t('mod_receiving', "Receiving the mod \"{1}\"... {2}%\n({3} / {4} MB)", [ModTransfer.receivingFolder, percent, megabytes(ModTransfer.receivedBytes), megabytes(ModTransfer.expectedBytes)]);
+        }
+        else if (transferStage != null) {
+            transferTime += elapsed;
+            switch (transferStage) {
+                case "checking":
+                    text = t('mod_checking', "Checking if {1} has the song...", [NetworkManager.opponentNickname]);
+                    // (a game that doesn't know about this never answers: the song is opened like before)
+                    if (transferTime > 8) {
+                        transferStage = null;
+                        startMatchNow();
+                    }
+                case "offered":
+                    text = t('mod_waiting', "{1} doesn't have the mod \"{2}\".\nWaiting for them to accept it...", [NetworkManager.opponentNickname, transferFolder]);
+                case "sending":
+                    var percent:Int = (ModTransfer.totalBytes > 0) ? Std.int(Math.min(100, ModTransfer.sentBytes / ModTransfer.totalBytes * 100)) : 0;
+                    text = t('mod_sending', "Sending the mod \"{1}\"... {2}%\n({3} / {4} MB)", [transferFolder, percent, megabytes(ModTransfer.sentBytes), megabytes(ModTransfer.totalBytes)]);
+                    if (!ModTransfer.sending && ModTransfer.sentBytes >= ModTransfer.totalBytes)
+                        text = t('mod_installing', "{1} is installing the mod...", [NetworkManager.opponentNickname]);
+                default:
+            }
+        }
+        transferBg.visible = transferText.visible = (text != null);
+        if (text != null && transferText.text != text) {
+            transferText.text = text;
+            transferText.y = transferBg.y + (transferBg.height - transferText.height) / 2;
+        }
+    }
+
+    // The host opens the song it picked, the way it was set up
+    function startMatchNow() {
         var chosenSong = songList[curSongSelected];
         var diffName:String = Difficulty.list[curDifficulty];
         var condition:String = winCondition;

@@ -14,6 +14,19 @@ class HealthIcon extends FlxSprite
 	 */
 	public var baseScale:Float = 1;
 
+	/**
+	 * The icons of the V-Slice characters of the song, by their name: V-Slice makes every icon 150 pixels wide (times the scale of the
+	 * character's `healthIcon`), and its pixel ones are 32x32 frames, which Psych showed at that size. Psych's icons are shown as they are.
+	 * Emptied when a song starts, so an icon of the same name in a Psych mod isn't changed by it.
+	 */
+	public static var vsliceIcons:Map<String, {isPixel:Bool, scale:Float}> = [];
+
+	public static function useVSliceSize(icon:String, isPixel:Bool, scale:Float):Void
+	{
+		if(icon == null) return;
+		vsliceIcons.set(icon, {isPixel: isPixel, scale: (scale > 0) ? scale : 1});
+	}
+
 	public function new(char:String = 'face', isPlayer:Bool = false, ?allowGPU:Bool = false)
 	{
 		super();
@@ -70,6 +83,26 @@ class HealthIcon extends FlxSprite
 				
 				if(char.endsWith('-pixel')) antialiasing = false;
 				else antialiasing = ClientPrefs.data.antialiasing;
+			}
+			else if(vsliceIcons.exists(char) && graphic.height > 0)
+			{
+				// V-Slice's size (see `vsliceIcons`): square frames side by side, the whole icon 150 pixels wide times its scale
+				var vslice = vsliceIcons.get(char);
+				var frameSize:Int = graphic.height;
+				loadGraphic(graphic, true, frameSize, frameSize);
+				baseScale = 150 * vslice.scale / frameSize;
+				scale.set(baseScale, baseScale);
+				// (centered in its box, like flixel does with a scaled sprite)
+				iconOffsets[0] = -0.5 * (frameWidth * baseScale - frameWidth);
+				iconOffsets[1] = -0.5 * (frameHeight * baseScale - frameHeight);
+				updateHitbox();
+
+				animation.add(char, [for(i in 0...frames.frames.length) i], 0, false, isPlayer);
+				animation.play(char);
+				this.char = char;
+
+				hasWinningIcon = (frames.frames.length >= 3);
+				antialiasing = (vslice.isPixel || char.endsWith('-pixel')) ? false : ClientPrefs.data.antialiasing;
 			}
 			else
 			{

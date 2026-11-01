@@ -16,6 +16,8 @@ import states.TitleState;
 	public var scoreCamera:String = 'HUD';
 	public var breakTimer:Bool = false;
 	public var songCredits:Bool = false; //the card with the song's name, composer and charter when a song starts
+	public var tutorialButton:Bool = true; //the "Tutorial" button on the screens that have one (see backend.Tutorial)
+	public var opponentView:Bool = true; //online: the other player's notes shown the way they see them (their downscroll, their lanes)
 	public var downScroll:Bool = false;
 	public var middleScroll:Bool = false;
 	public var opponentStrums:Bool = true;
@@ -36,6 +38,7 @@ import states.TitleState;
 	public var framerate:Int = 60;
 	public var windowMode:String = 'Windowed';
 	public var sharpness:Null<Int> = 0;
+	public var supersampling:String = 'Off'; //the game drawn bigger than the window and shrunk to it, like DSR (see backend.Supersampling)
 	public var camZooms:Bool = true;
 	public var hideHud:Bool = false;
 	public var noteOffset:Int = 0;
@@ -78,6 +81,12 @@ import states.TitleState;
 		'healthloss' => 1.0,
 		'healthdrain' => 0.0,
 		'instakill' => false,
+		'onlysick' => false,
+		'randomchart' => false,
+		'scrollswap' => false,
+		'notefadein' => false,
+		'notefadeout' => false,
+		'randomspeed' => false,
 		'ghostnotes' => false,
 		'hiddennotes' => false,
 		'practice' => false,
@@ -126,7 +135,11 @@ class ClientPrefs {
 		'volume_down'	=> [NUMPADMINUS, MINUS],
 		
 		'debug_1'		=> [SEVEN],
-		'debug_2'		=> [EIGHT]
+		'debug_2'		=> [EIGHT],
+
+		'chat'			=> [T], //the online chat (see backend.OnlineChat)
+		'screenshot'	=> [F3], //a picture for the gallery (see backend.Screenshots)
+		'tutorial'		=> [F6] //the tutorial of the screen being used (see backend.Tutorial)
 	];
 	public static var gamepadBinds:Map<String, Array<FlxGamepadInputID>> = [
 		'note_up'		=> [DPAD_UP, Y],
@@ -262,6 +275,7 @@ class ClientPrefs {
 		if (data.sharpness != null) {
 			options.GraphicsSettingsSubState.applySharpness(data.sharpness);
 		}
+		backend.Supersampling.apply(data.supersampling);
 	}
 
 	static var appliedWindowMode:String = null;

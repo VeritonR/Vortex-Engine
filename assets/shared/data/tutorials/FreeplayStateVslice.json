@@ -1,0 +1,10 @@
+{
+	"button": "bottom-center",
+	"steps": [
+		{"text": "Freeplay, V-Slice style! UP/DOWN pick a song, LEFT/RIGHT the difficulty, and ENTER plays it."},
+		{"text": "The songs of the character you're playing as. TAB opens Character Select to change it.", "target": "grpCapsules", "zoom": 1.1},
+		{"text": "Q/E go through the letters to show only the songs that start with them, or your favorites. F makes the selected song a favorite.", "target": "letterSort", "zoom": 1.6},
+		{"text": "Your best score and how much of the song you cleared.", "target": ["fpScoreDisplay", "clearBoxSprite", "txtCompletion"], "zoom": 1.6},
+		{"text": "And CTRL opens the gameplay changers. Have fun!"}
+	]
+}

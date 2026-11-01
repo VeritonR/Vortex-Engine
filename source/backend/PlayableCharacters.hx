@@ -11,6 +11,8 @@ typedef PlayableCharacter =
 	var unlocked:Bool;
 	var position:Int; //Slot wanted on the Character Select grid, 0 to 8
 	var gfAsset:String; //Image folder of who's sitting with the player on Character Select, null for nobody
+	@:optional var playerSheet:Dynamic; //Vortex: a spritesheet for the player on Character Select instead of its texture atlas ("charSelect.vortexSheet")
+	@:optional var gfSheet:Dynamic; //Vortex: the same for the girlfriend ("charSelect.gf.vortexSheet")
 	var freeplayStyle:String; //Look of the V-Slice Freeplay menu ("data/ui/freeplay/styles"), null for the default one
 	var freeplayDJ:Dynamic; //"freeplayDJ" of the player's file as it is: who's on the turntable of the V-Slice Freeplay menu, null for nobody
 	var results:Dynamic; //"results" of the player's file as it is: what the results screen shows and plays for each rank, null for nothing
@@ -268,6 +270,8 @@ class PlayableCharacters
 				unlocked: (data.unlocked != false),
 				position: (charSelect != null) ? Std.int(VSliceConvert.num(charSelect.position, 0)) : 0,
 				gfAsset: (gfAsset != null && gfAsset.length > 0) ? gfAsset : null,
+				playerSheet: (charSelect != null) ? validSheet(charSelect.vortexSheet) : null,
+				gfSheet: (charSelect != null && charSelect.gf != null) ? validSheet(charSelect.gf.vortexSheet) : null,
 				freeplayStyle: VSliceConvert.str(data.freeplayStyle, null),
 				freeplayDJ: data.freeplayDJ,
 				results: data.results,
@@ -282,4 +286,14 @@ class PlayableCharacters
 		return null;
 	}
 	#end
+
+	/**
+	 * A Character Select spritesheet of a player's file (see `playerSheet`), null if it doesn't have one with an image.
+	 */
+	public static function validSheet(sheet:Dynamic):Dynamic
+	{
+		if(sheet == null || !Reflect.isObject(sheet)) return null;
+		var path:String = VSliceConvert.str(sheet.assetPath, '');
+		return (path.length > 0) ? sheet : null;
+	}
 }

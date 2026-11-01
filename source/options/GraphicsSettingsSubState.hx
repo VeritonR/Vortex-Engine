@@ -47,6 +47,15 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		option.displayFormat = '%v%';
 		option.onChange = onChangeSharpness;
 		addOption(option);
+
+		var option:Option = new Option('Supersampling',
+			'Draws the game bigger than the screen and shrinks it, like DSR:
+smoother edges and no shimmering. Heavier on the graphics card.',
+			'supersampling',
+			STRING,
+			['Off', '1.5x', '2x']);
+		option.onChange = function() backend.Supersampling.apply(ClientPrefs.data.supersampling);
+		addOption(option);
 		// =======================================================================
 
 		var option:Option = new Option('Low Quality', //Name

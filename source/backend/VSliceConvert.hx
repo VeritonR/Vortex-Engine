@@ -669,6 +669,11 @@ class VSliceConvert
 			// V-Slice stops the singing after `singTime` steps, Psych after `sing_duration` times 1.1 steps
 			sing_duration: num(char.singTime, 8) / 1.1,
 			healthicon: icon,
+			// how V-Slice sizes the icon: always 150 pixels wide times its scale, pixel ones made of 32x32 frames (see objects.HealthIcon)
+			vsliceIcon: {
+				isPixel: (char.healthIcon != null && char.healthIcon.isPixel == true),
+				scale: (char.healthIcon != null) ? num(char.healthIcon.scale, 1) : 1
+			},
 
 			position: pair(char.offsets, 0, 0),
 			camera_position: camera,

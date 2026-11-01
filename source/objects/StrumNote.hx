@@ -24,6 +24,11 @@ class StrumNote extends FlxSprite
 	public var lookScale(default, null):Float = 0;
 	public var direction:Float = 90;
 	public var downScroll:Bool = false;
+	/**
+	 * "Random Scroll Invert" (Gameplay Changers): which way the notes come, from 1 (from below) to -1 (from above), going through
+	 * the values between while the receptors change sides. NaN when the changer is off: then it's `downScroll` that says it.
+	 */
+	public var scrollBlend:Float = Math.NaN;
 	public var sustainReduce:Bool = true;
 	private var player:Int;
 	

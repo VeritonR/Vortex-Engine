@@ -41,7 +41,14 @@ class ControlsSubState extends MusicBeatSubstate
 		[false],
 		[false, 'DEBUG'],
 		[false, 'Key 1', 'debug_1', 'Debug Key #1'],
-		[false, 'Key 2', 'debug_2', 'Debug Key #2']
+		[false, 'Key 2', 'debug_2', 'Debug Key #2'],
+		[false],
+		[false, 'ONLINE'],
+		[false, 'Chat', 'chat', 'Online Chat'],
+		[false],
+		[false, 'OTHER'],
+		[false, 'Screenshot', 'screenshot', 'Screenshot'],
+		[false, 'Tutorial', 'tutorial', 'Tutorial']
 	];
 	var curOptions:Array<Int>;
 	var curOptionsValid:Array<Int>;
@@ -450,10 +457,103 @@ class ControlsSubState extends MusicBeatSubstate
 					}
 					FlxG.sound.play(Paths.sound('confirmMenu'));
 					closeBinding();
+					if(onKeyboardMode) warnConflicts(option);
 				}
 			}
 		}
+		updateConflictWarning(elapsed);
 		super.update(elapsed);
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Two actions on the same key
+	// ------------------------------------------------------------------------------------------
+
+	/**
+	 * What works during a song: one of these on the same key as another is done along with it (a note key that's also the chat's
+	 * opens the chat at every note). The menus' keys aren't counted: they're the same as the notes' on purpose.
+	 */
+	public static final SONG_ACTIONS:Array<String> = ['note_left', 'note_down', 'note_up', 'note_right', 'reset', 'pause', 'chat', 'screenshot',
+		'volume_mute', 'volume_up', 'volume_down', 'debug_1', 'debug_2'];
+
+	static final ACTION_NAMES:Map<String, String> = ['note_left' => 'Note Left', 'note_down' => 'Note Down', 'note_up' => 'Note Up',
+		'note_right' => 'Note Right', 'reset' => 'Reset', 'pause' => 'Pause', 'chat' => 'Online Chat', 'screenshot' => 'Screenshot', 'volume_mute' => 'Volume Mute',
+		'volume_up' => 'Volume Up', 'volume_down' => 'Volume Down', 'debug_1' => 'Debug Key #1', 'debug_2' => 'Debug Key #2'];
+
+	/**
+	 * The other actions that work during a song with one of the keys of `action` (keyboard).
+	 */
+	public static function conflictsOf(action:String):Array<String>
+	{
+		var found:Array<String> = [];
+		var keys:Array<FlxKey> = ClientPrefs.keyBinds.get(action);
+		if(keys == null || !SONG_ACTIONS.contains(action)) return found;
+
+		for (other in SONG_ACTIONS)
+		{
+			if(other == action) continue;
+			var otherKeys:Array<FlxKey> = ClientPrefs.keyBinds.get(other);
+			if(otherKeys == null) continue;
+			for (key in keys)
+				if(key != NONE && otherKeys.contains(key) && !found.contains(other))
+					found.push(other);
+		}
+		return found;
+	}
+
+	/**
+	 * An action's name as the warning shows it ("Note Left", "Online Chat"...).
+	 */
+	public static function actionName(action:String):String
+	{
+		var english:String = ACTION_NAMES.exists(action) ? ACTION_NAMES.get(action) : action;
+		return Language.getPhrase('controls_action_$action', english);
+	}
+
+	var conflictBox:FlxSprite;
+	var conflictText:FlxText;
+	var conflictTime:Float = 0;
+
+	function warnConflicts(action:String)
+	{
+		var others:Array<String> = conflictsOf(action);
+		if(others.length < 1) return;
+
+		var key:String = '';
+		for (k in ClientPrefs.keyBinds.get(action))
+		{
+			if(k == NONE) continue;
+			for (other in others)
+				if(ClientPrefs.keyBinds.get(other).contains(k)) key = InputFormatter.getKeyName(k);
+		}
+
+		if(conflictBox == null)
+		{
+			conflictBox = new FlxSprite().makeGraphic(1, 1, FlxColor.BLACK);
+			conflictBox.scale.set(FlxG.width - 200, 170);
+			conflictBox.updateHitbox();
+			conflictBox.screenCenter();
+			add(conflictBox);
+			conflictText = new FlxText(120, 0, FlxG.width - 240, '', 28);
+			conflictText.setFormat(Paths.font('vcr.ttf'), 28, FlxColor.YELLOW, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+			add(conflictText);
+		}
+		conflictText.text = Language.getPhrase('controls_conflict', 'WARNING: the key {1} is also used by {2}!\nDuring a song both happen at once.\nChange one of them.',
+			[key, [for (other in others) actionName(other)].join(', ')]);
+		conflictText.screenCenter(Y);
+		conflictTime = 5;
+		conflictBox.alpha = 0.75;
+		conflictText.alpha = 1;
+		FlxG.sound.play(Paths.sound('cancelMenu'));
+	}
+
+	function updateConflictWarning(elapsed:Float)
+	{
+		if(conflictTime <= 0 || conflictBox == null) return;
+		conflictTime -= elapsed;
+		var fade:Float = FlxMath.bound(conflictTime / 0.5, 0, 1);
+		conflictBox.alpha = 0.75 * fade;
+		conflictText.alpha = fade;
 	}
 
 	function closeBinding()

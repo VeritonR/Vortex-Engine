@@ -250,8 +250,38 @@ class PlayState extends MusicBeatState
 	 */
 	public var laneUnderlayAlpha:Float = 0.5;
 
+	/**
+	 * Online, with "Online: Opponent's View": the other player's receptors where they have them (at the bottom with their
+	 * Downscroll) and the dark lanes under them if they use "Lane Underlay". Otherwise like this player's.
+	 */
+	public var otherDownScroll:Bool = false;
+	public var otherLaneUnderlay:Bool = false;
+	public var otherLanes:FlxTypedGroup<FlxSprite>;
+
+	/**
+	 * If the notes of that side go down (`mustPress`: the right side's).
+	 */
+	public function downScrollOf(mustPress:Bool):Bool
+		return (mustPress == playAsOpponent) ? otherDownScroll : ClientPrefs.data.downScroll;
+
 	public var guitarHeroSustains:Bool = false;
 	public var instakillOnMiss:Bool = false;
+	/** "Only Sick" (Gameplay Changers): anything but a Sick is a game over. */
+	public var onlySick:Bool = false;
+	/** "Random Chart" (Gameplay Changers): the notes of the side being played go to random columns, at the same times. */
+	public var randomChart:Bool = false;
+	/** "Random Scroll Invert" (Gameplay Changers): every now and then the receptors glide to the other side and the notes come the other way. */
+	public var scrollSwap:Bool = false;
+	/** "Fade In" / "Fade Out" (Gameplay Changers): the notes being played show up close to the receptors / are gone before getting to them. */
+	public var noteFadeIn:Bool = false;
+	public var noteFadeOut:Bool = false;
+	/** "Random Note Speed" (Gameplay Changers): each note of the side being played comes at a speed of its own, from 0.8 to 1.25 times the song's. */
+	public var randomNoteSpeed:Bool = false;
+
+	// Where the receptors are for "Random Scroll Invert": 0 at the top (upscroll), 1 at the bottom; and where they're going
+	var scrollSide:Float = 0;
+	var scrollTarget:Float = 0;
+	static inline var SCROLL_SWAP_TIME:Float = 1.1;
 	public var cpuControlled:Bool = false;
 	public var practiceMode:Bool = false;
 	public var pressMissDamage:Float = 0.05;
@@ -405,6 +435,7 @@ class PlayState extends MusicBeatState
 	override public function create()
 	{
 		backend.StepLog.add('Song: being made, mod "' + Mods.currentModDirectory + '"');
+		HealthIcon.vsliceIcons.clear(); //(the song's V-Slice characters put theirs again, see HealthIcon.vsliceIcons)
 		FlxG.signals.preUpdate.add(restoreGuardedHud);
 		scoreCamera = ClientPrefs.data.scoreCamera;
 		iconBop = ClientPrefs.data.iconBop;
@@ -412,6 +443,13 @@ class PlayState extends MusicBeatState
 		sustainWiggle = ClientPrefs.data.sustainWiggle;
 		ghostNotes = ClientPrefs.data.ghostNotes;
 		showLaneUnderlay = ClientPrefs.data.laneUnderlay;
+		otherDownScroll = ClientPrefs.data.downScroll;
+		if (backend.NetworkManager.connected && ClientPrefs.data.opponentView)
+		{
+			var down:Null<Bool> = backend.NetworkManager.opponentFlag('downscroll');
+			if (down != null) otherDownScroll = down;
+			otherLaneUnderlay = (backend.NetworkManager.opponentFlag('lane') == true);
+		}
 		if (ClientPrefs.data.gameplaySettings.exists('healthdrain')) {
             healthDrain = ClientPrefs.data.gameplaySettings.get('healthdrain');
         }
@@ -461,6 +499,14 @@ class PlayState extends MusicBeatState
 		healthGain = ClientPrefs.getGameplaySetting('healthgain');
 		healthLoss = ClientPrefs.getGameplaySetting('healthloss');
 		instakillOnMiss = ClientPrefs.getGameplaySetting('instakill');
+		onlySick = ClientPrefs.getGameplaySetting('onlysick') == true;
+		if(onlySick) instakillOnMiss = true; //(a miss isn't a Sick either)
+		randomChart = ClientPrefs.getGameplaySetting('randomchart') == true;
+		scrollSwap = ClientPrefs.getGameplaySetting('scrollswap') == true;
+		noteFadeIn = ClientPrefs.getGameplaySetting('notefadein') == true;
+		noteFadeOut = ClientPrefs.getGameplaySetting('notefadeout') == true;
+		randomNoteSpeed = ClientPrefs.getGameplaySetting('randomspeed') == true;
+		scrollSide = scrollTarget = ClientPrefs.data.downScroll ? 1 : 0;
 		practiceMode = ClientPrefs.getGameplaySetting('practice');
 		cpuControlled = ClientPrefs.getGameplaySetting('botplay');
 		guitarHeroSustains = ClientPrefs.data.guitarHeroSustains;
@@ -790,7 +836,8 @@ class PlayState extends MusicBeatState
 		uiGroup.add(restCountdownTxt);
 
 		restportrait = new FlxSprite(0, startY - 32).loadGraphic(Paths.image('InGameSprites/restBar'));
-		restportrait.antialiasing = ClientPrefs.data.antialiasing;
+		//restportrait.antialiasing = ClientPrefs.data.antialiasing;
+		restportrait.antialiasing = false;
 		restportrait.scrollFactor.set(0, 0);
         restportrait.x = playerX - 178;
 		restportrait.cameras = [camHUD];
@@ -906,6 +953,7 @@ class PlayState extends MusicBeatState
 		cacheCountdown();
 		cachePopUpScore();
 		for (i in 1...4) Paths.image('credit_bg$i'); // used by startSongCredits(), avoids a stutter when the song starts
+		GameOverSubstate.preload(this); //(dying shows the game over at once)
 
 		if(eventNotes.length < 1) checkEventNote();
 
@@ -1550,6 +1598,7 @@ class PlayState extends MusicBeatState
 			rememberPlayableStrums();
 
 			if (showLaneUnderlay) makeLaneUnderlays(!skipArrowStartTween);
+			if (otherLaneUnderlay) makeOtherLanes(!skipArrowStartTween);
 
 			for (i in 0...playerStrums.length) {
 				setOnScripts('defaultPlayerStrumX' + i, playerStrums.members[i].x);
@@ -1875,6 +1924,97 @@ class PlayState extends MusicBeatState
 	private var eventsPushed:Array<String> = [];
 	private var totalColumns: Int = 4;
 
+	/**
+	 * "Fade In" / "Fade Out": how much of a note shows, by how far it is from its receptor (in pixels, the same at any speed).
+	 */
+	function fadeOf(note:Note, strum:StrumNote):Float
+	{
+		var distance:Float = Math.abs(note.y - strum.y);
+		var shown:Float = 1;
+		if (noteFadeIn) shown *= FlxMath.bound((450 - distance) / 160, 0, 1); //(shows up between 450 and 290 pixels away)
+		if (noteFadeOut) shown *= FlxMath.bound((distance - 110) / 150, 0, 1); //(gone between 260 and 110 pixels away)
+		return shown;
+	}
+
+	/**
+	 * "Random Scroll Invert": every 16 beats, half of the times, the receptors change sides. They glide there, and the notes turn
+	 * around with them (see `StrumNote.scrollBlend`). Only while they change sides is their height set: scripts can move them otherwise.
+	 */
+	function updateScrollSwap(elapsed:Float)
+	{
+		if (!scrollSwap || strumLineNotes == null) return;
+
+		var moving:Bool = (scrollSide != scrollTarget);
+		if (moving)
+		{
+			var step:Float = elapsed / SCROLL_SWAP_TIME;
+			scrollSide = (scrollTarget > scrollSide) ? Math.min(scrollTarget, scrollSide + step) : Math.max(scrollTarget, scrollSide - step);
+		}
+		var eased:Float = FlxEase.sineInOut(scrollSide);
+		var blend:Float = Math.cos(eased * Math.PI); //(1 at the top, -1 at the bottom)
+		var top:Float = 50;
+		var bottom:Float = FlxG.height - 150;
+		for (strum in strumLineNotes.members)
+		{
+			if (strum == null) continue;
+			strum.scrollBlend = blend;
+			strum.downScroll = (eased > 0.5);
+			if (moving) strum.y = FlxMath.lerp(top, bottom, eased);
+		}
+	}
+
+	/**
+	 * "Random Chart": a random column for each note of the side being played, by its place in the chart (section * 100000 + note).
+	 * Notes at the same time get different columns, and a column isn't given to a note while a long note is still on it.
+	 * The same note twice (same column and time) stays together, so the chart's repeated notes are still taken out.
+	 */
+	function makeRandomColumns(sections:Array<SwagSection>):Map<Int, Int>
+	{
+		var playable:Array<{key:Int, time:Float, column:Int, hold:Float}> = [];
+		for (sectionIndex in 0...sections.length)
+		{
+			var notes:Array<Dynamic> = sections[sectionIndex].sectionNotes;
+			for (i in 0...notes.length)
+			{
+				var data:Array<Dynamic> = notes[i];
+				var raw:Int = Std.int(data[1]);
+				if (raw < 0 || raw >= totalColumns * 2) continue; //(the fields of extra characters)
+				var mustPress:Bool = (raw < totalColumns);
+				if (mustPress == playAsOpponent) continue;
+				var hold:Float = data[2];
+				playable.push({key: sectionIndex * 100000 + i, time: data[0], column: raw % totalColumns, hold: Math.isNaN(hold) ? 0 : hold});
+			}
+		}
+		playable.sort((a, b) -> Reflect.compare(a.time, b.time));
+
+		var columns:Map<Int, Int> = [];
+		var busyUntil:Array<Float> = [for (_ in 0...totalColumns) -1.0];
+		var index:Int = 0;
+		while (index < playable.length)
+		{
+			// the notes at this time (a chord)
+			var time:Float = playable[index].time;
+			var group:Array<{key:Int, time:Float, column:Int, hold:Float}> = [];
+			while (index < playable.length && Math.abs(playable[index].time - time) < 2)
+				group.push(playable[index++]);
+
+			var given:Map<Int, Int> = []; //original column -> new one, in this chord
+			for (note in group)
+			{
+				if (!given.exists(note.column))
+				{
+					var free:Array<Int> = [for (c in 0...totalColumns) if (busyUntil[c] < time - 1 && !Lambda.has(given, c)) c];
+					if (free.length < 1) free = [for (c in 0...totalColumns) if (!Lambda.has(given, c)) c];
+					given.set(note.column, (free.length > 0) ? free[FlxG.random.int(0, free.length - 1)] : note.column);
+				}
+				var column:Int = given.get(note.column);
+				columns.set(note.key, column);
+				busyUntil[column] = Math.max(busyUntil[column], time + note.hold);
+			}
+		}
+		return columns;
+	}
+
 	private function generateSong():Void
 	{
 		// FlxG.log.add(ChartParser.parse());
@@ -1930,7 +2070,9 @@ class PlayState extends MusicBeatState
 		grpHoldCovers = new objects.HoldCover.HoldCoverGroup();
 		noteGroup.add(grpHoldCovers);
 
-		try
+		// (a V-Slice chart has its events in itself: an "events.json" of the same name is the one of a Psych song with that name, like
+		// the base game's Cocoa, whose "Hey!" events made the Christmas Girlfriend of Cocoa Erect jump to her cheer every 16 beats)
+		if(SONG.vslice == null) try
 		{
 			var eventsChart:SwagSong = Song.getChart('events', songName);
 			if(eventsChart != null)
@@ -1943,6 +2085,7 @@ class PlayState extends MusicBeatState
 		var oldNote:Note = null;
 		var sectionsData:Array<SwagSection> = PlayState.SONG.notes;
 		var ghostNotesCaught:Int = 0;
+		var randomColumns:Map<Int, Int> = randomChart ? makeRandomColumns(sectionsData) : null;
 		var daBpm:Float = Conductor.bpm;
 	
 		for (section in sectionsData)
@@ -1955,6 +2098,8 @@ class PlayState extends MusicBeatState
 				final songNotes: Array<Dynamic> = section.sectionNotes[i];
 				var spawnTime: Float = songNotes[0];
 				var noteColumn: Int = Std.int(songNotes[1] % totalColumns);
+				if (randomColumns != null && randomColumns.exists(sectionsData.indexOf(section) * 100000 + i))
+					noteColumn = randomColumns.get(sectionsData.indexOf(section) * 100000 + i);
 				var holdLength: Float = songNotes[2];
 				var noteType: String = !Std.isOfType(songNotes[3], String) ? Note.defaultNoteTypes[songNotes[3]] : songNotes[3];
 				if (Math.isNaN(holdLength))
@@ -1999,6 +2144,8 @@ class PlayState extends MusicBeatState
 
 				swagNote.scrollFactor.set();
 				unspawnNotes.push(swagNote);
+				// (safe both ways: never so slow it bunches up, never so fast there's no time to see it)
+				if (randomNoteSpeed && gottaHitNote != playAsOpponent) swagNote.multSpeed = FlxG.random.float(0.8, 1.25);
 
 				var curStepCrochet:Float = 60 / daBpm * 1000 / 4.0;
 				final roundSus:Int = Math.round(swagNote.sustainLength / curStepCrochet);
@@ -2011,10 +2158,12 @@ class PlayState extends MusicBeatState
 						var sustainNote:Note = new Note(spawnTime + (curStepCrochet * susNote), noteColumn, oldNote, true);
 						sustainNote.animSuffix = swagNote.animSuffix;
 						sustainNote.mustPress = swagNote.mustPress;
+						sustainNote.flipY = downScrollOf(sustainNote.mustPress);
 						sustainNote.gfNote = swagNote.gfNote;
 						sustainNote.singers = swagNote.singers;
 						sustainNote.noteType = swagNote.noteType;
 						sustainNote.scrollFactor.set();
+						if (swagNote.multSpeed != 1) sustainNote.multSpeed = swagNote.multSpeed;
 						sustainNote.parent = swagNote;
 						unspawnNotes.push(sustainNote);
 						swagNote.tail.push(sustainNote);
@@ -2029,7 +2178,7 @@ class PlayState extends MusicBeatState
 								oldNote.resizeByRatio(curStepCrochet / Conductor.stepCrochet);
 							}
 
-							if(ClientPrefs.data.downScroll)
+							if(downScrollOf(sustainNote.mustPress))
 								sustainNote.correctionOffset = 0;
 						}
 						else if(oldNote.isSustainNote)
@@ -2204,7 +2353,8 @@ class PlayState extends MusicBeatState
 	private function generateStaticArrows(player:Int, hidden:Bool = false):Void
 	{
 		var strumLineX:Float = ClientPrefs.data.middleScroll ? STRUM_X_MIDDLESCROLL : STRUM_X;
-		var strumLineY:Float = ClientPrefs.data.downScroll ? (FlxG.height - 150) : 50;
+		var down:Bool = downScrollOf(player == 1);
+		var strumLineY:Float = down ? (FlxG.height - 150) : 50;
 		StrumNote.vsliceHitbox = vsliceStrumSize();
 		StrumNote.songRoom = StrumNote.vsliceHitbox;
 		for (i in 0...4)
@@ -2219,7 +2369,7 @@ class PlayState extends MusicBeatState
 			}
 
 			var babyArrow:StrumNote = new StrumNote(strumLineX, strumLineY, i, player);
-			babyArrow.downScroll = ClientPrefs.data.downScroll;
+			babyArrow.downScroll = down;
 			if (hidden) babyArrow.alpha = 0;
 			else if (!isStoryMode && !skipArrowStartTween)
 			{
@@ -2437,6 +2587,18 @@ class PlayState extends MusicBeatState
                 }
             }
         }
+		if (otherLanes != null)
+		{
+			for (i in 0...4)
+			{
+				var strum:StrumNote = otherStrums.members[i];
+				var lane:FlxSprite = otherLanes.members[i];
+				if (strum == null || lane == null) continue;
+				lane.x = strum.x + (strum.width - lane.width) / 2;
+				lane.visible = strum.visible;
+				lane.alpha = strum.alpha * laneUnderlayAlpha; //(they come in and go away with the receptors)
+			}
+		}
 
 		if(!inCutscene && !paused && !freezeCamera) {
 			FlxG.camera.followLerp = 0.04 * cameraSpeed * playbackRate;
@@ -2722,6 +2884,7 @@ class PlayState extends MusicBeatState
 							}
 							if(playAsOpponent && daNote.playable) guardPlayableNote(daNote, strum);
 							daNote.followStrumNote(strum, fakeCrochet, songSpeed / playbackRate);
+							if ((noteFadeIn || noteFadeOut) && daNote.playable) daNote.alpha *= fadeOf(daNote, strum);
 
 							if(daNote.playable)
 							{
@@ -2813,6 +2976,7 @@ class PlayState extends MusicBeatState
         //});
 
         updateBreakTimer(elapsed);
+        updateScrollSwap(elapsed);
 
 		// (online test runs write the health down once a second)
 		if (backend.NetworkManager.testLog && backend.NetworkManager.connected && Std.int(Conductor.songPosition / 1000) != _lastHealthLog)
@@ -2944,6 +3108,7 @@ class PlayState extends MusicBeatState
 	{
 		var wasResting:Bool = isResting;
 		computeBreak(elapsed);
+		if (restCountdownTxt.alpha > 0) placeBreakTimer();
 
 		// scripts are told when a break starts ("onBreakStart", with how long it is in seconds) and ends ("onBreakEnd")
 		if (isResting != wasResting)
@@ -2951,6 +3116,43 @@ class PlayState extends MusicBeatState
 			if (isResting) callOnScripts('onBreakStart', [maxRestTime]);
 			else callOnScripts('onBreakEnd', []);
 		}
+	}
+
+	/**
+	 * Puts the break timer with the receptors being played, wherever they are: songs that move them (Malediction, Obey, Oh God No...)
+	 * left it where they were at the start. The same distance as always: 150 under them when they're at the top, 100 over them at the bottom.
+	 */
+	function placeBreakTimer()
+	{
+		var strums = playableStrums;
+		if (strums == null) return;
+
+		var count:Int = 0;
+		var centerX:Float = 0;
+		var top:Float = 0;
+		var height:Float = 0;
+		for (strum in strums.members)
+		{
+			if (strum == null || !strum.exists || !strum.visible) continue;
+			centerX += strum.x + strum.width / 2;
+			top += strum.y;
+			height += strum.height;
+			count++;
+		}
+		if (count < 1) return;
+		centerX /= count;
+		top /= count;
+		height /= count;
+
+		var startY:Float = (top + height / 2 < FlxG.height / 2) ? top + 150 : top - 100;
+		startY = FlxMath.bound(startY, 40, FlxG.height - 80); //(still on the screen when the receptors aren't)
+
+		restTimerBar.x = centerX - restTimerBar.width / 2;
+		restTimerBar.y = startY;
+		restCountdownTxt.x = centerX - restCountdownTxt.width / 2;
+		restCountdownTxt.y = startY + 20;
+		restportrait.x = centerX - 178;
+		restportrait.y = startY - 32;
 	}
 
 	function computeBreak(elapsed:Float)
@@ -4048,6 +4250,25 @@ class PlayState extends MusicBeatState
 		insert(members.indexOf(uiGroup), laneUnderlays);
 	}
 
+	// The other player's lanes (online, when they use "Lane Underlay"): see `otherLaneUnderlay`
+	function makeOtherLanes(fadeIn:Bool):Void
+	{
+		if (otherLanes != null || otherStrums.length < 4) return;
+		makeLaneCamera();
+
+		otherLanes = new FlxTypedGroup<FlxSprite>();
+		for (i in 0...4)
+		{
+			var lane:FlxSprite = new FlxSprite(otherStrums.members[i].x, -FlxG.height).makeGraphic(1, 1, FlxColor.BLACK);
+			lane.scale.set(112, FlxG.height * 3);
+			lane.updateHitbox();
+			lane.alpha = 0;
+			lane.cameras = [camLanes];
+			otherLanes.add(lane);
+		}
+		insert(members.indexOf(uiGroup), otherLanes);
+	}
+
 	/**
 	 * Turns "Lane Underlay" (the dark lanes under the notes being played) on or off, whatever the option says.
 	 * @param alpha How dark they are, from 0 to 1 (0.5 if not given).
@@ -4235,6 +4456,14 @@ class PlayState extends MusicBeatState
 		if(!note.ratingDisabled) daRating.hits++;
 		note.rating = daRating.name;
 		score = daRating.score;
+
+		// "Only Sick": anything else ends the song
+		if (onlySick && !cpuControlled && daRating.name != 'sick')
+		{
+			vocals.volume = 0;
+			opponentVocals.volume = 0;
+			doDeathCheck(true);
+		}
 
 		if(daRating.noteSplash && !note.noteSplashData.disabled)
 			spawnNoteSplashOnNote(note);
@@ -5016,6 +5245,7 @@ class PlayState extends MusicBeatState
 	override function destroy() {
 		Note.opponentPlay = false;
 		FlxG.signals.preUpdate.remove(restoreGuardedHud);
+		GameOverSubstate.dropPreloaded(); //(the dead character made ahead, if nobody died)
 
 		if (psychlua.CustomSubstate.instance != null)
 		{
@@ -5107,6 +5337,10 @@ class PlayState extends MusicBeatState
 
 		if (generatedMusic)
 			notes.sort(FlxSort.byY, ClientPrefs.data.downScroll ? FlxSort.ASCENDING : FlxSort.DESCENDING);
+
+		// "Random Scroll Invert": every 16 beats, half of the times, the receptors go to the other side
+		if (scrollSwap && curBeat > 0 && curBeat % 16 == 0 && scrollSide == scrollTarget && FlxG.random.bool(50))
+			scrollTarget = 1 - scrollTarget;
 
 		iconP1.scale.set(1.2 * iconP1.baseScale, 1.2 * iconP1.baseScale);
 		iconP2.scale.set(1.2 * iconP2.baseScale, 1.2 * iconP2.baseScale);
@@ -5998,7 +6232,7 @@ class PlayState extends MusicBeatState
 		add(bg1);
 
 		var text1 = new FlxText(-600, bg1.y + 60, bg1.width, songName, 32);
-		text1.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.BLACK, CENTER);
+		text1.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.WHITE, CENTER);
 		text1.cameras = [camOther];
 		add(text1);
 
@@ -6009,7 +6243,7 @@ class PlayState extends MusicBeatState
 		add(bg2);
 
 		var text2 = new FlxText(-600, bg2.y + 25, bg2.width, Language.getPhrase('credits_composed_by', "COMPOSED BY: {1}", [composer]), 24);
-		text2.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.BLACK, CENTER);
+		text2.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.WHITE, CENTER);
 		text2.cameras = [camOther];
 		add(text2);
 
@@ -6020,7 +6254,7 @@ class PlayState extends MusicBeatState
 		add(bg3);
 
 		var text3 = new FlxText(-600, bg3.y + 25, bg3.width, Language.getPhrase('credits_charted_by', "CHARTED BY: {1}", [charter]), 24);
-		text3.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.BLACK, CENTER);
+		text3.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.WHITE, CENTER);
 		text3.cameras = [camOther];
 		add(text3);
 
@@ -6062,8 +6296,26 @@ class PlayState extends MusicBeatState
 
         var ghost:FlxSprite = new FlxSprite(char.x, char.y);
         ghost.frames = char.frames;
-        ghost.frame = char.frame; 
+        ghost.frame = char.frame;
         ghost.offset.set(char.offset.x, char.offset.y);
+
+        // the ghost sings the note it's for (the first of the two), the whole animation, instead of standing still on one frame.
+        // It's what the character is playing for that note right now (the second one hasn't changed it yet): a note type or a
+        // script may have given it an animation of its own (Fruity's custom notes), the usual one of its direction otherwise
+        var singAnim:String = char.getAnimationName();
+        var startFrame:Int = (char.animation.curAnim != null) ? char.animation.curAnim.curFrame : 0;
+        if (singAnim == null || char.animation.getByName(singAnim) == null || singAnim.startsWith('idle') || singAnim.startsWith('dance'))
+        {
+            singAnim = (noteDirection >= 0 && noteDirection < singAnimations.length) ? singAnimations[noteDirection] : null;
+            startFrame = 0;
+        }
+        if (singAnim != null && char.animation.getByName(singAnim) != null && char.offsetOf(singAnim) != null)
+        {
+            ghost.animation.copyFrom(char.animation);
+            ghost.animation.play(singAnim, true, false, startFrame);
+            var offsets:Array<Float> = char.offsetOf(singAnim);
+            ghost.offset.set(offsets[0], offsets[1]);
+        }
         ghost.scrollFactor.set(char.scrollFactor.x, char.scrollFactor.y);
         ghost.flipX = char.flipX;
         ghost.flipY = char.flipY;

@@ -175,37 +175,6 @@ class TitleState extends MusicBeatState
         spaceBg.screenCenter();
         add(spaceBg);
 
-        portal1 = new FlxSprite(0, 0);
-        portal1.frames = Paths.getSparrowAtlas('portal');
-        portal1.animation.addByPrefix('idle', 'base', 1, false);
-        portal1.animation.play('idle');
-        portal1.antialiasing = ClientPrefs.data.antialiasing;
-		portal1.setGraphicSize(Std.int(FlxG.height * 0.9)); // Ajusta o tamanho (1.2 é 20% maior que a altura da tela)
-        portal1.updateHitbox();
-        portal1.screenCenter();
-        add(portal1);
-
-
-        portal2 = new FlxSprite(0, 0);
-        portal2.frames = Paths.getSparrowAtlas('portal');
-        portal2.animation.addByPrefix('idle', 'middle', 1, false);
-        portal2.animation.play('idle');
-        portal2.antialiasing = ClientPrefs.data.antialiasing;
-		portal2.setGraphicSize(Std.int(FlxG.height * 0.9)); // Ajusta o tamanho (1.2 é 20% maior que a altura da tela)
-        portal2.updateHitbox();
-        portal2.screenCenter();
-        add(portal2);
-
-        portal3 = new FlxSprite(0, 0);
-        portal3.frames = Paths.getSparrowAtlas('portal');
-        portal3.animation.addByPrefix('idle', 'front', 1, false);
-        portal3.animation.play('idle');
-        portal3.antialiasing = ClientPrefs.data.antialiasing;
-		portal3.setGraphicSize(Std.int(FlxG.height * 0.9)); // Ajusta o tamanho (1.2 é 20% maior que a altura da tela)
-        portal3.updateHitbox();
-        portal3.screenCenter();
-        add(portal3);
-
 		logoBl = new FlxSprite(0, 0).loadGraphic(Paths.image('FNF_logo'));
         logoBl.antialiasing = ClientPrefs.data.antialiasing;
         
@@ -256,10 +225,6 @@ class TitleState extends MusicBeatState
 
 	override function update(elapsed:Float)
 	{
-
-        if (portal1 != null) portal1.angle += elapsed * 15;
-        if (portal2 != null) portal2.angle += elapsed * 10;
-        if (portal3 != null) portal3.angle += elapsed * 5;
 
 		if (logoBl != null && !transitioning) {
             logoBl.screenCenter();
@@ -341,11 +306,10 @@ class TitleState extends MusicBeatState
                 
                 var manualFade:FlxSprite = new FlxSprite(-FlxG.width, -FlxG.height).makeGraphic(FlxG.width * 3, FlxG.height * 3, FlxColor.BLACK);
                 manualFade.scrollFactor.set();
-                manualFade.alpha = 0; // Começa invisível
+                manualFade.alpha = 0;
                 add(manualFade);
                 
                 FlxTween.tween(manualFade, {alpha: 1}, 1.5, {ease: FlxEase.linear});
-                // =========================================================
 
                 new FlxTimer().start(1.5, function(tmr:FlxTimer)
                 {

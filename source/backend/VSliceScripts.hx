@@ -974,6 +974,11 @@ class VSliceScripts
 	// The scripts that were already told their character was made: the ones of the characters other scripts make are told right away
 	static var createdCharacters:Array<HxcInstance> = [];
 
+	// The scripts of characters other scripts made that aren't on the stage as characters (`currentStage.addCharacter()`): V-Slice only
+	// tells them they were made. Its events go to the stage's characters, so a character kept aside or only `add()`ed (Nene's lit copy
+	// in the Pico Mix of South, which would set up a second speaker of its own) gets nothing else
+	static var offStageCharacters:Array<HxcInstance> = [];
+
 	// Nene (and the characters made from her script) raises her knife at Boyfriend when his health is low. With Play as Opponent
 	// Boyfriend is the computer's: that's only a threat to him when Health Drain is on too, otherwise she stays calm (her threshold
 	// is put where the health never gets). Without Play as Opponent nothing changes
@@ -998,6 +1003,7 @@ class VSliceScripts
 	{
 		characterClasses = [];
 		createdCharacters = [];
+		offStageCharacters = [];
 		for (cls in modFirst(HxcRuntime.listSubclasses(BaseCharacter)))
 		{
 			// V-Slice makes each one with this id to find out which character it's really for: most give their own to `super()`,
@@ -1042,6 +1048,7 @@ class VSliceScripts
 		if(created)
 		{
 			createdCharacters.push(script);
+			offStageCharacters.push(script);
 			callEvent(script, new ScriptEvent(ScriptEventType.CREATE));
 		}
 		return script;
@@ -1153,6 +1160,7 @@ class VSliceScripts
 		if(!active || char == null) return;
 
 		var script:HxcInstance = HxcRuntime.getInstance(char);
+		if(script != null) offStageCharacters.remove(script); //(it's one of the stage's characters now, it gets the song's events)
 		if(script != null && characterScripts.contains(script)) callEvent(script, new ScriptEvent(ScriptEventType.ADDED));
 	}
 
@@ -1403,6 +1411,7 @@ class VSliceScripts
 		songScript = null;
 		stageScript = null;
 		characterScripts = [];
+		offStageCharacters = [];
 		characterClasses = null;
 		pendingHit = null;
 		facade = null;
@@ -1473,7 +1482,7 @@ class VSliceScripts
 
 		callEvent(stageScript, event);
 		for (character in characterScripts)
-			callEvent(character, event);
+			if(!offStageCharacters.contains(character)) callEvent(character, event);
 	}
 
 	public static function dispatchToModules(event:ScriptEvent):Void
@@ -2442,6 +2451,9 @@ class VSliceScripts
 	public static function menuUpdate(elapsed:Float):Void
 	{
 		if(states.LoadingState.isBusy()) return; //(see `startMenu()`)
+		// The engine's options open over its main menu, where V-Slice goes to a state of their own: the modules' main menu code
+		// would go on under them (SKYREBORN's hidden gallery button on the top right took the clicks given to the options there)
+		if(Std.isOfType(FlxG.state, states.MainMenuState) && Std.isOfType(FlxG.state.subState, options.OptionsMenu)) return;
 		if(menuState != null && modules.length > 0) dispatchToModules(new UpdateScriptEvent(elapsed));
 	}
 

@@ -1,0 +1,10 @@
+{
+	"button": "top-center",
+	"steps": [
+		{"text": "The mods menu: every mod of the \"mods\" folder, the Psych ones and the V-Slice ones."},
+		{"text": "The list: the mods at the top come first. Pick one to see it.", "target": "bgList", "zoom": 1.3},
+		{"text": "The selected mod, with its icon and description.", "target": ["bgTitle", "bgDescription"], "zoom": 1.2},
+		{"text": "These buttons turn it on or off, move it up or down the list, and CHECK MOD lists what it uses that only Vortex Engine has.", "target": "bgButtons", "zoom": 1.5},
+		{"text": "Reload the list after putting a mod in the folder, or turn them all on or off at once.", "target": ["buttonReload", "buttonEnableAll", "buttonDisableAll"], "zoom": 1.5}
+	]
+}

@@ -564,7 +564,13 @@ class Note extends FlxSprite
 		var strumDirection:Float = myStrum.direction;
 
 		distance = (0.45 * (Conductor.songPosition - strumTime) * songSpeed * multSpeed);
-		if (!myStrum.downScroll) distance *= -1;
+		if (!Math.isNaN(myStrum.scrollBlend))
+		{
+			// (on its way to the other side: the notes swing around with the receptors instead of jumping)
+			distance *= -myStrum.scrollBlend;
+			if (isSustainNote) flipY = myStrum.downScroll;
+		}
+		else if (!myStrum.downScroll) distance *= -1;
 
 		var angleDir = strumDirection * Math.PI / 180;
 		if (copyAngle)

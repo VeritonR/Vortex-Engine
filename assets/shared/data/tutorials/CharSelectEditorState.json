@@ -1,0 +1,13 @@
+{
+	"button": "top-center",
+	"steps": [
+		{"text": "The Character Select editor: how a playable character shows up on Character Select, in Freeplay (its DJ) and on the results screen."},
+		{"text": "Player: its id, its name, its place on the grid, the characters it owns and where the file is saved. Save and Reload are here.", "target": "mainBox", "set": {"mainBox.selectedName": "Player"}},
+		{"text": "Player Sheet: a spritesheet (.png and .xml) for the character instead of a texture atlas. Only Vortex shows it: V-Slice needs the atlas.", "target": "mainBox", "set": {"mainBox.selectedName": "Player Sheet"}},
+		{"text": "Girlfriend: the one next to the character on the screen, and her speakers.", "target": "mainBox", "set": {"mainBox.selectedName": "Girlfriend"}},
+		{"text": "Freeplay DJ: who is on the turntable in Freeplay, with its offsets and texts.", "target": "mainBox", "set": {"mainBox.selectedName": "Freeplay DJ"}},
+		{"text": "Results: the animations and the music of each rank on the results screen.", "target": "mainBox", "set": {"mainBox.selectedName": "Results"}},
+		{"text": "Animation preview: play any animation to check it.", "target": "previewBox"},
+		{"text": "What you save here works in the official V-Slice too (except the spritesheet). Have fun!"}
+	]
+}

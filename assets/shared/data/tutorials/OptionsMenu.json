@@ -1,0 +1,10 @@
+{
+	"button": "bottom-right",
+	"steps": [
+		{"text": "The options! Everything is in tabs on this panel."},
+		{"text": "The tabs: Q/E (or TAB) change them, or click them.", "target": "tabBacks", "zoom": 1.6},
+		{"text": "UP/DOWN pick an option, LEFT/RIGHT change it (hold them to go faster) and ENTER turns it on or off. R puts it back the way it was at first.", "target": "rows", "zoom": 1.3},
+		{"text": "What the option does is written here.", "target": "descText", "zoom": 1.8},
+		{"text": "\"More\" has the colors of the notes, the controls, the delay and combo, and the language. ESC goes back."}
+	]
+}
