@@ -66,20 +66,16 @@ class CharacterDataParser
 	 */
 	public static var characterCache:Dynamic = {h: []};
 
+	/**
+	 * Every character there is, like on V-Slice: the mod's (its libraries too) and the base game's. Mods check this before changing
+	 * to a character, so leaving the base game's out meant they never changed back to "bf" or "gf" (You Can't Run's pixel part).
+	 */
 	public static function listCharacterIds():Array<String>
 	{
-		var ids:Array<String> = [];
 		#if MODS_ALLOWED
-		var mod:String = backend.Mods.currentModDirectory;
-		if(!backend.PolymodCompat.isPolymod(mod)) return ids;
-
-		var folder:String = backend.Paths.mods('$mod/data/characters');
-		if(sys.FileSystem.exists(folder) && sys.FileSystem.isDirectory(folder))
-			for (file in sys.FileSystem.readDirectory(folder))
-				if(file.toLowerCase().endsWith('.json'))
-					ids.push(file.substr(0, file.length - 5));
-		ids.sort(Reflect.compare);
+		return backend.PolymodCompat.listDataIds('characters');
+		#else
+		return [];
 		#end
-		return ids;
 	}
 }

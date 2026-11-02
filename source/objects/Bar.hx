@@ -1,5 +1,6 @@
 package objects;
 
+import flixel.math.FlxPoint.FlxCallbackPoint;
 import flixel.math.FlxRect;
 
 class Bar extends FlxSpriteGroup
@@ -104,12 +105,74 @@ class Bar extends FlxSpriteGroup
 		return this;
 	}
 
+	/**
+	 * On V-Slice the health bar and its frame are two sprites, and scripts move, scale and center them apart: "healthBar" is only the
+	 * colored part and "healthBarBG" the frame. Here both are this group, so when a V-Slice script asks for them (see
+	 * `funkin.play.PlayState`) the frame comes apart: the bar's place, size and scale become the colored part's, and the colors stop
+	 * following the frame. Mods that change the frame for one of their own put it around the bar like that (Sonic.exe's HUD).
+	 */
+	public var bgApart(default, null):Bool = false;
+
+	public function separateBg():Void
+	{
+		if(bgApart || bg == null || leftBar == null || rightBar == null) return;
+		bgApart = true;
+
+		// (where the colors start, as it is now: nothing moves)
+		@:bypassAccessor x = leftBar.x + barOffset.x;
+		@:bypassAccessor y = leftBar.y + barOffset.y;
+		var oldScale:FlxPoint = scale;
+		scale = new FlxCallbackPoint(function(point:FlxPoint) {
+			for (part in [leftBar, rightBar])
+				if(part != null) part.scale.copyFrom(point);
+		});
+		scale.set(leftBar.scale.x, leftBar.scale.y);
+		if(oldScale != null) oldScale.destroy();
+		updateBar();
+	}
+
+	override function set_x(value:Float):Float
+	{
+		if(!bgApart) return super.set_x(value);
+		@:bypassAccessor x = value;
+		updateBar();
+		return value;
+	}
+
+	override function set_y(value:Float):Float
+	{
+		if(!bgApart) return super.set_y(value);
+		@:bypassAccessor y = value;
+		updateBar();
+		return value;
+	}
+
+	override public function setPosition(X:Float = 0, Y:Float = 0):Void
+	{
+		if(!bgApart)
+		{
+			super.setPosition(X, Y);
+			return;
+		}
+		@:bypassAccessor x = X;
+		@:bypassAccessor y = Y;
+		updateBar();
+	}
+
+	override function get_width():Float
+		return bgApart ? barWidth : super.get_width();
+
+	override function get_height():Float
+		return bgApart ? barHeight : super.get_height();
+
 	public function updateBar()
 	{
 		if(leftBar == null || rightBar == null) return;
 
-		leftBar.setPosition(bg.x, bg.y);
-		rightBar.setPosition(bg.x, bg.y);
+		var left:Float = bgApart ? x - barOffset.x : bg.x;
+		var top:Float = bgApart ? y - barOffset.y : bg.y;
+		leftBar.setPosition(left, top);
+		rightBar.setPosition(left, top);
 
 		var leftSize:Float = 0;
 		if(leftToRight) leftSize = FlxMath.lerp(0, barWidth, percent / 100);

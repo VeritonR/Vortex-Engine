@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Vortex Engine</title>
+	<meta name="description" content="Vortex Engine: a Psych Engine 1.0.4 fork for Friday Night Funkin' that also runs V-Slice mods, with online multiplayer, extra keys, 3D, tutorials and the new Funkin' menus for every mod.">
+	<meta property="og:title" content="Vortex Engine">
+	<meta property="og:description" content="A Psych Engine 1.0.4 fork that also runs V-Slice mods, with online multiplayer and the new Funkin' menus for every mod.">
+	<meta property="og:image" content="img/vortex/logo.png">
+	<meta name="theme-color" content="#120a1c">
+	<link rel="icon" href="img/vortex/logo.png">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+	<div class="header-inner">
+		<a class="brand" href="index.html"><span class="brand-mark"></span><span>Vortex <em>Engine</em></span></a>
+		<button class="menu-toggle" type="button" aria-expanded="false" aria-label="Menu">Menu</button>
+		<nav class="nav">
+			<a href="index.html" class="active">Home</a>
+			<a href="lua.html">Lua API</a>
+			<a href="modding.html">Modding</a>
+			<a href="https://github.com/VeritonR/Vortex-Engine">GitHub</a>
+			<a href="https://discord.gg/QKjMSpeHW">Discord</a>
+			<a class="nav-cta" href="https://github.com/VeritonR/Vortex-Engine/releases">Download</a>
+		</nav>
+	</div>
+</header>
+
+<main>
+
+	<!-- ============================================================ hero -->
+	<section class="hero">
+		<div class="container">
+			<img class="hero-logo" src="img/vortex/logo.png" alt="Friday Night Funkin': Vortex Engine" width="640" height="360">
+			<h1>A Psych Engine 1.0.4 fork that also runs V-Slice mods, adds online multiplayer, and brings the new Funkin' menus to every mod.</h1>
+			<div class="buttons">
+				<a class="button primary" href="https://github.com/VeritonR/Vortex-Engine/releases">Download</a>
+				<a class="button" href="lua.html">Lua API</a>
+				<a class="button discord" href="https://discord.gg/QKjMSpeHW">Join the Discord</a>
+			</div>
+			<div class="hero-shots">
+				<div class="shot"><img src="img/vortex/title.jpg" alt="Vortex Engine's title screen" width="960" height="540" loading="lazy"></div>
+				<div class="shot"><img src="img/vortex/mainmenu.jpg" alt="Vortex Engine's main menu" width="960" height="540" loading="lazy"></div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ Psych Lua notice -->
+	<section class="container" id="psych-lua">
+		<div class="notice">
+			<div class="notice-icon" aria-hidden="true">Lua</div>
+			<div>
+				<h2>Supports everything on the Psych Engine Lua Script API page</h2>
+				<p>Vortex Engine runs Psych Engine 1.0.4's Lua in full: every function, callback and variable documented on ShadowMario's
+				Psych Engine Lua Script API page works here the same way. Your Psych scripts run as they are, and Vortex adds more on top of them.</p>
+				<div class="buttons" style="justify-content:flex-start">
+					<a class="button primary" href="https://shadowmario.github.io/psychengine.lua/">Open the Psych Engine Lua API</a>
+					<a class="button" href="lua.html">What Vortex adds</a>
+				</div>
+				<span class="link-note">https://shadowmario.github.io/psychengine.lua/</span>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ highlights -->
+	<section class="block" id="highlights" style="border-top:0">
+		<div class="container">
+			<span class="eyebrow">Highlights</span>
+			<h2>What's inside</h2>
+			<p class="lead">Everything Psych Engine has, plus V-Slice mods, multiplayer, and a lot of new options and tools for players and modders.</p>
+			<div class="grid three" style="margin-top:28px">
+				<div class="card"><span class="emoji">🧩</span><h3>V-Slice mod support</h3><p>Play mods made for the official game (Polymod, <code>.hxc</code> scripts) next to your Psych mods, with no porting.</p></div>
+				<div class="card"><span class="emoji">🌐</span><h3>Online multiplayer</h3><p>Play a song against a friend by IP. The port opens by itself, there's a chat, and a missing mod can be sent to the other player.</p></div>
+				<div class="card"><span class="emoji">🎤</span><h3>V-Slice menus for everyone</h3><p>Freeplay with the DJ, Character Select, the Results screen and the sticker transition, for Psych songs too.</p></div>
+				<div class="card"><span class="emoji">🎹</span><h3>Extra keys</h3><p>Songs with 1 to 9 arrows per side, for mods like Shaggy's 6 and 9 key songs, with their own keys.</p></div>
+				<div class="card"><span class="emoji">👥</span><h3>Extra characters</h3><p>More singers in a song (a duet, a third character...), set up in the chart editor with no script.</p></div>
+				<div class="card"><span class="emoji">🧊</span><h3>3D</h3><p>Sprites, receptors and notes turned in 3D, whole cameras tilted in perspective, and <code>.obj</code> models.</p></div>
+				<div class="card"><span class="emoji">🎓</span><h3>Tutorials</h3><p>A Tutorial button on the menus and editors: Boyfriend zooms into each part of the screen and explains it.</p></div>
+				<div class="card"><span class="emoji">🛠️</span><h3>Better editors</h3><p>Box selection in the chart editor, mouse tools and undo in the others, and a Character Select / Results editor.</p></div>
+				<div class="card"><span class="emoji">📜</span><h3>More scripting</h3><p>New Lua functions, callbacks and properties, state scripts for the menus, and a check for mods made for other engines.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ V-Slice -->
+	<section class="block" id="vslice">
+		<div class="container">
+			<div class="split">
+				<div>
+					<span class="eyebrow">V-Slice (Polymod) mods</span>
+					<h2>Mods for the official game, as they are</h2>
+					<p class="lead">Put a V-Slice mod in the <code>mods</code> folder and it shows up in the game like any other mod.</p>
+					<ul class="feature-list">
+						<li><strong>Scripts:</strong> <code>.hxc</code> song, stage, character, module, dialogue, Freeplay and results scripts run through Vortex's own interpreter.</li>
+						<li><strong>Content:</strong> V-Slice charts (every difficulty and variation), stages, characters (Sparrow, Packer, multi-sparrow and Adobe Animate atlases), song events, note kinds and dialogue.</li>
+						<li><strong>Utility mods:</strong> a mod with scripts and no songs (a pause menu, a HUD, a camera module) runs on the songs of every mod.</li>
+						<li><strong>Playable characters</strong> appear in Character Select with their own Freeplay DJ and results animations.</li>
+						<li><strong>Base game content built in:</strong> the V-Slice weeks, stages and characters come with the engine.</li>
+						<li>Made for mods targeting the V-Slice 0.8.x API (0.8.0 up to 0.8.6).</li>
+					</ul>
+				</div>
+				<figure class="shot"><img src="img/vortex/freeplay.jpg" alt="The V-Slice Freeplay menu in Vortex Engine" width="960" height="540" loading="lazy"><figcaption>The V-Slice Freeplay, for Psych mods too.</figcaption></figure>
+			</div>
+			<div class="shots-row">
+				<figure class="shot"><img src="img/vortex/mod_mcm.jpg" alt="A V-Slice mod running in Vortex Engine" width="960" height="540" loading="lazy"></figure>
+				<figure class="shot"><img src="img/vortex/mod_exe.jpg" alt="A V-Slice mod running in Vortex Engine" width="960" height="540" loading="lazy"></figure>
+				<figure class="shot"><img src="img/vortex/mod_digital.jpg" alt="A V-Slice mod running in Vortex Engine" width="960" height="540" loading="lazy"></figure>
+			</div>
+			<p style="font-size:0.85rem;color:var(--text-faint);margin-top:10px">Community V-Slice mods running as they are. The mods belong to their creators.</p>
+		</div>
+	</section>
+
+	<!-- ============================================================ menus -->
+	<section class="block" id="menus">
+		<div class="container">
+			<div class="split reverse">
+				<div>
+					<span class="eyebrow">V-Slice menus, for every mod</span>
+					<h2>The new Funkin' menus, as options</h2>
+					<ul class="feature-list">
+						<li><strong>Freeplay style:</strong> the classic Psych Freeplay or the V-Slice one, with the DJ, capsules, the "NEW" badge, favorites and sorting.</li>
+						<li><strong>Character Select:</strong> switch characters (<kbd>TAB</kbd> in Freeplay) like in the official game.</li>
+						<li><strong>Results screen:</strong> the ratings tally and the rank animations after each song.</li>
+						<li><strong>Sticker transition</strong> between Freeplay and the songs.</li>
+					</ul>
+				</div>
+				<figure class="shot"><img src="img/vortex/results.jpg" alt="The results screen" width="960" height="540" loading="lazy"><figcaption>The Results screen after a song.</figcaption></figure>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ online -->
+	<section class="block" id="online">
+		<div class="container">
+			<div class="split">
+				<div>
+					<span class="eyebrow">Online multiplayer</span>
+					<h2>Play a song against a friend</h2>
+					<ul class="feature-list">
+						<li><strong>Host or join by IP</strong> (port <code>8888</code>). <kbd>CTRL</kbd>+<kbd>V</kbd> pastes the IP.</li>
+						<li><strong>No Radmin or Hamachi needed</strong> when the router allows it: hosting opens the port by itself (UPnP) and shows the IP to send. If it can't, the screen says why, and a VPN still works.</li>
+						<li><strong>Chat:</strong> <kbd>T</kbd> opens it in the lobby, during the song and on the results.</li>
+						<li><strong>The other player's preferences</strong> (<kbd>P</kbd> in the lobby), and their notes seen the way they see them.</li>
+						<li><strong>Sending a mod:</strong> a song from a mod the other player doesn't have can be sent to them and installed, after they accept.</li>
+						<li><strong>Match setup:</strong> win by Score, Misses or Accuracy, with live stats and a results screen for both players.</li>
+					</ul>
+				</div>
+				<figure class="shot"><img src="img/vortex/online.jpg" alt="The online lobby" width="960" height="540" loading="lazy"><figcaption>The online lobby.</figcaption></figure>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ gameplay -->
+	<section class="block" id="gameplay">
+		<div class="container">
+			<span class="eyebrow">Gameplay</span>
+			<h2>New gameplay changers and options</h2>
+			<figure class="shot" style="margin:22px 0 28px"><img src="img/vortex/gameplay.jpg" alt="A song with Lane Underlay, the Break Timer and the Song Credits Card" width="960" height="540" loading="lazy"><figcaption>Lane Underlay, the Break Timer ("10s") and the Song Credits Card.</figcaption></figure>
+			<div class="grid two">
+				<div>
+					<h3>Gameplay changers</h3>
+					<ul class="feature-list">
+						<li><strong>Play as Opponent:</strong> play the opponent's notes while the computer plays Boyfriend's.</li>
+						<li><strong>Health Drain:</strong> every note the opponent hits takes a little health (it never kills).</li>
+						<li><strong>Speed Up on Miss:</strong> every miss makes the song 5% faster, up to 2x.</li>
+						<li><strong>Ghost Notes:</strong> two notes of the same character close together leave an afterimage.</li>
+						<li><strong>Only Sick:</strong> anything worse than a Sick counts as a miss.</li>
+						<li><strong>Random Chart</strong>, <strong>Random Scroll Invert</strong>, <strong>Fade In / Fade Out</strong> and <strong>Random Note Speed</strong>.</li>
+					</ul>
+				</div>
+				<div>
+					<h3>Options</h3>
+					<ul class="feature-list">
+						<li><strong>Break Timer:</strong> a countdown when there are 3 seconds or more without notes.</li>
+						<li><strong>Click Between Frames</strong> (Windows): each key press counts from the moment it was made, like the Geometry Dash mod.</li>
+						<li><strong>Keystrokes:</strong> the keys you press on the screen, WASD or DFJK style, with keys per second.</li>
+						<li><strong>Lane Underlay</strong>, <strong>Hold Note Covers</strong>, <strong>Sustain Wiggle</strong>, <strong>Icon Bop</strong>, <strong>Smooth Health Bar</strong>.</li>
+						<li><strong>Supersampling</strong> for smoother edges, <strong>Window Mode</strong> and <strong>Sharpness</strong>.</li>
+						<li><strong>Mods tab:</strong> the settings that Psych and V-Slice mods add, in the options menu.</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ extra keys -->
+	<section class="block" id="extra-keys">
+		<div class="container">
+			<span class="eyebrow">Extra keys</span>
+			<h2>1 to 9 arrows per side</h2>
+			<p class="lead">A chart with <code>"keyCount": 6</code> (or Psych Engine Extra Keys' <code>"mania"</code>) plays with 6 arrows. The chart editor's "Arrows per side" changes it, and Options → More → Extra Keys sets the keys of each arrow.</p>
+			<div class="table-wrap" style="margin-top:22px">
+				<table>
+					<thead><tr><th>Arrows</th><th>Columns</th><th>Default keys</th></tr></thead>
+					<tbody>
+						<tr><td>1</td><td>middle</td><td>Space</td></tr>
+						<tr><td>2</td><td>← →</td><td>F J</td></tr>
+						<tr><td>3</td><td>← middle →</td><td>F Space J</td></tr>
+						<tr><td>5</td><td>← ↓ middle ↑ →</td><td>D F Space J K</td></tr>
+						<tr><td>6</td><td>← ↑ → ← ↓ →</td><td>S D F J K L</td></tr>
+						<tr><td>7</td><td>← ↑ → middle ← ↓ →</td><td>S D F Space J K L</td></tr>
+						<tr><td>8</td><td>← ↓ ↑ → ← ↓ ↑ →</td><td>A S D F H J K L</td></tr>
+						<tr><td>9</td><td>← ↓ ↑ → middle ← ↓ ↑ →</td><td>A S D F Space H J K L</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ editors and tutorials -->
+	<section class="block" id="editors">
+		<div class="container">
+			<span class="eyebrow">Editors and tutorials</span>
+			<h2>Better tools, and a guide on every screen</h2>
+			<div class="grid two" style="margin-top:22px">
+				<figure class="shot"><img src="img/vortex/chart_select.jpg" alt="The chart editor" width="960" height="540" loading="lazy"><figcaption>The chart editor, with a music player bar and box selection.</figcaption></figure>
+				<figure class="shot"><img src="img/vortex/charselect_editor.jpg" alt="The Character Select and Results editor" width="960" height="540" loading="lazy"><figcaption>The Character Select and Results editor.</figcaption></figure>
+			</div>
+			<div class="grid three" style="margin-top:22px">
+				<div class="card"><h3>Chart Editor</h3><p>A music player bar, box selection, cut / copy / paste and undo, extra characters' fields, and new chart events with no script needed.</p></div>
+				<div class="card"><h3>Stage, Character and more</h3><p>Move things with the mouse, with undo, in the Stage, Character, Dialogue Portrait and Menu Character editors.</p></div>
+				<div class="card"><h3>Tutorials</h3><p>The <strong>Tutorial</strong> button (or <kbd>F6</kbd>): Boyfriend explains each part of the screen. Mods can add their own with a JSON file.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ scripting -->
+	<section class="block" id="scripting">
+		<div class="container">
+			<div class="split">
+				<div>
+					<span class="eyebrow">Scripting</span>
+					<h2>Psych's Lua and HScript, and more</h2>
+					<p class="lead">Every Psych Engine Lua and HScript script works, and so do V-Slice's <code>.hxc</code> scripts. On top of them:</p>
+					<ul class="feature-list">
+						<li><strong>Cameras of your own</strong> and <strong>shaders on whole cameras</strong>.</li>
+						<li><strong>3D:</strong> <code>angleX</code>, <code>angleY</code> and <code>z</code> on sprites and notes, tilted cameras and <code>.obj</code> models.</li>
+						<li><strong>Notes and extra characters</strong> added during the song.</li>
+						<li><strong>The game's window:</strong> title, position, size and message boxes.</li>
+						<li><strong>State scripts:</strong> change the menus and make your own loading screen.</li>
+					</ul>
+					<div class="buttons" style="justify-content:flex-start;margin-top:22px">
+						<a class="button primary" href="lua.html">Vortex Lua API</a>
+						<a class="button" href="modding.html">Modding guide</a>
+					</div>
+				</div>
+<pre><code class="language-lua">function onCreatePost()
+    if VortexEngine then
+        -- a camera of the script's own, over the HUD
+        makeLuaCamera('fx', 'hud')
+        addCameraShader('fx', 'chromatic', 'chroma')
+
+        -- a spinning 3D model on the stage
+        makeLuaModel('ring', 'ring', 'ringTexture', 640, 300)
+        addLuaSprite('ring', false)
+    end
+end
+
+function onBeatHit()
+    if curBeat == 64 then
+        -- the HUD leans back like a 3D modchart
+        tweenCamera3D('lean', 'hud', 30, 0, 0, 1, 'quadOut')
+    end
+end</code></pre>
+			</div>
+			<div class="callout" style="margin-top:28px">
+				<strong>Mods made with Vortex Engine are not recommended for other engines.</strong>
+				A mod that uses what only Vortex has (the functions on the Lua API page, the extra blend modes, the gameplay changers, extra characters...)
+				will break or behave differently on Psych Engine, V-Slice or other forks. Check for Vortex with the <code>VortexEngine</code> variable before using them,
+				and use the <strong>CHECK MOD</strong> button in the mods menu: it lists everything a mod uses that only Vortex has, with the file and line.
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ community -->
+	<section class="block" id="community">
+		<div class="container" style="text-align:center">
+			<span class="eyebrow">Community</span>
+			<h2>Questions, bugs, mods, or someone to play online with</h2>
+			<p class="lead" style="margin:0 auto 24px">Join the Vortex Engine Discord server.</p>
+			<div class="buttons">
+				<a class="button discord" href="https://discord.gg/QKjMSpeHW">Join the Discord</a>
+				<a class="button" href="https://github.com/VeritonR/Vortex-Engine">Source on GitHub</a>
+				<a class="button" href="https://github.com/VeritonR/Vortex-Engine/blob/main/docs/BUILDING.md">Build instructions</a>
+			</div>
+		</div>
+	</section>
+
+</main>
+
+<footer class="site-footer">
+	<div class="container footer-inner">
+		<div>
+			<strong style="color:var(--text)">Vortex Engine</strong> by VeritonR · Psych Engine by ShadowMario · Friday Night Funkin' by ninjamuffin99 and The Funkin' Crew<br>
+			Psych Engine's Lua API: <a href="https://shadowmario.github.io/psychengine.lua/">shadowmario.github.io/psychengine.lua</a>
+		</div>
+		<div class="footer-links">
+			<a href="lua.html">Lua API</a>
+			<a href="modding.html">Modding</a>
+			<a href="https://github.com/VeritonR/Vortex-Engine">GitHub</a>
+			<a href="https://discord.gg/QKjMSpeHW">Discord</a>
+		</div>
+	</div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

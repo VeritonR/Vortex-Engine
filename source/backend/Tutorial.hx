@@ -122,6 +122,34 @@ class Tutorial extends Sprite
 
 	// Boyfriend
 	static var atlas:FlxAtlasFrames;
+
+	// Boyfriend's picture, a copy of its own: the game's copy is freed on screen changes (Paths.clearStoredMemory), and drawing a
+	// freed picture is nothing at best and a crash in lime at worst. Not in flixel's cache, so nothing frees it.
+	static function loadMascot():FlxAtlasFrames
+	{
+		try
+		{
+			var png:String = Paths.getSharedPath('images/characters/BOYFRIEND.png');
+			var xml:String = Paths.getSharedPath('images/characters/BOYFRIEND.xml');
+			#if sys
+			var bitmap:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(png);
+			var text:String = sys.io.File.getContent(xml);
+			#else
+			var bitmap:openfl.display.BitmapData = openfl.utils.Assets.getBitmapData(png, false);
+			var text:String = openfl.utils.Assets.getText(xml);
+			#end
+			if(bitmap == null || text == null) return null;
+			var graphic:flixel.graphics.FlxGraphic = flixel.graphics.FlxGraphic.fromBitmapData(bitmap, false, null, false);
+			graphic.persist = true;
+			graphic.destroyOnNoUse = false;
+			return FlxAtlasFrames.fromSparrow(graphic, text);
+		}
+		catch(e:Dynamic)
+		{
+			trace('Tutorial: Boyfriend could not be loaded ($e)');
+		}
+		return null;
+	}
 	var animFrames:Array<FlxFrame> = [];
 	var animOffset:Array<Float> = [0, 0];
 	var animFrame:Float = 0;
@@ -404,7 +432,7 @@ class Tutorial extends Sprite
 		FlxG.mouse.useSystemCursor = true; //(the game's own cursor would be zoomed in with it)
 		FlxG.mouse.visible = true;
 
-		if(atlas == null) atlas = Paths.getSparrowAtlas('characters/BOYFRIEND');
+		if(atlas == null) atlas = loadMascot();
 		zoom = fromZoom = toZoom = 1;
 		moveX = moveY = fromX = fromY = toX = toY = 0;
 
@@ -721,6 +749,7 @@ class Tutorial extends Sprite
 
 	function drawFrame(frame:FlxFrame):Void
 	{
+		if(frame == null || frame.parent == null || frame.parent.bitmap == null) return;
 		if(frame == drawnFrame && drawnFlip == mascotRight) return;
 		drawnFrame = frame;
 		drawnFlip = mascotRight;

@@ -168,7 +168,13 @@ class Main extends Sprite
 		Controls.instance = new Controls();
 		ClientPrefs.loadDefaultKeys();
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
-		addChild(new FlxGame(game.width, game.height, game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
+		var flxGame:FlxGame = new FlxGame(game.width, game.height, game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen);
+		addChild(flxGame);
+		// OpenFL tests what the mouse is over on every move, down to what each camera drew (all of a song's sprites, rasterized
+		// to check): up to a second each time on a busy song. Flixel reads the mouse from the stage, not from these, and the
+		// engine's own clickable things (tutorial, chat, screenshots) are on the stage too
+		flxGame.mouseEnabled = false;
+		flxGame.mouseChildren = false;
 		// (V-Slice's mods change the size of the game for a song. Set once there's a state, which setting it tells about the size:
 		// flixel may have made the first one already, while the game was being added)
 		if(FlxG.state != null) FlxG.scaleMode = new backend.GameScaleMode();

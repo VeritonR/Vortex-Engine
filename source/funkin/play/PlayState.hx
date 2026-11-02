@@ -205,10 +205,19 @@ class PlayState
 	function get_iconP2():HealthIcon return game.iconP2;
 
 	public var healthBar(get, never):Dynamic;
-	function get_healthBar():Dynamic return game.healthBar;
+	function get_healthBar():Dynamic
+	{
+		if(game.healthBar != null) game.healthBar.separateBg(); //(two sprites on V-Slice, see `objects.Bar.separateBg()`)
+		return game.healthBar;
+	}
 
 	public var healthBarBG(get, never):FlxSprite;
-	function get_healthBarBG():FlxSprite return (game.healthBar != null) ? game.healthBar.bg : null;
+	function get_healthBarBG():FlxSprite
+	{
+		if(game.healthBar == null) return null;
+		game.healthBar.separateBg();
+		return game.healthBar.bg;
+	}
 
 	public var scoreText(get, never):FlxText;
 	function get_scoreText():FlxText return game.scoreTxt;

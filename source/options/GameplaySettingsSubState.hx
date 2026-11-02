@@ -32,6 +32,14 @@ class GameplaySettingsSubState extends BaseOptionsMenu
 			BOOL);
 		addOption(option);
 
+		#if windows
+		var option:Option = new Option('Click Between Frames',
+			"If checked, each key press counts from the moment it was made,\nnot from the start of the next frame (like Geometry Dash's mod).\nMore precise hits, mostly at low framerates.",
+			'clickBetweenFrames',
+			BOOL);
+		addOption(option);
+		#end
+
 		var option:Option = new Option('Auto Pause',
 			"If checked, the game automatically pauses if the screen isn't on focus.",
 			'autoPause',

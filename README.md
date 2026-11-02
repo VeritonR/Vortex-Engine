@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://veritonr.github.io/Vortex-Engine/"><img src="https://img.shields.io/badge/Website-Docs%20%26%20Lua%20API-FF2EB0?style=for-the-badge" alt="Vortex Engine website"></a>
   <a href="https://discord.gg/QKjMSpeHW"><img src="https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the Vortex Engine Discord server"></a>
 </p>
 
@@ -113,6 +114,7 @@ Each of these is an option, and Psych mods get them too.
 
 **New options**
 * **Break Timer:** a countdown when there are 3 seconds or more without notes.
+* **Click Between Frames** (Windows): like the Geometry Dash mod, each key press counts from the moment it was made, not from the start of the next frame, for more precise hits (mostly at low framerates).
 * **Lane Underlay:** dark lanes under your notes, with adjustable opacity.
 * **Hold Note Covers:** the sparks on the receptors while you hold a long note.
 * **Sustain Wiggle**, **Icon Bop**, **Smooth Health Bar** and **Sustains as One Note**.
@@ -120,6 +122,7 @@ Each of these is an option, and Psych mods get them too.
 * **Song Credits Card:** the song's name, composer and charter slide in when the song starts.
 * **Animated health icons** (an `.xml` next to the icon) and **winning icons** (3 frames).
 * **Window Mode** (windowed or fullscreen) and **Sharpness**.
+* **Keystrokes:** the keys you press, shown during songs and lit while held, with keys per second. **WASD** lays them out like W A S D,**DFJK** in a row (songs that don't have 4 arrows always use the row). They and the Break Timer are on a camera of their own over every other one, so songs that hide or move the HUD don't take them away.
 * **Supersampling:** the game is drawn bigger than the window and shrunk to it, for smoother edges (like DSR on NVIDIA cards).
 * **The options menu** is one panel with tabs (Gameplay, Graphics, Visuals, V-Slice, Vortex Engine, Mods and More), usable with the keyboard or the mouse. The note and splash settings show the arrows, with the splashes playing.
 * **Mods tab:** the settings mods add, each mod under its name. V-Slice mods add theirs the way they do on V-Slice (`createPrefItemCheckbox`, `createPrefItemEnum`, `createPrefItemNumber` and `createPrefItemPercentage` on the options menu's pages, from a module's `onStateChangeEnd`), and Psych mods with their `data/settings.json`.
@@ -225,11 +228,13 @@ Everything Psych Engine's Lua and HScript can do still works, and so do V-Slice'
 * **State scripts:** a `states` folder with one `.hx` per screen (`MainMenuState.hx`, `LoadingState.hx`, ... and `Global.hx` for all of them) to change the menus and make your own loading screen. See the full guide below.
 * `VortexEngine`, `playAsOpponent`, `onlinePlay` and `onlineHost` variables.
 * Functions such as `setLaneUnderlay`, `setScoreCamera`, `setHiddenNotes`, `getTallies` and `startConversation` (V-Slice dialogue in Psych songs).
+* Lua cameras of your own (`makeLuaCamera`), shaders on whole cameras (`addCameraShader`, `tweenShaderFloat`), the game's window (`setWindowTitle`, `setWindowPosition`, `setWindowSize`, `windowAlert`...), notes added during the song (`spawnNote`), extra characters added or taken out during the song (`addExtraCharacter`, `removeExtraCharacter`) and the clipboard.
+* **3D:** Lua sprites, receptors and notes turned with `angleX`, `angleY` and `z`; whole cameras turned with `setCamera3D` / `tweenCamera3D` (tilt the HUD like a 3D modchart); and `.obj` models with a texture and lighting (`makeLuaModel`). See section 13 of [`scripts.txt`](scripts.txt).
 * Callbacks such as `onBreakStart` and `onBreakEnd`.
 * Overlay, hardlight, difference and invert blend modes that really work on Lua sprites.
 * Camera rotation without empty corners: no `zCameraFix` scripts needed.
 
-The full list, with examples, is in [`scripts.txt`](scripts.txt).
+The full list, with examples, is in [`scripts.txt`](scripts.txt) and on the [website's Lua API page](https://veritonr.github.io/Vortex-Engine/lua.html). Everything on [Psych Engine's Lua Script API page](https://shadowmario.github.io/psychengine.lua/) works in Vortex too.
 
 ### 🖼️ State scripts: change the menus and the loading screen
 

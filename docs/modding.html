@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Modding Guide · Vortex Engine</title>
+	<meta name="description" content="Making mods with Vortex Engine: V-Slice mods, extra characters, extra keys, chart events, tutorials, state scripts and more.">
+	<meta name="theme-color" content="#120a1c">
+	<link rel="icon" href="img/vortex/logo.png">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+	<div class="header-inner">
+		<a class="brand" href="index.html"><span class="brand-mark"></span><span>Vortex <em>Engine</em></span></a>
+		<button class="menu-toggle" type="button" aria-expanded="false" aria-label="Menu">Menu</button>
+		<nav class="nav">
+			<a href="index.html">Home</a>
+			<a href="lua.html">Lua API</a>
+			<a href="modding.html" class="active">Modding</a>
+			<a href="https://github.com/VeritonR/Vortex-Engine">GitHub</a>
+			<a href="https://discord.gg/QKjMSpeHW">Discord</a>
+			<a class="nav-cta" href="https://github.com/VeritonR/Vortex-Engine/releases">Download</a>
+		</nav>
+	</div>
+</header>
+
+<div class="docs">
+
+	<aside class="sidebar">
+		<button class="sidebar-toggle" type="button">☰ Sections</button>
+		<div class="sidebar-links">
+			<h4>Mods</h4>
+			<a href="#psych-mods">Psych mods</a>
+			<a href="#vslice-mods">V-Slice mods</a>
+			<a href="#mod-settings">Mod settings</a>
+			<h4>Charts</h4>
+			<a href="#extra-characters">Extra characters</a>
+			<a href="#extra-keys">Extra keys</a>
+			<a href="#events">Chart events</a>
+			<h4>Screens</h4>
+			<a href="#tutorials">Tutorials</a>
+			<a href="#state-scripts">State scripts</a>
+			<h4>Assets</h4>
+			<a href="#icons">Health icons</a>
+			<a href="#cursor">Mouse cursor</a>
+			<h4>Sharing</h4>
+			<a href="#check-mod">CHECK MOD</a>
+			<a href="#clean-build">A build without base songs</a>
+		</div>
+	</aside>
+
+	<div class="docs-content">
+		<header>
+			<span class="eyebrow">Modding</span>
+			<h1>Modding guide</h1>
+			<p class="lead">How mods work in Vortex Engine, and the things it adds that need no script: extra characters, extra keys, new chart events, tutorials and more.
+			For scripts, see the <a href="lua.html">Lua API</a>.</p>
+		</header>
+
+		<!-- ======================================================== Psych mods -->
+		<section class="docs-section" id="psych-mods">
+			<h2>Psych mods</h2>
+			<p>Vortex Engine is a Psych Engine 1.0.4 fork: Psych mods go in the <code>mods</code> folder and work as they are, Lua and HScript included.
+			Everything on the <a href="https://shadowmario.github.io/psychengine.lua/">Psych Engine Lua Script API page</a> works here.</p>
+			<p>They also get the V-Slice menus with no work: the V-Slice Freeplay (with the DJ), Character Select, the Results screen and the sticker transition are options of the player and work for Psych songs too.</p>
+		</section>
+
+		<!-- ======================================================== V-Slice mods -->
+		<section class="docs-section" id="vslice-mods">
+			<h2>V-Slice mods</h2>
+			<p>Mods made for the official game (Polymod, V-Slice 0.8.x) go in the same <code>mods</code> folder and show up like any other mod, with no porting.</p>
+			<ul class="feature-list">
+				<li><strong>Scripts:</strong> <code>.hxc</code> song, stage, character, module, dialogue, Freeplay and results scripts.</li>
+				<li><strong>Content:</strong> charts (<code>-chart.json</code> / <code>-metadata.json</code>, every difficulty and variation), stages, characters (Sparrow, Packer, multi-sparrow and Adobe Animate atlases), song events, note kinds and dialogue conversations.</li>
+				<li><strong>Utility mods:</strong> a mod with scripts and no songs of its own (a pause menu, a HUD, a camera module) runs on the V-Slice songs of every mod.</li>
+				<li><strong>Playable characters</strong> appear in Character Select and bring their own Freeplay DJ and results animations.</li>
+				<li><strong>Base game content:</strong> the V-Slice weeks, stages and characters come with the engine, so mods that depend on them work without the official game.</li>
+			</ul>
+			<p>V-Slice content stays in V-Slice format: what Vortex's editors save for a V-Slice mod works in the official game too.</p>
+		</section>
+
+		<!-- ======================================================== mod settings -->
+		<section class="docs-section" id="mod-settings">
+			<h2>Mod settings</h2>
+			<p>The options menu has a <strong>Mods</strong> tab with the settings each mod adds, under the mod's name.</p>
+			<ul class="feature-list">
+				<li><strong>Psych mods:</strong> <code>data/settings.json</code>, as in Psych Engine (read in Lua with <code>getModSetting</code>).</li>
+				<li><strong>V-Slice mods:</strong> the way they do on V-Slice: <code>createPrefItemCheckbox</code>, <code>createPrefItemEnum</code>, <code>createPrefItemNumber</code> and <code>createPrefItemPercentage</code> on the options menu's pages, from a module's <code>onStateChangeEnd</code>.</li>
+			</ul>
+		</section>
+
+		<!-- ======================================================== extra characters -->
+		<section class="docs-section" id="extra-characters">
+			<h2>Extra characters</h2>
+			<p>More characters singing in a song (a duet, a third character...), with no script. In the chart editor, the <strong>Extras</strong> tab adds them:</p>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Field</th><th>What it is</th></tr></thead>
+					<tbody>
+						<tr><td>Tag</td><td>The name notes and scripts know it by (<code>"pico2"</code>).</td></tr>
+						<tr><td>Side</td><td>Opponent, Player or Girlfriend: whose notes it can sing, and whose spot it stands next to.</td></tr>
+						<tr><td>Character</td><td>The character file.</td></tr>
+						<tr><td>X / Y</td><td>Where it stands, from the spot of the main character of its side.</td></tr>
+						<tr><td>Sings every note / Behind</td><td>A duet with the main character / stands behind it.</td></tr>
+					</tbody>
+				</table>
+			</div>
+			<p>Each extra character gets a field of its own on the grid (up to 4): a note put on it is a note of its side that only it sings. The Note tab's <strong>Sung by</strong> also picks who sings each note:
+			the main character, an extra one, or everyone on that side. They dance, sing, hold long notes and miss like the main ones, also online and with Play as Opponent.</p>
+			<p>In the chart (Psych format), a <code>vortexCharacters</code> list, and the 5th value of a note says who sings it:</p>
+<pre><code class="language-json">"vortexCharacters": [
+    {"tag": "pico2", "character": "pico", "side": "opponent", "x": -250, "y": 0,
+     "singsAll": false, "behind": true}
+]
+
+[1200, 5, 0, "", "pico2"]   // "main", "all", a tag, or tags: "main,pico2"</code></pre>
+			<p>Scripts get them by their tag, and can add more during the song: see <a href="lua.html#extra-characters">extra characters in the Lua API</a>.</p>
+		</section>
+
+		<!-- ======================================================== extra keys -->
+		<section class="docs-section" id="extra-keys">
+			<h2>Extra keys</h2>
+			<p>Songs with 1 to 9 arrows per side, for mods like Shaggy's 6 and 9 key songs.</p>
+			<ul class="feature-list">
+				<li><strong>In the chart:</strong> <code>"keyCount": 6</code>. Psych Engine Extra Keys' <code>"mania"</code> works too (its number plus one). The notes are <code>0</code> to <code>keyCount - 1</code> on one side and <code>keyCount</code> to <code>keyCount * 2 - 1</code> on the other.</li>
+				<li><strong>In the chart editor:</strong> "Arrows per side" in the Song tab. Changing it keeps each note on its side and in its column.</li>
+				<li><strong>The arrows:</strong> each column uses one of the 4 arrows or the middle one (the "space" key), with the color of its direction. They get smaller the more there are.</li>
+				<li><strong>Keys:</strong> Options → More → Extra Keys. Characters sing the animation of the arrow's direction (the middle one sings up).</li>
+			</ul>
+		</section>
+
+		<!-- ======================================================== events -->
+		<section class="docs-section" id="events">
+			<h2>Chart events</h2>
+			<p>On the chart editor's event list, with no script needed. Values with more than one part are separated by commas (<code>FF0000, 1.5</code>); eases are the ones of Lua's tweens (<code>quadOut</code>, <code>sineInOut</code>...). A mod with its own event of the same name keeps its own, and scripts still get them in <code>onEvent</code>.</p>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Event</th><th>Value 1</th><th>Value 2</th></tr></thead>
+					<tbody>
+						<tr><td><strong>Flash Camera</strong></td><td>color, duration (<code>FFFFFF, 1</code>)</td><td>camera: game, hud or other</td></tr>
+						<tr><td><strong>Fade Screen</strong></td><td>color, alpha 0-1 (<code>000000, 1</code>)</td><td>duration, ease (<code>1, linear</code>)</td></tr>
+						<tr><td><strong>Set Camera Zoom</strong></td><td>zoom (blank: the stage's)</td><td>duration, ease (blank: at once)</td></tr>
+						<tr><td><strong>Fade HUD</strong></td><td>alpha 0-1</td><td>duration, ease (<code>0.5, linear</code>)</td></tr>
+						<tr><td><strong>Cinematic Bars</strong></td><td>size in pixels (0 takes them away)</td><td>duration, ease</td></tr>
+						<tr><td><strong>Lyrics</strong></td><td>text (blank clears it, <code>\n</code> = new line)</td><td>color</td></tr>
+						<tr><td><strong>Camera Target</strong></td><td>dad, bf, gf or an extra character's tag</td><td>(blank: follows the sections)</td></tr>
+						<tr><td><strong>Camera Bop</strong></td><td>beats between bops</td><td>how strong (1)</td></tr>
+						<tr><td><strong>Character Trail</strong></td><td>dad, bf, gf or an extra character's tag</td><td>color (blank removes it)</td></tr>
+						<tr><td><strong>Notes Fade</strong></td><td>player, opponent or both</td><td>alpha, duration, ease</td></tr>
+						<tr><td><strong>Camera Angle</strong></td><td>game, hud or other</td><td>angle, duration, ease</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<!-- ======================================================== tutorials -->
+		<section class="docs-section" id="tutorials">
+			<h2>Tutorials</h2>
+			<p>The menus and editors show a <strong>Tutorial</strong> button (<kbd>F6</kbd> also opens it): Boyfriend zooms into each part of the screen and explains it.
+			A mod adds its own with <code>data/tutorials/&lt;ScreenName&gt;.json</code>, named after the screen's class (<code>MainMenuState</code>, <code>ChartingState</code>, a custom state...). A mod's tutorial replaces the game's one for that screen.</p>
+<pre><code class="language-json">{
+    "button": "top-right",
+    "steps": [
+        {"text": "Hi! This step has no target: the whole screen is shown."},
+        {"text": "This is the song list.", "target": "grpSongs", "zoom": 1.5},
+        {"text": "The Note tab.", "target": "mainBox", "set": {"mainBox.selectedName": "Note"}},
+        {"text": "A spot of the screen.", "rect": [100, 100, 300, 200], "pose": "up"}
+    ]
+}</code></pre>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Field</th><th>What it does</th></tr></thead>
+					<tbody>
+						<tr><td><code>target</code></td><td>The name of something on the screen (a variable of the state), or several in a list. Dots go inside it: <code>"menuItems.members.2"</code>.</td></tr>
+						<tr><td><code>rect</code></td><td>A place on the screen instead: <code>[x, y, width, height]</code> (the screen is 1280x720). <code>area</code> picks a part of the target the same way.</td></tr>
+						<tr><td><code>zoom</code></td><td>How close it goes (2 by default).</td></tr>
+						<tr><td><code>set</code></td><td>Values changed while the step is shown (a tab, a menu...). Everything goes back when the tutorial ends.</td></tr>
+						<tr><td><code>pose</code></td><td>What Boyfriend does: <code>hey</code>, <code>left</code>, <code>down</code>, <code>up</code>, <code>right</code> or <code>idle</code>.</td></tr>
+						<tr><td><code>button</code></td><td>Where the button goes: <code>top-left</code>, <code>top-center</code>, <code>top-right</code>, <code>bottom-left</code>, <code>bottom-center</code>, <code>bottom-right</code>, or <code>[x, y]</code>.</td></tr>
+						<tr><td><code>key</code></td><td>Translations: with <code>"key": "mymod_menu"</code>, the language files' <code>mymod_menu_1</code>, <code>mymod_menu_2</code>... replace the steps' texts.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<!-- ======================================================== state scripts -->
+		<section class="docs-section" id="state-scripts">
+			<h2>State scripts</h2>
+			<p>HScript files in a <code>states</code> folder of the mod, named after the screen they're for, run on that screen: change the menus and make your own loading screen.</p>
+<pre><code class="language-text">mods/My Mod/states/
+├─ Global.hx           ← every screen
+├─ MainMenuState.hx    ← the main menu
+├─ FreeplayState.hx    ← Freeplay
+└─ LoadingState.hx     ← the loading screen before a song</code></pre>
+<pre><code class="language-haxe">// mods/My Mod/states/MainMenuState.hx
+function onCreatePost() {
+    var hello = new FlxText(20, FlxG.height - 70, 0, 'Hello from my mod!', 28);
+    add(hello);
+}</code></pre>
+			<ul class="feature-list">
+				<li><strong>Callbacks:</strong> <code>onCreate</code>, <code>onCreatePost</code>, <code>onUpdate</code>, <code>onUpdatePost</code>, <code>onStepHit</code>, <code>onBeatHit</code>, <code>onOpenSubState</code>, <code>onCloseSubState</code>, <code>onDestroy</code>.</li>
+				<li>The screen's own things are reached by their names (<code>optionsGear.visible = false;</code>), and <code>add()</code> / <code>insert()</code> / <code>remove()</code> work on it.</li>
+				<li><strong>Loading screens:</strong> <code>onLoadingProgress(loaded, total, percent)</code>, and <code>onFinishedLoading()</code> returning <code>Function_Stop</code> keeps the screen on until <code>finishLoading()</code>.</li>
+				<li><code>switchState('CreditsState')</code>, <code>debugPrint()</code>, <code>parseJson()</code> and <code>sharedData</code> (kept from one screen to the next).</li>
+			</ul>
+			<p>The full guide, with every screen name, callback and function: <a href="https://github.com/VeritonR/Vortex-Engine/blob/main/docs/STATE_SCRIPTS.md">STATE_SCRIPTS.md</a> · Template: <a href="https://github.com/VeritonR/Vortex-Engine/blob/main/docs/scripts/StateTemplate.hx">StateTemplate.hx</a></p>
+		</section>
+
+		<!-- ======================================================== icons -->
+		<section class="docs-section" id="icons">
+			<h2>Health icons</h2>
+			<ul class="feature-list">
+				<li><strong>Animated icons:</strong> an <code>.xml</code> next to the icon's <code>.png</code> (<code>images/icons/NAME.png</code> + <code>NAME.xml</code>) with the animations <code>normal</code>, <code>losing</code> and <code>winning</code> (by prefix, 24 fps, looped).</li>
+				<li><strong>Winning icons:</strong> an icon image with 3 frames side by side (normal, losing, winning) instead of 2.</li>
+			</ul>
+		</section>
+
+		<!-- ======================================================== cursor -->
+		<section class="docs-section" id="cursor">
+			<h2>Mouse cursor</h2>
+			<p>An image at <code>images/cursor.png</code> (the game's or a mod's: the mod being played comes first) is the cursor on every screen.
+			An optional <code>images/cursor.txt</code> next to it sets its size and the pixel that clicks: <code>scale, x, y</code> (for example <code>2, 0, 0</code>, or <code>1, 16, 16</code> for a 32x32 crosshair clicking with its middle).</p>
+		</section>
+
+		<!-- ======================================================== check mod -->
+		<section class="docs-section" id="check-mod">
+			<h2>CHECK MOD</h2>
+			<p>Mods made with Vortex Engine are not recommended for other engines: a mod that uses what only Vortex has will break or behave differently there.
+			The mods menu's <strong>CHECK MOD</strong> button lists everything a mod uses that only Vortex has, with the file and line of each one.
+			A mod with no ERROR or DIFFERENT should also work on Psych Engine 1.0.4 (or V-Slice, for V-Slice mods). See <a href="lua.html#other-engines">other engines</a>.</p>
+		</section>
+
+		<!-- ======================================================== clean build -->
+		<section class="docs-section" id="clean-build">
+			<h2>A build without base songs</h2>
+			<p>For people making a mod with Vortex Engine, or shipping their own version of it: a copy of the engine without the songs and weeks of the base game, so only the mod's own songs show up in Freeplay and Story Mode. Nothing besides Haxe is needed.</p>
+<pre><code class="language-text">lime build windows
+haxe art/export_clean_build.hxml          (or double click art/export_clean_build.bat)
+haxe art/export_clean_build.hxml --zip    (also makes export/clean.zip, ready to share)</code></pre>
+			<p>The result is in <code>export/clean</code>. The full options are in the <a href="https://github.com/VeritonR/Vortex-Engine#a-build-for-mod-makers-no-base-songs">README</a>.</p>
+		</section>
+	</div>
+</div>
+
+<footer class="site-footer">
+	<div class="container footer-inner">
+		<div>
+			<strong style="color:var(--text)">Vortex Engine</strong> by VeritonR · Psych Engine by ShadowMario · Friday Night Funkin' by ninjamuffin99 and The Funkin' Crew<br>
+			Psych Engine's Lua API: <a href="https://shadowmario.github.io/psychengine.lua/">shadowmario.github.io/psychengine.lua</a>
+		</div>
+		<div class="footer-links">
+			<a href="index.html">Home</a>
+			<a href="lua.html">Lua API</a>
+			<a href="https://github.com/VeritonR/Vortex-Engine">GitHub</a>
+			<a href="https://discord.gg/QKjMSpeHW">Discord</a>
+		</div>
+	</div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

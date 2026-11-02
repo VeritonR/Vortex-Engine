@@ -551,6 +551,20 @@ class DirectPlay
 			});
 		}
 
+		// "--perf": how long the game's own work takes per frame (update and draw, apart from waiting for the next frame), printed
+		// every 5 seconds and at the end: to compare a change's cost, the cap of the frame rate doesn't get in the way
+		if(options.exists('perf')) watchPerformance();
+
+		// "--profile=FILE": hxcpp's own sampling profiler (which functions the time went to), from when the song is on the screen
+		// until the game closes. Needs the stack information the crash handler build has
+		#if (cpp && HXCPP_STACK_TRACE)
+		if(options.exists('profile'))
+		{
+			cpp.vm.Profiler.start(options.get('profile'));
+			beforeQuit.push(function() cpp.vm.Profiler.stop());
+		}
+		#end
+
 		// every frame that took long (the game froze for it), on the game's output
 		if(options.exists('hitches'))
 		{
@@ -572,6 +586,54 @@ class DirectPlay
 		// (the menus set it back to the option, a song a script leaves for one of them would stop there)
 		FlxG.autoPause = false;
 		FlxG.signals.postStateSwitch.add(function() FlxG.autoPause = false);
+	}
+
+	// (what has to be done before "--quit" closes the game: Sys.exit() skips the application's own exit)
+	static var beforeQuit:Array<Void->Void> = [];
+	static var perfUpdate:Array<Float> = [];
+	static var perfDraw:Array<Float> = [];
+	static var perfAllUpdate:Array<Float> = [];
+	static var perfAllDraw:Array<Float> = [];
+
+	static function watchPerformance():Void
+	{
+		var updateStart:Float = 0;
+		var drawStart:Float = 0;
+		var lastReport:Float = haxe.Timer.stamp();
+		FlxG.signals.preUpdate.add(function() updateStart = haxe.Timer.stamp());
+		FlxG.signals.postUpdate.add(function() perfUpdate.push((haxe.Timer.stamp() - updateStart) * 1000));
+		FlxG.signals.preDraw.add(function() drawStart = haxe.Timer.stamp());
+		FlxG.signals.postDraw.add(function()
+		{
+			perfDraw.push((haxe.Timer.stamp() - drawStart) * 1000);
+			var now:Float = haxe.Timer.stamp();
+			if(now - lastReport < 5) return;
+			lastReport = now;
+			if(Std.isOfType(FlxG.state, PlayState)) { perfAllUpdate = perfAllUpdate.concat(perfUpdate); perfAllDraw = perfAllDraw.concat(perfDraw); }
+			Sys.println('PERF ' + Type.getClassName(Type.getClass(FlxG.state)) + ': ' + perfSummary(perfUpdate, perfDraw));
+			perfUpdate = [];
+			perfDraw = [];
+		});
+		beforeQuit.push(function() {
+			// (the memory only here: reading it makes the garbage collector run, a pause of its own every time)
+			if(perfAllUpdate.length > 0) Sys.println('PERF SONG TOTAL: ' + perfSummary(perfAllUpdate, perfAllDraw)
+				+ ' | memory ' + Math.round(openfl.system.System.totalMemory / 1048576) + ' MB');
+		});
+	}
+
+	static function perfSummary(updates:Array<Float>, draws:Array<Float>):String
+	{
+		function stats(list:Array<Float>):String
+		{
+			if(list.length < 1) return '-';
+			var sorted:Array<Float> = list.copy();
+			sorted.sort(Reflect.compare);
+			var sum:Float = 0;
+			for (value in sorted) sum += value;
+			return 'avg ' + FlxMath.roundDecimal(sum / sorted.length, 2) + ' p95 ' + FlxMath.roundDecimal(sorted[Std.int(sorted.length * 0.95)], 2)
+				+ ' max ' + FlxMath.roundDecimal(sorted[sorted.length - 1], 1);
+		}
+		return updates.length + ' frames | update ' + stats(updates) + ' ms | draw ' + stats(draws) + ' ms';
 	}
 
 	// Options of the game given for this run, each as the kind of value it already is
@@ -723,6 +785,7 @@ class DirectPlay
 			if(music != null)
 				Sys.println('Music when closed: ' + (music.playing ? 'playing' : 'not playing') + ' at ' + Std.int(music.time) + ' of ' + Std.int(music.length)
 					+ ' ms, volume ' + FlxMath.roundDecimal(music.volume, 2));
+			for (task in beforeQuit) task();
 			Sys.exit(0);
 		}
 	}

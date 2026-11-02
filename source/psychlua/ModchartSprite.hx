@@ -48,8 +48,14 @@ class ModchartSprite extends FlxSprite
 	 */
 	public var cameraBlends:Bool = false;
 
+	/** Turned in 3D: forward/back, left/right (degrees), and pushed away from the screen (see backend.Perspective3D). */
+	public var angleX:Float = 0;
+	public var angleY:Float = 0;
+	public var z:Float = 0;
+
 	override function draw()
 	{
+		if(backend.Perspective3D.isTurned(angleX, angleY, z) && backend.Perspective3D.draw(this, angleX, angleY, z)) return;
 		var mode:Int = (blend != null && cameraBlends) ? cast blend : -1;
 		if(mode < 0 || !backend.CameraBlend.supports(mode))
 		{

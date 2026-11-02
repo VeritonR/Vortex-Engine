@@ -17,6 +17,7 @@ import states.TitleState;
 	public var breakTimer:Bool = false;
 	public var songCredits:Bool = false; //the card with the song's name, composer and charter when a song starts
 	public var tutorialButton:Bool = true; //the "Tutorial" button on the screens that have one (see backend.Tutorial)
+	public var keystrokes:String = 'Off'; //the keys being pressed shown during songs: 'Off', 'WASD' or 'DFJK' (see objects.Keystrokes)
 	public var opponentView:Bool = true; //online: the other player's notes shown the way they see them (their downscroll, their lanes)
 	public var downScroll:Bool = false;
 	public var middleScroll:Bool = false;
@@ -54,6 +55,7 @@ import states.TitleState;
 		[0xFFFF884E, 0xFFFFFAF5, 0xFF6C0000]];
 
 	public var ghostTapping:Bool = true;
+	public var clickBetweenFrames:Bool = false; //(backend.ClickBetweenFrames)
 	public var timeBarType:String = 'Time Left';
 	public var scoreZoom:Bool = true;
 	public var noReset:Bool = false;

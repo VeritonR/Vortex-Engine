@@ -63,6 +63,14 @@ slides in when a song starts.",
 			BOOL);
 		addOption(option);
 
+		var option:Option = new Option('Keystrokes:',
+			"Shows the keys you press during songs, lit while they're held.
+WASD: laid out like W A S D. DFJK: in a row (songs that don't have 4 arrows always use it).",
+			'keystrokes',
+			STRING,
+			['Off', 'WASD', 'DFJK']);
+		addOption(option);
+
 		var option:Option = new Option('Tutorial Button',
 			"If checked, the screens that have a tutorial show a \"Tutorial\" button
 (the Tutorial key works either way).",

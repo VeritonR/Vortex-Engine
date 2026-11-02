@@ -952,6 +952,7 @@ class Character extends FlxSprite
 	 */
 	public function dance(force:Bool = false)
 	{
+		if(cantAnimate()) return;
 		#if HSCRIPT_ALLOWED
 		// V-Slice characters whose script has its own way of dancing: the engine still says when
 		if(!debugMode && !skipDance && scriptOverrides != null && scriptOverrides.contains('dance') && backend.VSliceScripts.callOverride(this, 'dance', [force])) return;
@@ -990,8 +991,22 @@ class Character extends FlxSprite
 		return [x, y];
 	}
 
+	/**
+	 * A character that was destroyed (a script or an event took it away while something still had it), or whose texture atlas didn't
+	 * load: there's nothing to play on it. An extra character in that state crashed the song on the countdown's first dance.
+	 */
+	public function cantAnimate():Bool
+	{
+		if(animOffsets == null) return true;
+		#if flxanimate
+		if(isAnimateAtlas) return atlas == null || atlas.anim == null;
+		#end
+		return animation == null;
+	}
+
 	public function playAnim(AnimName:String, Force:Bool = false, Reversed:Bool = false, Frame:Int = 0):Void
 	{
+		if(cantAnimate()) return;
 		#if HSCRIPT_ALLOWED
 		// On V-Slice everything a character plays goes through `playAnimation()`, which scripts replace to change, follow or stop it.
 		// Its own version ends up back here (see backend.VSliceScripts.callOverride())

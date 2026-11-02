@@ -520,10 +520,15 @@ class Paths
 		return combined;
 	}
 
-	inline static public function getSparrowAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
+	static public function getSparrowAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
-		if(key.contains('psychic')) trace(key, parentFolder, allowGPU);
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		// (frames already read for this image: flixel would give these back anyway, after the file was read for nothing)
+		if(imageLoaded != null)
+		{
+			var cached:FlxAtlasFrames = FlxAtlasFrames.findFrame(imageLoaded);
+			if(cached != null) return cached;
+		}
 		#if MODS_ALLOWED
 		var xmlExists:Bool = false;
 
@@ -536,9 +541,15 @@ class Paths
 		#end
 	}
 
-	inline static public function getPackerAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
+	static public function getPackerAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		// (frames already read for this image: flixel would give these back anyway, after the file was read for nothing)
+		if(imageLoaded != null)
+		{
+			var cached:FlxAtlasFrames = FlxAtlasFrames.findFrame(imageLoaded);
+			if(cached != null) return cached;
+		}
 		#if MODS_ALLOWED
 		var txtExists:Bool = false;
 		
@@ -551,9 +562,15 @@ class Paths
 		#end
 	}
 
-	inline static public function getAsepriteAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
+	static public function getAsepriteAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		// (frames already read for this image: flixel would give these back anyway, after the file was read for nothing)
+		if(imageLoaded != null)
+		{
+			var cached:FlxAtlasFrames = FlxAtlasFrames.findFrame(imageLoaded);
+			if(cached != null) return cached;
+		}
 		#if MODS_ALLOWED
 		var jsonExists:Bool = false;
 

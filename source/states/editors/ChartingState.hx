@@ -973,7 +973,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					var addedNotes:Array<MetaNote> = [];
 					for (num => press in _keysPressedBuffer)
 					{
-						if(!press) continue;
+						// (a song with fewer arrows has fewer columns than the 8 keys)
+						if(!press || num >= GRID_COLUMNS_PER_PLAYER * GRID_PLAYERS) continue;
 
 						// Try to find a note to delete first
 						var didDelete:Bool = false;

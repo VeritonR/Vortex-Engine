@@ -346,3 +346,137 @@ Example - a loading screen that shows for at least 2 seconds:
         if (waiting && shown > 2) { waiting = false; finishLoading(); }
     }
 (Psych's data/LoadingScreen.hx still works too.)
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  12. MORE LUA FUNCTIONS (cameras, camera shaders, the window, notes and characters during the song)
+//------------------------------------------------------------------------------------------------------------------//
+HScript doesn't need these: it reaches the same things directly (FlxG.cameras, FlxG.stage.window, game.spawnNote(...),
+game.addExtraCharacter(...), game.removeExtraCharacter(...)).
+
+CAMERAS
+makeLuaCamera(tag, above)       // String, String (optional: "game", "hud", "other" or another camera's tag; "hud" if not
+                                // given). A camera of the script's own, right over that one. Sprites go on it with
+                                // setObjectCamera(sprite, tag), and it's changed and tweened by its tag like the song's:
+                                //     makeLuaCamera('camBG', 'game')        -- between the stage and the HUD
+                                //     setObjectCamera('fog', 'camBG')
+                                //     setProperty('camBG.zoom', 1.2)
+                                //     doTweenZoom('fogZoom', 'camBG', 1, 2, 'quadOut')
+removeLuaCamera(tag)            // takes it out (and what's on it stops being drawn). The song's own cameras can't be removed.
+luaCameraExists(tag)            // Bool
+
+SHADERS ON A WHOLE CAMERA (the ".frag" files of "shaders/", the same ones setSpriteShader uses)
+addCameraShader(camera, shader, tag)   // camera: "game", "hud", "other" or a makeLuaCamera tag. tag (optional, the shader's
+                                       // name if not given) is what its values are set by, with the usual functions:
+                                       //     addCameraShader('game', 'chromatic', 'chroma')
+                                       //     setShaderFloat('chroma', 'amount', 0.005)
+                                       // A camera can have more than one; they're applied in the order they were added.
+                                       // Does nothing (returns false) when the player turned Shaders off.
+removeCameraShader(camera, tag)        // the one with that tag; with no tag, every shader of that camera
+tweenShaderFloat(tweenTag, shaderTag, property, value, duration, ease)
+                                       // changes a float of a shader smoothly (a sprite's shader too, by the sprite's tag).
+                                       // onTweenCompleted(tweenTag, shaderTag) at the end; cancelTween(tweenTag) stops it.
+                                       //     tweenShaderFloat('chromaOut', 'chroma', 'amount', 0, 0.5, 'quadOut')
+
+THE GAME'S WINDOW (whatever a song changes is put back when the song is left)
+setWindowTitle(text) / getWindowTitle()
+setWindowPosition(x, y)  getWindowX()  getWindowY()       // not while the game is fullscreen (returns false)
+setWindowSize(width, height)  getWindowWidth()  getWindowHeight()
+getScreenWidth()  getScreenHeight()                       // the monitor the window is on
+isWindowFullscreen()
+windowAlert(message, title)       // a message box of the system; the game waits until it's closed
+Example - the window shakes on every beat of a part of the song:
+    local baseX, baseY
+    function onSongStart() baseX = getWindowX(); baseY = getWindowY() end
+    function onBeatHit()
+        if curBeat >= 64 and curBeat < 96 then
+            setWindowPosition(baseX + getRandomInt(-15, 15), baseY + getRandomInt(-15, 15))
+        elseif curBeat == 96 then
+            setWindowPosition(baseX, baseY)
+        end
+    end
+
+NOTES DURING THE SONG
+spawnNote(time, column, mustPress, holdLength, noteType, singers)
+                                // A note like the chart's: time in milliseconds of the song, column from 0 to
+                                // getKeyCount() - 1, mustPress true for the right side's (the player's), holdLength in
+                                // milliseconds (0: not a long note), noteType (optional, '' is a normal note), singers
+                                // (optional, who sings it: "main", "all" or extra characters' tags, see section 8).
+                                // A note added for a time that already went by comes as a miss. Note types with a script
+                                // must already be in the song's chart to have their script loaded.
+                                //     -- 4 notes, one per column, half a second apart, 2 seconds from now
+                                //     for i = 0, 3 do
+                                //         spawnNote(getSongPosition() + 2000 + i * 500, i, true)
+                                //     end
+getKeyCount()                   // how many arrows each side has: 4 on most songs, 1 to 9 on songs with extra keys
+
+EXTRA CHARACTERS DURING THE SONG (the same as the chart's, see section 8)
+addExtraCharacter(tag, character, side, x, y, singsAll, behind)
+                                // side: "opponent" (default), "player" or "gf". x / y: from the spot of the main
+                                // character of that side. singsAll: sings every note of its side. behind: behind the
+                                // main character. False if the tag is already used or the character doesn't exist.
+                                //     addExtraCharacter('backup', 'pico', 'opponent', -300, 0, true)
+                                //     playAnim('backup', 'hey', true)
+removeExtraCharacter(tag)       // takes it out of the song
+getExtraCharacters()            // a table with the tags of every extra character of the song
+
+CLIPBOARD
+setClipboard(text) / getClipboard()
+
+
+//------------------------------------------------------------------------------------------------------------------//
+  13. 3D (sprites, receptors, notes and cameras turned in 3D, and .obj models)
+//------------------------------------------------------------------------------------------------------------------//
+Everything is seen in perspective from the center of the screen. Angles are in degrees.
+
+SPRITES, RECEPTORS AND NOTES: three new properties
+    angleX    turned forward/back (around the horizontal line through its origin)
+    angleY    turned left/right (around the vertical line through its origin)
+    z         pushed away from the screen (it gets smaller toward the center); negative brings it closer
+"angle" still turns it on the screen as always. They work on Lua sprites (makeLuaSprite / makeAnimatedLuaSprite), on the
+receptors and on the notes:
+    setProperty('card.angleY', 45)
+    startTween('cardSpin', 'card', {angleY = 360}, 2, {ease = 'quadInOut'})
+    setPropertyFromGroup('playerStrums', 0, 'angleX', 60)
+    setPropertyFromGroup('opponentStrums', 2, 'z', 400)
+Notes copy them from their receptor (long notes too). To turn a note on its own: setPropertyFromGroup('notes', i, 'copy3D',
+false) and then its own angleX / angleY / z.
+HScript: sprite.angleY = 45; game.playerStrums.members[0].z = 300;
+
+WHOLE CAMERAS (a shader on the camera: needs the Shaders option on)
+setCamera3D(camera, angleX, angleY, z)     // "game", "hud", "other" or a makeLuaCamera tag. All 0: back to normal.
+                                           //     setCamera3D('hud', 30, 0, 0)    -- the HUD leans back, notes included
+getCamera3D(camera)                        // a table: angleX, angleY, z
+tweenCamera3D(tag, camera, angleX, angleY, z, duration, ease)
+                                           // little by little; onTweenCompleted(tag, camera) at the end, cancelTween(tag) stops it
+                                           //     tweenCamera3D('lean', 'hud', 0, 25, 0, 1, 'quadOut')
+The HUD's long notes are on cameras of their own and turn with it.
+
+PERSPECTIVE
+setPerspective(distance)        // how far the eye is from the screen, in pixels (1000 if not changed). Smaller: stronger
+                                // perspective. Applies to everything above and to the models.
+
+.OBJ MODELS
+makeLuaModel(tag, model, texture, x, y)
+                                // model: "models/NAME.obj" of the mod (just "NAME" works). texture (optional): an image of
+                                // "images/", painted with the model's texture coordinates (without one it's plain white, which
+                                // "color" tints). x / y: where its center goes. Made to be 200 pixels on its biggest side.
+                                // Then addLuaSprite(tag, true), setObjectCamera, removeLuaSprite... like a sprite.
+Its properties (setProperty / startTween):
+    x, y, z, angleX, angleY, angle, alpha, color, visible, scrollFactor
+    modelScale     pixels per unit of the model
+    lighting       true: each triangle is shaded by how much it faces the light (false: flat texture)
+    ambient        how dark the side away from the light gets, 0 to 1 (0.35)
+    cullBack       true: triangles facing away aren't drawn (turn it off for open or flat models)
+    triangleCount  (read only)
+Example - a spinning model in the stage:
+    function onCreatePost()
+        makeLuaModel('ring', 'ring', 'ringTexture', 600, 300)
+        addLuaSprite('ring', false)
+    end
+    function onUpdate(elapsed)
+        setProperty('ring.angleY', getProperty('ring.angleY') + elapsed * 90)
+    end
+The triangles are drawn from the farthest to the closest (there's no depth buffer), so models of up to a few thousand
+triangles work best; very big models make the game slower. Faces with more than 3 corners are split into triangles.
+HScript: new objects.Model3D(x, y, File.getContent(path), Paths.image('texture'))

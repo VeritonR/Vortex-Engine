@@ -40,6 +40,7 @@ class HxcInstance
 	var presetBase:Dynamic;
 	var withMixin:Bool;
 	var baseFields:Map<String, Bool> = null;
+	var baseFieldsKnown:Bool = false;
 	var mixinFields:Map<String, Bool> = null;
 	var inAccessor:Map<String, Bool> = [];
 
@@ -238,14 +239,20 @@ class HxcInstance
 		if(baseFields == null)
 		{
 			baseFields = [];
+			baseFieldsKnown = false;
 			var baseClass:Class<Dynamic> = Type.getClass(base);
 			if(baseClass != null)
 				for (field in Type.getInstanceFields(baseClass))
+				{
 					baseFields.set(field, true);
+					baseFieldsKnown = true;
+				}
 		}
 
 		// properties without a variable of their own only have their getter
-		return baseFields.exists(name) || baseFields.exists('get_$name') || (baseFields.keys().hasNext() == false && Reflect.hasField(base, name));
+		// (a base with no class fields known, an anonymous object, is asked directly. That's known once: asking the map if it was
+		// empty on every lookup made a list of all its names each time, the most time scripts took in a song)
+		return baseFields.exists(name) || baseFields.exists('get_$name') || (!baseFieldsKnown && Reflect.hasField(base, name));
 	}
 
 	/**

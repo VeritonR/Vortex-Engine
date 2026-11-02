@@ -38,6 +38,21 @@
 - **Opponent's View** (new option, on by default): you see the other player's notes the way they do, going down if they use Downscroll, with dark lanes if they use Lane Underlay.
 - **Sending a mod:** if the host picks a song from a mod the other player doesn't have, they're asked if they want it, with its size and a warning that mods can have scripts. If they accept, the host sends it, it's installed and turned on, and the match starts. A mod that's there but turned off is only turned on.
 
+### 📜 Lua
+
+- **Cameras of your own:** `makeLuaCamera(tag, above)` and `removeLuaCamera`; sprites go on them with `setObjectCamera`.
+- **Shaders on whole cameras:** `addCameraShader(camera, shader, tag)`, `removeCameraShader`, and `tweenShaderFloat` to change a shader's value smoothly.
+- **The window:** `setWindowTitle`, `setWindowPosition`, `setWindowSize`, their getters, the screen's size and `windowAlert`. What a song changes is put back when it's left.
+- **Notes during the song:** `spawnNote(time, column, mustPress, holdLength, noteType)` and `getKeyCount()`.
+- **Extra characters during the song:** `addExtraCharacter`, `removeExtraCharacter` and `getExtraCharacters`.
+- `setClipboard` / `getClipboard`.
+- **3D:**
+  - Lua sprites, receptors and notes have `angleX`, `angleY` and `z` (notes follow their receptor).
+  - `setCamera3D` / `tweenCamera3D` turn a whole camera in perspective (the HUD with its long notes).
+  - `makeLuaModel` loads `.obj` models with a texture, shading and back-face culling, moved and turned like sprites.
+  - `setPerspective` changes how strong the perspective is.
+- All of it with examples in sections 12 and 13 of `scripts.txt`.
+
 ### 🎮 Gameplay
 
 - **New gameplay changers:**
@@ -56,6 +71,9 @@
 - **Mods tab:**
   - V-Slice mods' own settings, added the way they do on V-Slice (`createPrefItemCheckbox`, `createPrefItemEnum`, `createPrefItemNumber`, `createPrefItemPercentage`).
   - Psych mods' `data/settings.json`.
+- **Keystrokes:** the keys you press, shown during songs and lit while held (in the arrow's color), with keys per second. Off, **WASD** (like W A S D) or **DFJK** (in a row; songs that don't have 4 arrows always use it).
+- **Click Between Frames** (Windows): like the Geometry Dash mod, each key press counts from the moment it was made, not from the start of the next frame. More precise hits, mostly at low framerates.
+- The **keystrokes** and the **Break Timer** are on a camera of their own, over every other one: a song's HUD, score text or cutscene camera no longer covers them, and songs that hide the HUD don't hide them.
 - **Supersampling:** the game is drawn bigger than the window and shrunk to it, for smoother edges (like DSR on NVIDIA cards).
 - **Controls:** two actions on the same key that work during a song (a note key that's also the chat's, for example) get a warning.
 - New keys in Controls: **Chat** (`T`), **Screenshot** (`F3`) and **Tutorial** (`F6`).
@@ -70,14 +88,25 @@
 - **Character Select editor:** a playable character can be a spritesheet (`.png` + `.xml`) instead of a texture atlas, in the new **Player Sheet** tab (Vortex only: the official V-Slice needs the atlas).
 - Every editor has a tutorial.
 
+### ⚡ Performance
+
+- V-Slice scripts run about 30% faster during songs: looking up a name made a list of every name of the script's base on each lookup.
+- Sprites of an image that was already loaded no longer read its `.xml` / `.txt` / `.json` from the disk again (every note of a song did).
+- Notes no longer check the disk for their skin one by one (thousands of times per song).
+- Moving the mouse during a song no longer makes the game test it against everything the cameras drew (it could freeze the game for a moment on busy songs).
+
 ### 🐛 Fixes
 
 - V-Slice stages: an animation mirrored on its own is mirrored again (the cars driving backwards on Darnell Erect).
 - South (Pico Mix): a second, broken A-BOT.
+- An extra character that was taken away while the song still had it no longer crashes the song when it dances.
+- V-Slice mods' "Change Character" events could not change back to the base game's characters (You Can't Run: Boyfriend and Girlfriend stayed pixel after the pixel part).
+- V-Slice mods that move the health bar and its frame apart (Sonic.exe's HUD) had the frame out of place: they are two separate things there, like on V-Slice.
 - Christmas stage: Boyfriend's outfit switching on its own, and Girlfriend and her speakers jumping every few seconds.
 - Pixel health icons and their glow are placed correctly.
 - The Break Timer follows the receptors when scripts move them.
 - Options: opening Note Colors with `S` from the main menu's options gave a black loading screen with "Null Object Reference".
+- Options: the settings with a list of choices showed two colons ("Note Skins::").
 
 ### 🌎 Translations
 

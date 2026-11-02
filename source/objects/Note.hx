@@ -38,6 +38,17 @@ typedef NoteSplashData = {
 **/
 class Note extends FlxSprite
 {
+	/** Turned in 3D: forward/back, left/right (degrees), and pushed away from the screen (see backend.Perspective3D). Copied from the receptor with `copyAngle`. */
+	public var angleX:Float = 0;
+	public var angleY:Float = 0;
+	public var z:Float = 0;
+
+	override function draw()
+	{
+		if(backend.Perspective3D.isTurned(angleX, angleY, z) && backend.Perspective3D.draw(this, angleX, angleY, z)) return;
+		super.draw();
+	}
+
 	//This is needed for the hardcoded note types to appear on the Chart Editor,
 	//It's also used for backwards compatibility with 0.1 - 0.3.2 charts.
 	public static final defaultNoteTypes:Array<String> = [
@@ -138,6 +149,8 @@ class Note extends FlxSprite
 	var followedX:Float = Math.NaN;
 	public var copyY:Bool = true;
 	public var copyAngle:Bool = true;
+	/** It's turned in 3D like its receptor (angleX, angleY, z), long notes too. */
+	public var copy3D:Bool = true;
 	public var copyAlpha:Bool = true;
 
 	public var hitHealth:Float = 0.02;
@@ -371,7 +384,26 @@ class Note extends FlxSprite
 	}
 
 	var _lastNoteOffX:Float = 0;
-	static var _lastValidChecked:String; //optimization
+	// If a note skin's image exists, for each one asked about on this screen: every note made checked the disk (thousands per song)
+	static var skinChecks:Map<String, Bool> = [];
+	static var skinChecksState:flixel.FlxState = null;
+
+	static function skinExists(name:String):Bool
+	{
+		if(skinChecksState != FlxG.state)
+		{
+			skinChecks.clear();
+			skinChecksState = FlxG.state;
+		}
+		var key:String = Mods.currentModDirectory + '|' + name;
+		var known:Null<Bool> = skinChecks.get(key);
+		if(known == null)
+		{
+			known = Paths.fileExists('images/' + name + '.png', IMAGE);
+			skinChecks.set(key, known);
+		}
+		return known;
+	}
 	public var originalHeight:Float = 6;
 	public var correctionOffset:Float = 0; //dont mess with this
 	public function reloadNote(texture:String = '', postfix:String = '') {
@@ -397,11 +429,8 @@ class Note extends FlxSprite
 		var skinPostfix:String = getNoteSkinPostfix();
 		var customSkin:String = skin + skinPostfix;
 		var path:String = PlayState.isPixelStage ? 'pixelUI/' : '';
-		if(customSkin == _lastValidChecked || Paths.fileExists('images/' + path + customSkin + '.png', IMAGE))
-		{
+		if(skinExists(path + customSkin))
 			skin = customSkin;
-			_lastValidChecked = customSkin;
-		}
 		else skinPostfix = '';
 
 		if(PlayState.isPixelStage) {
@@ -562,7 +591,7 @@ class Note extends FlxSprite
 	override public function destroy()
 	{
 		super.destroy();
-		_lastValidChecked = '';
+
 	}
 
 	public function followStrumNote(myStrum:StrumNote, fakeCrochet:Float, songSpeed:Float = 1)
@@ -585,6 +614,12 @@ class Note extends FlxSprite
 		var angleDir = strumDirection * Math.PI / 180;
 		if (copyAngle)
 			angle = strumDirection - 90 + strumAngle + offsetAngle;
+		if (copy3D)
+		{
+			angleX = myStrum.angleX;
+			angleY = myStrum.angleY;
+			z = myStrum.z;
+		}
 
 		if(copyAlpha)
 			alpha = strumAlpha * multAlpha;

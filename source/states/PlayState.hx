@@ -243,6 +243,40 @@ class PlayState extends MusicBeatState
 	function playableVoice():FlxSound
 		return (playAsOpponent && opponentVocals != null && opponentVocals.length > 0) ? opponentVocals : vocals;
 
+	/**
+	 * The keys being pressed, on the screen (the "Keystrokes" option), see objects.Keystrokes.
+	 */
+	public var keystrokes:objects.Keystrokes = null;
+
+	function makeKeystrokes():Void
+	{
+		// (the WASD layout only has room for 4 keys: other songs get them in a row)
+		var style:String = (totalColumns == 4) ? ClientPrefs.data.keystrokes : 'DFJK';
+		keystrokes = new objects.Keystrokes(style, keysArray);
+		keystrokes.x = 20;
+		keystrokes.y = ClientPrefs.data.downScroll ? 20 : FlxG.height - keystrokes.height - 20;
+		keystrokes.cameras = [camOverlay];
+		overlayGroup.add(keystrokes);
+	}
+
+	function updateKeystrokes(elapsed:Float):Void
+	{
+		if (keystrokes == null) return;
+		var pressed:Array<Bool> = [];
+		for (i in 0...keysArray.length)
+		{
+			var held:Bool = !cpuControlled && controls.pressed(keysArray[i]);
+			// (botplay: the receptors it lights up)
+			if (cpuControlled)
+			{
+				var strum:StrumNote = playableStrums.members[i];
+				held = strum != null && strum.animation.curAnim != null && strum.animation.curAnim.name == 'confirm';
+			}
+			pressed.push(held);
+		}
+		keystrokes.setPressed(pressed, elapsed);
+	}
+
 	public var showLaneUnderlay:Bool = false;
 	public var laneUnderlays:FlxTypedGroup<FlxSprite>;
 	/**
@@ -314,7 +348,13 @@ class PlayState extends MusicBeatState
 	public var camHUD:FlxCamera;
 	public var camGame:FlxCamera;
 	public var camOther:FlxCamera;
-	public var cameraSpeed:Float = 1;
+	/**
+	 * Over every other camera, camOther too: the keystrokes and the break timer, which stay on the screen when a song hides or moves
+	 * the HUD (see `keepOverlayOnTop()`). Pause menus and videos that take the camera on top end up on this one, over them.
+	 */
+	public var camOverlay:FlxCamera;
+	public var overlayGroup:FlxTypedGroup<FlxBasic>;
+public var cameraSpeed:Float = 1;
 	public var camSus:FlxCamera;
 	public var camLanes:FlxCamera; //(under the long notes: the lanes of "Lane Underlay", only when they're on)
     public var susWiggle:WiggleEffect;
@@ -533,6 +573,9 @@ class PlayState extends MusicBeatState
         
         FlxG.cameras.add(camHUD, false);
 		FlxG.cameras.add(camOther, false);
+		camOverlay = new FlxCamera();
+		camOverlay.bgColor.alpha = 0;
+		FlxG.cameras.add(camOverlay, false);
 
 		persistentUpdate = true;
 		persistentDraw = true;
@@ -814,33 +857,37 @@ class PlayState extends MusicBeatState
 
 		// Online: the other player's score, misses and accuracy, in the corner of their side
 		if (backend.NetworkManager.connected) makeOnlineStats();
+		overlayGroup = new FlxTypedGroup<FlxBasic>();
+		overlayGroup.cameras = [camOverlay];
+		add(overlayGroup);
+		if (ClientPrefs.data.keystrokes != null && ClientPrefs.data.keystrokes != 'Off') makeKeystrokes();
 
 		var startY:Float = ClientPrefs.data.downScroll ? FlxG.height - 250 : 200;
         var playerX:Float = ClientPrefs.data.middleScroll ? FlxG.width / 2 : (playAsOpponent ? FlxG.width * 0.25 : FlxG.width * 0.75); 
 
         restTimerBar = new FlxSprite(0, startY).makeGraphic(250, 8, FlxColor.WHITE);
         restTimerBar.x = playerX - (restTimerBar.width / 2);
-        restTimerBar.cameras = [camHUD];
+        restTimerBar.cameras = [camOverlay];
         restTimerBar.alpha = 0;
-        uiGroup.add(restTimerBar);
+        overlayGroup.add(restTimerBar);
 
         restCountdownTxt = new FlxText(0, startY + 20, 400, "", 48);
         restCountdownTxt.setFormat(Paths.font("vcr.ttf"), 48, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         restCountdownTxt.x = playerX - (restCountdownTxt.width / 2);
         restCountdownTxt.scrollFactor.set();
         restCountdownTxt.borderSize = 2;
-        restCountdownTxt.cameras = [camHUD];
+        restCountdownTxt.cameras = [camOverlay];
         restCountdownTxt.alpha = 0;
-		uiGroup.add(restCountdownTxt);
+		overlayGroup.add(restCountdownTxt);
 
 		restportrait = new FlxSprite(0, startY - 32).loadGraphic(Paths.image('InGameSprites/restBar'));
 		//restportrait.antialiasing = ClientPrefs.data.antialiasing;
 		restportrait.antialiasing = false;
 		restportrait.scrollFactor.set(0, 0);
         restportrait.x = playerX - 178;
-		restportrait.cameras = [camHUD];
+		restportrait.cameras = [camOverlay];
         restportrait.alpha = 0;
-		uiGroup.add(restportrait); //(with the rest of the timer: on the HUD, hidden with it)
+		overlayGroup.add(restportrait); //(with the rest of the timer: over everything, see camOverlay)
 
 		showBreakTimer = ClientPrefs.data.breakTimer && !ClientPrefs.data.hideHud; //(part of the HUD: "Hide HUD" hides it too)
 
@@ -915,6 +962,17 @@ class PlayState extends MusicBeatState
 
 		FlxG.stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyPress);
 		FlxG.stage.addEventListener(KeyboardEvent.KEY_UP, onKeyRelease);
+		// "Click Between Frames": the note keys are watched on a thread of their own, for when each press really was
+		if (ClientPrefs.data.clickBetweenFrames)
+		{
+			var watched:Array<Int> = [];
+			for (action in keysArray)
+			{
+				var binds:Array<FlxKey> = ClientPrefs.keyBinds.get(action);
+				if (binds != null) for (bind in binds) if (bind != NONE) watched.push(bind);
+			}
+			backend.ClickBetweenFrames.start(watched);
+		}
 
 		//PRECACHING THINGS THAT GET USED FREQUENTLY TO AVOID LAGSPIKES
 		if(ClientPrefs.data.hitsoundVolume > 0) Paths.sound('hitsound');
@@ -1920,7 +1978,7 @@ class PlayState extends MusicBeatState
 
 	private var noteTypes:Array<String> = [];
 	private var eventsPushed:Array<String> = [];
-	private var totalColumns: Int = 4;
+	public var totalColumns(default, null): Int = 4;
 
 	/**
 	 * "Fade In" / "Fade Out": how much of a note shows, by how far it is from its receptor (in pixels, the same at any speed).
@@ -2426,7 +2484,9 @@ class PlayState extends MusicBeatState
 
 	override function openSubState(SubState:FlxSubState)
 	{
-		stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
+		// (the keystrokes and the break timer are over everything: only the pause menu shows them, other screens would be under them)
+		if (overlayGroup != null) overlayGroup.visible = Std.isOfType(SubState, PauseSubState);
+stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		if (paused)
 		{
 			if (FlxG.sound.music != null)
@@ -2446,7 +2506,8 @@ class PlayState extends MusicBeatState
 	override function closeSubState()
 	{
 		super.closeSubState();
-		
+		if (overlayGroup != null) overlayGroup.visible = true;
+
 		stagesFunc(function(stage:BaseStage) stage.closeSubState());
 		if (paused)
 		{
@@ -2569,6 +2630,7 @@ class PlayState extends MusicBeatState
 		}
 		
 		guardPlayableStrums();
+		updateKeystrokes(elapsed);
 
 		if (laneUnderlays != null)
         {
@@ -2961,6 +3023,7 @@ class PlayState extends MusicBeatState
             if (camSus != null) copyHudCamera(camSus);
             if (camLanes != null) copyHudCamera(camLanes);
         }
+		keepOverlayOnTop();
 
         //notes.forEachAlive(function(note:Note) {
            // if (note.isSustainNote) {
@@ -3050,8 +3113,20 @@ class PlayState extends MusicBeatState
 	// existed put cameras of their own in the list and take the HUD's out and back on top ("camHUD" and "camOther" over a camera
 	// for the characters): the long notes stayed under the new ones, behind the characters (Gorefield's Bigotes). They're put back
 	// under the HUD's whenever that happens, as if they were part of it
-	function keepNoteCamerasUnderHud():Void
+	// The overlay's camera (keystrokes, break timer) goes back on top when a song adds a camera of its own, or takes the HUD's out
+	// and puts them back over the rest
+	function keepOverlayOnTop():Void
 	{
+		if (camOverlay == null) return;
+		var list:Array<FlxCamera> = FlxG.cameras.list;
+		var index:Int = list.indexOf(camOverlay);
+		if (index < 0 || index == list.length - 1) return;
+		FlxG.cameras.remove(camOverlay, false);
+		FlxG.cameras.add(camOverlay, false);
+	}
+
+	function keepNoteCamerasUnderHud():Void
+{
 		var list:Array<FlxCamera> = FlxG.cameras.list;
 		var hud:Int = list.indexOf(camHUD);
 		if (hud < 0) return;
@@ -3091,6 +3166,7 @@ class PlayState extends MusicBeatState
 	{
 		camera.zoom = camHUD.zoom;
 		camera.visible = camHUD.visible;
+		backend.Camera3D.copy(camHUD, camera); //(turned in 3D with it: setCamera3D)
 		camera.x = camHUD.x;
 		camera.y = camHUD.y;
 		camera.alpha = camHUD.alpha;
@@ -3141,6 +3217,12 @@ class PlayState extends MusicBeatState
 		centerX /= count;
 		top /= count;
 		height /= count;
+
+		// (the receptors are on the HUD's camera, which can be zoomed or moved, and the timer is on the overlay's: where they're seen)
+		var zoom:Float = camHUD.zoom;
+		centerX = (centerX - camHUD.scroll.x - FlxG.width / 2) * zoom + FlxG.width / 2 + camHUD.x;
+		top = (top - camHUD.scroll.y - FlxG.height / 2) * zoom + FlxG.height / 2 + camHUD.y;
+		height *= zoom;
 
 		var startY:Float = (top + height / 2 < FlxG.height / 2) ? top + 150 : top - 100;
 		startY = FlxMath.bound(startY, 40, FlxG.height - 80); //(still on the screen when the receptors aren't)
@@ -4626,9 +4708,18 @@ class PlayState extends MusicBeatState
 			@:privateAccess if (!FlxG.keys._keyListMap.exists(eventKey)) return;
 			#end
 
-			if(FlxG.keys.checkStatus(eventKey, JUST_PRESSED)) keyPressed(key);
+			if(FlxG.keys.checkStatus(eventKey, JUST_PRESSED))
+			{
+				// (how long before this frame the key really went down: "Click Between Frames")
+				pressDelay = backend.ClickBetweenFrames.delayOf(eventKey);
+				keyPressed(key);
+				pressDelay = 0;
+			}
 		}
 	}
+
+	/** "Click Between Frames": seconds between the key going down and this frame, for the press being handled (0 otherwise). */
+	var pressDelay:Float = 0;
 
 	private function keyPressed(key:Int)
 	{
@@ -4639,7 +4730,7 @@ class PlayState extends MusicBeatState
 
 		// more accurate hit time for the ratings?
 		var lastTime:Float = Conductor.songPosition;
-		if(Conductor.songPosition >= 0) Conductor.songPosition = FlxG.sound.music.time + Conductor.offset;
+		if(Conductor.songPosition >= 0) Conductor.songPosition = FlxG.sound.music.time + Conductor.offset - pressDelay * 1000 * playbackRate;
 
 		// obtain notes that the player can hit
 		var plrInputNotes:Array<Note> = notes.members.filter(function(n:Note):Bool {
@@ -5241,6 +5332,8 @@ class PlayState extends MusicBeatState
 	}
 
 	override function destroy() {
+		backend.ClickBetweenFrames.stop();
+		#if LUA_ALLOWED psychlua.VortexFunctions.restoreWindow(); #end //(what scripts did to the window)
 		Note.opponentPlay = false;
 		FlxG.signals.preUpdate.remove(restoreGuardedHud);
 		GameOverSubstate.dropPreloaded(); //(the dead character made ahead, if nobody died)
@@ -5395,7 +5488,7 @@ class PlayState extends MusicBeatState
 		for (extra in extraCharacters)
 		{
 			var char:Character = extra.char;
-			if(char == null) continue;
+			if(char == null || char.cantAnimate()) continue;
 			var every:Int = (extra.side == 'gf') ? Math.round(gfSpeed * char.danceEveryNumBeats) : char.danceEveryNumBeats;
 			if(every > 0 && beat % every == 0 && !char.getAnimationName().startsWith('sing') && !char.stunned)
 				char.dance();
@@ -5458,6 +5551,114 @@ class PlayState extends MusicBeatState
 		for (extra in extraCharacters)
 			if(extra.tag == tag) return extra;
 		return null;
+	}
+
+	/**
+	 * Adds an extra character during the song (Lua: addExtraCharacter), the same as one of the chart's: it dances, sings the notes
+	 * of its side that are marked for it (or all of them with `singsAll`), and scripts get it by its tag. False if the tag is taken
+	 * or the character doesn't exist.
+	 */
+	public function addExtraCharacter(tag:String, character:String, ?side:String = 'opponent', ?x:Float = 0, ?y:Float = 0, ?singsAll:Bool = false, ?behind:Bool = false):Bool
+	{
+		if(tag == null || character == null) return false;
+		tag = tag.trim();
+		if(tag.length < 1 || tag == ExtraCharacter.MAIN || tag == ExtraCharacter.ALL || getExtraCharacter(tag) != null || variables.exists(tag)) return false;
+		if(!Character.characterExists(character)) return false;
+
+		var extra:ExtraCharacter = new ExtraCharacter({tag: tag, character: character, side: side, x: x, y: y, singsAll: singsAll, behind: behind});
+		extra.char = makeExtraCharacter(extra, character);
+		extra.characters.set(character, extra.char);
+		extraCharacters.push(extra);
+		variables.set(extra.tag, extra.char);
+		startCharacterScripts(character);
+		extra.char.dance();
+		return true;
+	}
+
+	/**
+	 * Takes an extra character out of the song (Lua: removeExtraCharacter), every character it has been included. False if no
+	 * extra character has that tag.
+	 */
+	public function removeExtraCharacter(tag:String):Bool
+	{
+		var extra:ExtraCharacter = getExtraCharacter(tag);
+		if(extra == null) return false;
+
+		extraCharacters.remove(extra);
+		if(variables.get(extra.tag) == extra.char) variables.remove(extra.tag);
+		for (char in extra.characters)
+		{
+			if(char == null) continue;
+			var trail:flixel.addons.effects.FlxTrail = characterTrails.get(char);
+			if(trail != null)
+			{
+				remove(trail, true);
+				trail.destroy();
+				characterTrails.remove(char);
+			}
+			for (group in [boyfriendGroup, dadGroup, gfGroup])
+				if(group != null && group.members.contains(char)) group.remove(char, true);
+			char.destroy();
+		}
+		extra.characters.clear();
+		extra.char = null;
+		return true;
+	}
+
+	/**
+	 * Adds a note to the song while it's being played (Lua: spawnNote), like one of the chart's, with its long note if it has a
+	 * length. `column` goes from 0 to the number of arrows of a side minus 1; `mustPress` is the right side (the player's). Null if
+	 * the column doesn't exist. A note added for a time that already went by is a miss.
+	 */
+	public function spawnNote(strumTime:Float, column:Int, mustPress:Bool, ?sustainLength:Float = 0, ?noteType:String = '', ?singers:String = null):Note
+	{
+		if(column < 0 || column >= totalColumns || Math.isNaN(strumTime)) return null;
+		if(noteType == null) noteType = '';
+		if(Math.isNaN(sustainLength) || sustainLength < 0) sustainLength = 0;
+
+		var made:Array<Note> = [];
+		var swagNote:Note = new Note(strumTime, column, null);
+		swagNote.mustPress = mustPress;
+		swagNote.sustainLength = sustainLength;
+		swagNote.noteType = noteType;
+		if(singers != null && singers.length > 0) swagNote.singers = singers;
+		swagNote.scrollFactor.set();
+		made.push(swagNote);
+
+		var stepCrochet:Float = Conductor.stepCrochet;
+		var holdPieces:Int = Math.round(sustainLength / stepCrochet);
+		var oldNote:Note = swagNote;
+		for (piece in 0...holdPieces)
+		{
+			var sustainNote:Note = new Note(strumTime + stepCrochet * piece, column, oldNote, true);
+			sustainNote.mustPress = mustPress;
+			sustainNote.flipY = downScrollOf(mustPress);
+			sustainNote.singers = swagNote.singers;
+			sustainNote.noteType = noteType;
+			sustainNote.scrollFactor.set();
+			sustainNote.parent = swagNote;
+			swagNote.tail.push(sustainNote);
+			sustainNote.correctionOffset = swagNote.height / 2;
+			if(oldNote.isSustainNote)
+			{
+				if(!PlayState.isPixelStage) oldNote.scale.y *= Note.SUSTAIN_SIZE / oldNote.frameHeight;
+				oldNote.scale.y /= playbackRate;
+				oldNote.updateHitbox();
+			}
+			if(!PlayState.isPixelStage && downScrollOf(mustPress)) sustainNote.correctionOffset = 0;
+			made.push(sustainNote);
+			oldNote = sustainNote;
+		}
+
+		// (in time order with the ones still to come: they're taken from the front as the song gets to them)
+		for (note in made)
+		{
+			var index:Int = 0;
+			while(index < unspawnNotes.length && unspawnNotes[index].strumTime <= note.strumTime) index++;
+			unspawnNotes.insert(index, note);
+		}
+		if(noteTypes != null && !noteTypes.contains(noteType)) noteTypes.push(noteType); //(the list is let go once the song is made)
+		return swagNote;
 	}
 
 	// "Change Character" with the tag of an extra character: that one changes. False if it's not one's tag

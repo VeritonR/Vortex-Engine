@@ -308,7 +308,9 @@ class OptionsMenu extends MusicBeatSubstate
 			text.text = '- ' + option.name + ' -';
 			return;
 		}
-		text.text = option.name + ':  < ' + valueText(option) + ' >';
+		// (the names of the options with a list of choices already end in ":" in Psych's menus, "Note Skins:")
+		var label:String = option.name.endsWith(':') ? option.name.substr(0, option.name.length - 1) : option.name;
+		text.text = label + ':  < ' + valueText(option) + ' >';
 	}
 
 	static function valueText(option:Option):String
@@ -836,6 +838,7 @@ class OptionsMenu extends MusicBeatSubstate
 
 	function goBack():Void
 	{
+		ClientPrefs.saveSettings();
 		if(onPlayState)
 		{
 			exiting = true;
@@ -877,6 +880,8 @@ class OptionsMenu extends MusicBeatSubstate
 		psychModMenus = [];
 		for (menu in menus) menu.destroy();
 		menus.clear();
+		// (what was changed in the tabs is written down before the save is read again: without it every change was undone on leaving)
+		ClientPrefs.saveSettings();
 		ClientPrefs.loadPrefs();
 		super.destroy();
 	}

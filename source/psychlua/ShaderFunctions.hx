@@ -268,6 +268,10 @@ class ShaderFunctions
 	#if (!flash && MODS_ALLOWED && sys)
 	public static function getShader(obj:String):FlxRuntimeShader
 	{
+		// (a shader put on a camera with addCameraShader, by its tag)
+		var tagged:FlxRuntimeShader = Std.downcast(MusicBeatState.getVariables().get(obj), FlxRuntimeShader);
+		if(tagged != null) return tagged;
+
 		var split:Array<String> = obj.split('.');
 		var target:FlxSprite = null;
 		if(split.length > 1) target = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
