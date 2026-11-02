@@ -4,7 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Lua API · Vortex Engine</title>
-	<meta name="description" content="The Lua functions, variables, callbacks and properties Vortex Engine adds on top of Psych Engine 1.0.4's Lua API.">
+	<meta name="description" content="The Lua functions, variables, callbacks and properties Vortex Engine adds on top of Psych Engine 1.0.4's Lua API, with examples.">
 	<meta name="theme-color" content="#120a1c">
 	<link rel="icon" href="img/vortex/logo.png">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -62,8 +62,9 @@
 		<header>
 			<span class="eyebrow">Scripting</span>
 			<h1>Vortex Engine Lua API</h1>
-			<p class="lead">What Vortex Engine adds to Psych Engine's Lua. In HScript, <code>game</code> is the PlayState: every
-			<code>setProperty('name', value)</code> here is <code>game.name = value;</code> there.</p>
+			<p class="lead">What Vortex Engine adds to Psych Engine's Lua, with an example for every function. In HScript, <code>game</code> is the PlayState:
+			every <code>setProperty('name', value)</code> here is <code>game.name = value;</code> there.</p>
+			<p class="fn-group-intro">How to read the entries: <code>?name</code> is an optional argument, <code>= value</code> is what it is when left out, and what comes after the last <code>:</code> is what the function returns (<code>Void</code>: nothing).</p>
 		</header>
 
 		<!-- ======================================================== Psych Lua notice -->
@@ -82,14 +83,16 @@
 		<!-- ======================================================== detecting -->
 		<section class="docs-section" id="detecting">
 			<h2>Detecting Vortex Engine</h2>
-			<p>The <code>VortexEngine</code> variable is <code>true</code> on Vortex and <code>nil</code> everywhere else, so one script can work on both.</p>
-<pre><code class="language-lua">function onCreate()
+			<p>The <code>VortexEngine</code> variable is <code>true</code> on Vortex and <code>nil</code> on every other engine, so one script can work on both:
+			use what only Vortex has when it's there, and something else (or nothing) when it isn't.</p>
+<pre><code class="language-lua">function onCreatePost()
     if VortexEngine then
-        -- Vortex Engine
+        setLaneUnderlay(true, 0.7)    -- only Vortex has this function
     else
-        -- Psych Engine or another fork
+        debugPrint('Playing on another engine: no lanes')
     end
 end</code></pre>
+			<p class="example-note">On Vortex the dark lanes are turned on; on Psych Engine the script prints a message instead of stopping with an error.</p>
 <pre><code class="language-haxe">// HScript: reading a variable that doesn't exist is an error on other engines
 var isVortex = false;
 try { if (VortexEngine == true) isVortex = true; } catch(e) { isVortex = false; }</code></pre>
@@ -98,29 +101,43 @@ try { if (VortexEngine == true) isVortex = true; } catch(e) { isVortex = false; 
 		<!-- ======================================================== variables -->
 		<section class="docs-section" id="variables">
 			<h2>Variables</h2>
+			<p>Read like any of Psych's variables, in Lua and HScript.</p>
 			<article class="fn" id="var-VortexEngine">
-				<h3><span class="name">VortexEngine</span> <span class="args">Bool</span></h3>
-				<p>Always <code>true</code> on Vortex Engine (Lua and HScript).</p>
+				<h3><span class="name">VortexEngine</span><span class="ret">:Bool</span><a class="anchor" href="#var-VortexEngine">#</a></h3>
+				<p>Always <code>true</code> on Vortex Engine. See <a href="#detecting">Detecting Vortex Engine</a>.</p>
 			</article>
 			<article class="fn" id="var-playAsOpponent">
-				<h3><span class="name">playAsOpponent</span> <span class="args">Bool</span></h3>
-				<p>"Play as Opponent" is on: the player is hitting the opponent's notes. The sides of the chart don't change: <code>mustPress</code> and <code>goodNoteHit</code>
-				are still the right side's notes, played by the computer. Use the notes' <code>playable</code> property for "the player's notes".
+				<h3><span class="name">playAsOpponent</span><span class="ret">:Bool</span><a class="anchor" href="#var-playAsOpponent">#</a></h3>
+				<p>The player turned on "Play as Opponent": they're hitting the opponent's notes. The sides of the chart don't change: <code>mustPress</code> and <code>goodNoteHit</code>
+				are still the right side's notes, now played by the computer. Use the notes' <code>playable</code> property for "the notes the player hits".
 				The health scripts get is still Boyfriend's, as songs are made, except before the song starts and in <code>noteMiss</code> / <code>noteMissPress</code>.</p>
+<pre><code class="language-lua">function onCreatePost()
+    if playAsOpponent then
+        setProperty('healthDrain', 0)  -- the song's drain would hurt the player now
+    end
+end</code></pre>
+				<p class="example-note">Turns off the Health Drain when the player is playing the opponent's side.</p>
 			</article>
 			<article class="fn" id="var-onlinePlay">
-				<h3><span class="name">onlinePlay</span> <span class="args">Bool</span></h3>
+				<h3><span class="name">onlinePlay</span><span class="ret">:Bool</span><a class="anchor" href="#var-onlinePlay">#</a></h3>
 				<p>The song is an online match of Vortex's multiplayer.</p>
 <pre><code class="language-lua">function onCreatePost()
     if onlinePlay then
-        close() -- turns this script off for online matches (a mechanic that would be unfair)
+        close() -- this mechanic would be unfair online: the script turns itself off
     end
 end</code></pre>
+				<p class="example-note">The script stops running in online matches and keeps working in normal ones.</p>
 			</article>
 			<article class="fn" id="var-onlineHost">
-				<h3><span class="name">onlineHost</span> <span class="args">Bool</span></h3>
+				<h3><span class="name">onlineHost</span><span class="ret">:Bool</span><a class="anchor" href="#var-onlineHost">#</a></h3>
 				<p>An online match, and this player is the one hosting it.</p>
 				<p>If a script stops the countdown (a dialogue, a cutscene) and starts it later with <code>startCountdown()</code>, the two players wait for each other and the song starts at the same time for both. Nothing has to be done in the script for it.</p>
+<pre><code class="language-lua">function onSongStart()
+    if onlineHost then
+        debugPrint('You are hosting this match')
+    end
+end</code></pre>
+				<p class="example-note">Shows a message only on the host's screen.</p>
 			</article>
 		</section>
 
@@ -128,37 +145,74 @@ end</code></pre>
 		<section class="docs-section" id="gameplay">
 			<h2>Gameplay</h2>
 			<article class="fn" id="setLaneUnderlay">
-				<h3><span class="name">setLaneUnderlay</span><span class="args">(show:Bool, ?alpha:Float = 0.5)</span><a class="anchor" href="#setLaneUnderlay">#</a></h3>
+				<h3><span class="name">setLaneUnderlay</span><span class="args">(show:Bool, ?alpha:Float = 0.5)</span><span class="ret">:Void</span><a class="anchor" href="#setLaneUnderlay">#</a></h3>
 				<p>Turns the dark lanes under the player's notes on or off and sets how dark they are, whatever the player's option says. Works at any time of the song.</p>
-<pre><code class="language-lua">setLaneUnderlay(true, 0.8)
-setLaneUnderlay(false)</code></pre>
+				<ul class="params">
+					<li><code>show</code> <span class="type">Bool</span> <code>true</code> shows the lanes, <code>false</code> hides them</li>
+					<li><code>alpha</code> <span class="type">Float</span> how dark they are, from 0 (invisible) to 1 (black) <span class="default">(0.5)</span></li>
+				</ul>
+<pre><code class="language-lua">setLaneUnderlay(true, 0.8)</code></pre>
+				<p class="example-note">Shows very dark lanes, for a part of the song with a busy background.</p>
 			</article>
 			<article class="fn" id="setScoreCamera">
-				<h3><span class="name">setScoreCamera</span><span class="args">(where:String)</span><a class="anchor" href="#setScoreCamera">#</a></h3>
-				<p>Where the ratings ("Sick!"), the combo numbers and "Combo" pop up: <code>"game"</code> (in the stage, moving and zooming with it) or <code>"hud"</code>. The player's option is only the default.</p>
+				<h3><span class="name">setScoreCamera</span><span class="args">(where:String)</span><span class="ret">:Void</span><a class="anchor" href="#setScoreCamera">#</a></h3>
+				<p>Where the ratings ("Sick!"), the combo numbers and "Combo" pop up. The player's option is only the default.</p>
+				<ul class="params">
+					<li><code>where</code> <span class="type">String</span> <code>"game"</code> (in the stage, moving and zooming with it) or <code>"hud"</code> (on the HUD, always in the same place)</li>
+				</ul>
+<pre><code class="language-lua">setScoreCamera('hud')</code></pre>
+				<p class="example-note">The ratings stay on the screen while the stage's camera moves a lot.</p>
 			</article>
 			<article class="fn" id="setHiddenNotes">
-				<h3><span class="name">setHiddenNotes</span><span class="args">(hide:Bool)</span><a class="anchor" href="#setHiddenNotes">#</a></h3>
-				<p>Hides every note, the ones already on the screen too (the "Hidden Notes" gameplay changer), or shows them again. Hit them by memory!</p>
+				<h3><span class="name">setHiddenNotes</span><span class="args">(hide:Bool)</span><span class="ret">:Void</span><a class="anchor" href="#setHiddenNotes">#</a></h3>
+				<p>Hides every note, the ones already on the screen too (the "Hidden Notes" gameplay changer), or shows them again.</p>
+				<ul class="params">
+					<li><code>hide</code> <span class="type">Bool</span> <code>true</code> hides the notes, <code>false</code> shows them</li>
+				</ul>
+<pre><code class="language-lua">function onBeatHit()
+    if curBeat == 128 then setHiddenNotes(true) end
+    if curBeat == 144 then setHiddenNotes(false) end
+end</code></pre>
+				<p class="example-note">For 16 beats the notes are invisible: the player hits them by memory.</p>
 			</article>
 			<article class="fn" id="getTallies">
-				<h3><span class="name">getTallies</span><span class="args">()</span><a class="anchor" href="#getTallies">#</a></h3>
-				<p class="returns">Returns a table: <code>sick</code>, <code>good</code>, <code>bad</code>, <code>shit</code>, <code>missed</code>, <code>combo</code>, <code>maxCombo</code>, <code>totalNotesHit</code>, <code>totalNotes</code></p>
+				<h3><span class="name">getTallies</span><span class="args">()</span><span class="ret">:Table</span><a class="anchor" href="#getTallies">#</a></h3>
 				<p>What the V-Slice style results screen counts, so far in the song.</p>
-<pre><code class="language-lua">local t = getTallies()
-debugPrint('Sicks: ' .. t.sick .. ' / ' .. t.totalNotes)</code></pre>
+				<p class="returns">Returns a table with <code>sick</code>, <code>good</code>, <code>bad</code>, <code>shit</code>, <code>missed</code>, <code>combo</code>, <code>maxCombo</code>, <code>totalNotesHit</code> and <code>totalNotes</code></p>
+<pre><code class="language-lua">function onEndSong()
+    local t = getTallies()
+    debugPrint('Sicks: ' .. t.sick .. ' / ' .. t.totalNotes .. ', best combo: ' .. t.maxCombo)
+end</code></pre>
+				<p class="example-note">Prints how many Sicks the player got and the biggest combo when the song ends.</p>
 			</article>
 			<article class="fn" id="startConversation">
-				<h3><span class="name">startConversation</span><span class="args">(name:String)</span><a class="anchor" href="#startConversation">#</a></h3>
+				<h3><span class="name">startConversation</span><span class="args">(name:String)</span><span class="ret">:Bool</span><a class="anchor" href="#startConversation">#</a></h3>
+				<p>Shows a V-Slice dialogue in a Psych song. Like <code>startDialogue</code>: call it in <code>onStartCountdown</code> (returning <code>Function_Stop</code>) or <code>onEndSong</code>, and the song starts (or ends) when the dialogue is over.</p>
+				<ul class="params">
+					<li><code>name</code> <span class="type">String</span> the conversation's file: <code>data/dialogue/conversations/NAME.json</code> of the mod</li>
+				</ul>
 				<p class="returns">Returns <code>true</code> if the conversation was found</p>
-				<p>Shows a V-Slice dialogue (<code>data/dialogue/conversations/NAME.json</code> of the mod) in a Psych song. Like <code>startDialogue</code>: call it in <code>onStartCountdown</code> (returning <code>Function_Stop</code>) or <code>onEndSong</code>, and the song starts (or ends) when the dialogue is over.</p>
+<pre><code class="language-lua">local talked = false
+function onStartCountdown()
+    if not talked and startConversation('week1-intro') then
+        talked = true
+        return Function_Stop -- the countdown waits for the dialogue
+    end
+    return Function_Continue
+end</code></pre>
+				<p class="example-note">The V-Slice dialogue "week1-intro" plays before the song; the countdown starts when it ends.</p>
 			</article>
 			<article class="fn" id="setBlendMode">
-				<h3><span class="name">setBlendMode</span><span class="args">(tag:String, mode:String)</span><span class="badge">More modes</span><a class="anchor" href="#setBlendMode">#</a></h3>
-				<p>Psych's function, with more modes: <code>"overlay"</code>, <code>"hardlight"</code>, <code>"difference"</code> and <code>"invert"</code> really work on Lua sprites, drawn the way V-Slice's cameras draw them.</p>
+				<h3><span class="name">setBlendMode</span><span class="args">(tag:String, mode:String)</span><span class="ret">:Bool</span><span class="badge">More modes</span><a class="anchor" href="#setBlendMode">#</a></h3>
+				<p>Psych's function, with more modes on Vortex: <code>"overlay"</code>, <code>"hardlight"</code>, <code>"difference"</code> and <code>"invert"</code> really work on Lua sprites, drawn the way V-Slice's cameras draw them.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the Lua sprite</li>
+					<li><code>mode</code> <span class="type">String</span> the blend mode (Psych's ones, plus the 4 above)</li>
+				</ul>
 <pre><code class="language-lua">makeLuaSprite('light', 'stage/light', 0, 0)
 setBlendMode('light', 'overlay')
 addLuaSprite('light', true)</code></pre>
+				<p class="example-note">A light image that brightens and colors what's under it, like a real light, instead of covering it.</p>
 			</article>
 		</section>
 
@@ -166,51 +220,96 @@ addLuaSprite('light', true)</code></pre>
 		<section class="docs-section" id="cameras">
 			<h2>Cameras</h2>
 			<article class="fn" id="makeLuaCamera">
-				<h3><span class="name">makeLuaCamera</span><span class="args">(tag:String, ?above:String = 'hud')</span><a class="anchor" href="#makeLuaCamera">#</a></h3>
+				<h3><span class="name">makeLuaCamera</span><span class="args">(tag:String, ?above:String = 'hud')</span><span class="ret">:Bool</span><a class="anchor" href="#makeLuaCamera">#</a></h3>
+				<p>A camera of the script's own. Sprites go on it with <code>setObjectCamera(sprite, tag)</code>, and it's moved, zoomed and tweened by its tag like the song's cameras
+				(<code>setProperty('tag.zoom', ...)</code>, <code>doTweenZoom</code>, <code>cameraShake</code>...).</p>
 				<ul class="params">
-					<li><code>tag</code> the camera's name</li>
-					<li><code>above</code> the camera it goes right over: <code>"game"</code>, <code>"hud"</code>, <code>"other"</code> or another Lua camera's tag</li>
+					<li><code>tag</code> <span class="type">String</span> the camera's name</li>
+					<li><code>above</code> <span class="type">String</span> the camera it goes right over: <code>"game"</code>, <code>"hud"</code>, <code>"other"</code> or another Lua camera's tag <span class="default">('hud')</span></li>
 				</ul>
-				<p>A camera of the script's own. Sprites go on it with <code>setObjectCamera(sprite, tag)</code>, and it's moved, zoomed and tweened by its tag like the song's cameras.</p>
-<pre><code class="language-lua">makeLuaCamera('camBG', 'game')        -- between the stage and the HUD
-setObjectCamera('fog', 'camBG')
-setProperty('camBG.zoom', 1.2)
-doTweenZoom('fogZoom', 'camBG', 1, 2, 'quadOut')</code></pre>
+				<p class="returns">Returns <code>false</code> if the tag is already used</p>
+<pre><code class="language-lua">function onCreatePost()
+    makeLuaCamera('camBG', 'game')   -- between the stage and the HUD
+    makeLuaSprite('fog', 'stage/fog', 0, 0)
+    setObjectCamera('fog', 'camBG')
+    addLuaSprite('fog', true)
+end
+function onBeatHit()
+    setProperty('camBG.zoom', 1.1)
+    doTweenZoom('fogZoom', 'camBG', 1, 0.4, 'quadOut')
+end</code></pre>
+				<p class="example-note">A fog layer on its own camera, over the stage and under the HUD, that bops on every beat without moving the stage.</p>
 			</article>
 			<article class="fn" id="removeLuaCamera">
-				<h3><span class="name">removeLuaCamera</span><span class="args">(tag:String)</span><a class="anchor" href="#removeLuaCamera">#</a></h3>
-				<p>Takes a Lua camera out (what's on it stops being drawn). The song's own cameras can't be removed.</p>
+				<h3><span class="name">removeLuaCamera</span><span class="args">(tag:String)</span><span class="ret">:Bool</span><a class="anchor" href="#removeLuaCamera">#</a></h3>
+				<p>Takes a Lua camera out: what's on it stops being drawn. The song's own cameras can't be removed.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the Lua camera</li>
+				</ul>
+				<p class="returns">Returns <code>false</code> if there's no Lua camera with that tag</p>
+<pre><code class="language-lua">removeLuaCamera('camBG')</code></pre>
+				<p class="example-note">The fog camera of the example above is gone, with the fog.</p>
 			</article>
 			<article class="fn" id="luaCameraExists">
-				<h3><span class="name">luaCameraExists</span><span class="args">(tag:String)</span><a class="anchor" href="#luaCameraExists">#</a></h3>
-				<p class="returns">Returns <code>Bool</code></p>
+				<h3><span class="name">luaCameraExists</span><span class="args">(tag:String)</span><span class="ret">:Bool</span><a class="anchor" href="#luaCameraExists">#</a></h3>
+				<p>If there's a camera with that tag.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the camera's name</li>
+				</ul>
+<pre><code class="language-lua">if not luaCameraExists('camBG') then
+    makeLuaCamera('camBG', 'game')
+end</code></pre>
+				<p class="example-note">Makes the camera only once, even if this code runs again.</p>
 			</article>
-			<p>Turning a camera (<code>setProperty('camGame.angle', 10)</code>) no longer leaves empty corners: scripts like <code>zCameraFix</code> aren't needed.</p>
+			<p>Turning a camera (<code>setProperty('camGame.angle', 10)</code>) no longer leaves empty corners on Vortex: scripts like <code>zCameraFix</code> aren't needed.</p>
 		</section>
 
 		<!-- ======================================================== camera shaders -->
 		<section class="docs-section" id="camera-shaders">
 			<h2>Shaders on whole cameras</h2>
-			<p>The <code>.frag</code> files of <code>shaders/</code>, the same ones <code>setSpriteShader</code> uses. They need the player's Shaders option on.</p>
+			<p>The <code>.frag</code> files of the mod's <code>shaders/</code> folder, the same ones <code>setSpriteShader</code> uses, on everything a camera shows. They need the player's Shaders option on: with it off these do nothing and return <code>false</code>.</p>
 			<article class="fn" id="addCameraShader">
-				<h3><span class="name">addCameraShader</span><span class="args">(camera:String, shader:String, ?tag:String)</span><a class="anchor" href="#addCameraShader">#</a></h3>
+				<h3><span class="name">addCameraShader</span><span class="args">(camera:String, shader:String, ?tag:String)</span><span class="ret">:Bool</span><a class="anchor" href="#addCameraShader">#</a></h3>
+				<p>Puts a shader on a camera. A camera can have more than one: they're applied in the order they were added. Its values are set with the usual functions (<code>setShaderFloat</code>, <code>setShaderBool</code>...), using the tag.</p>
 				<ul class="params">
-					<li><code>camera</code> <code>"game"</code>, <code>"hud"</code>, <code>"other"</code> or a Lua camera's tag</li>
-					<li><code>shader</code> the shader's file name</li>
-					<li><code>tag</code> what its values are set by (the shader's name if not given)</li>
+					<li><code>camera</code> <span class="type">String</span> <code>"game"</code>, <code>"hud"</code>, <code>"other"</code> or a Lua camera's tag</li>
+					<li><code>shader</code> <span class="type">String</span> the shader's file name, without <code>.frag</code></li>
+					<li><code>tag</code> <span class="type">String</span> the name its values are set by; using it again replaces the old shader <span class="default">(the shader's name)</span></li>
 				</ul>
-				<p>A camera can have more than one; they're applied in the order they were added. The values are set with the usual functions (<code>setShaderFloat</code>...), using the tag.</p>
-<pre><code class="language-lua">addCameraShader('game', 'chromatic', 'chroma')
-setShaderFloat('chroma', 'amount', 0.005)</code></pre>
+				<p class="returns">Returns <code>false</code> if the shader wasn't found or Shaders are off</p>
+<pre><code class="language-lua">function onCreatePost()
+    addCameraShader('game', 'chromatic', 'chroma')
+    setShaderFloat('chroma', 'amount', 0.005)
+end</code></pre>
+				<p class="example-note">A chromatic aberration on the whole stage (the HUD isn't affected).</p>
 			</article>
 			<article class="fn" id="removeCameraShader">
-				<h3><span class="name">removeCameraShader</span><span class="args">(camera:String, ?tag:String)</span><a class="anchor" href="#removeCameraShader">#</a></h3>
-				<p>Takes off the shader with that tag. With no tag, every shader of that camera.</p>
+				<h3><span class="name">removeCameraShader</span><span class="args">(camera:String, ?tag:String)</span><span class="ret">:Bool</span><a class="anchor" href="#removeCameraShader">#</a></h3>
+				<p>Takes a shader off.</p>
+				<ul class="params">
+					<li><code>camera</code> <span class="type">String</span> the camera</li>
+					<li><code>tag</code> <span class="type">String</span> the shader to take off, from whatever camera has it; without it, every shader of the camera</li>
+				</ul>
+<pre><code class="language-lua">removeCameraShader('game', 'chroma')   -- just that one
+removeCameraShader('hud')              -- every shader of the HUD</code></pre>
+				<p class="example-note">The stage's chromatic aberration is gone, and the HUD is back to normal.</p>
 			</article>
 			<article class="fn" id="tweenShaderFloat">
-				<h3><span class="name">tweenShaderFloat</span><span class="args">(tag:String, shaderTag:String, property:String, value:Float, duration:Float, ?ease:String = 'linear')</span><a class="anchor" href="#tweenShaderFloat">#</a></h3>
-				<p>Changes a float of a shader smoothly (a camera's, or a sprite's by the sprite's tag). <code>onTweenCompleted(tag, shaderTag)</code> is called at the end, and <code>cancelTween(tag)</code> stops it.</p>
-<pre><code class="language-lua">tweenShaderFloat('chromaOut', 'chroma', 'amount', 0, 0.5, 'quadOut')</code></pre>
+				<h3><span class="name">tweenShaderFloat</span><span class="args">(tag:String, shaderTag:String, property:String, value:Float, duration:Float, ?ease:String = 'linear')</span><span class="ret">:String</span><a class="anchor" href="#tweenShaderFloat">#</a></h3>
+				<p>Changes a float of a shader smoothly. <code>onTweenCompleted(tag, shaderTag)</code> is called at the end, and <code>cancelTween(tag)</code> stops it.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the tween's name</li>
+					<li><code>shaderTag</code> <span class="type">String</span> a camera shader's tag, or a sprite with a shader (by the sprite's tag)</li>
+					<li><code>property</code> <span class="type">String</span> the shader's <code>uniform float</code></li>
+					<li><code>value</code> <span class="type">Float</span> where it goes</li>
+					<li><code>duration</code> <span class="type">Float</span> in seconds</li>
+					<li><code>ease</code> <span class="type">String</span> the ease, like Psych's tweens <span class="default">('linear')</span></li>
+				</ul>
+<pre><code class="language-lua">function onBeatHit()
+    setShaderFloat('chroma', 'amount', 0.02)
+    tweenShaderFloat('chromaOut', 'chroma', 'amount', 0, 0.4, 'quadOut')
+end</code></pre>
+				<p class="example-note">The chromatic aberration hits hard on every beat and fades away before the next one.</p>
 			</article>
 		</section>
 
@@ -219,36 +318,74 @@ setShaderFloat('chroma', 'amount', 0.005)</code></pre>
 			<h2>3D</h2>
 			<p>Everything is seen in perspective from the center of the screen. Angles are in degrees.</p>
 			<article class="fn" id="angleX-angleY-z">
-				<h3><span class="name">angleX</span>, <span class="name">angleY</span>, <span class="name">z</span> <span class="args">properties</span><a class="anchor" href="#angleX-angleY-z">#</a></h3>
+				<h3><span class="name">angleX</span>, <span class="name">angleY</span>, <span class="name">z</span><span class="ret">:Float</span> <span class="args">(properties)</span><a class="anchor" href="#angleX-angleY-z">#</a></h3>
+				<p>New properties of Lua sprites, receptors and notes, set with <code>setProperty</code> / <code>setPropertyFromGroup</code> and tweened with <code>startTween</code>. <code>angle</code> still turns it on the screen as always.</p>
 				<ul class="params">
-					<li><code>angleX</code> turned forward/back, around the horizontal line through its origin</li>
-					<li><code>angleY</code> turned left/right, around the vertical line through its origin</li>
-					<li><code>z</code> pushed away from the screen (it gets smaller toward the center); negative brings it closer</li>
+					<li><code>angleX</code> <span class="type">Float</span> turned forward/back, around the horizontal line through its origin</li>
+					<li><code>angleY</code> <span class="type">Float</span> turned left/right, around the vertical line through its origin</li>
+					<li><code>z</code> <span class="type">Float</span> pushed away from the screen (it gets smaller, toward the center); negative brings it closer</li>
 				</ul>
-				<p>On Lua sprites, receptors and notes. <code>angle</code> still turns it on the screen as always. Notes copy them from their receptor, long notes too:
-				to turn a note on its own, set its <code>copy3D</code> to <code>false</code> and then its own values.</p>
-<pre><code class="language-lua">setProperty('card.angleY', 45)
-startTween('cardSpin', 'card', {angleY = 360}, 2, {ease = 'quadInOut'})
-setPropertyFromGroup('playerStrums', 0, 'angleX', 60)
-setPropertyFromGroup('opponentStrums', 2, 'z', 400)</code></pre>
+				<p>Notes copy them from their receptor, long notes too. To turn a note on its own, set its <code>copy3D</code> to <code>false</code> and then its own values.</p>
+<pre><code class="language-lua">function onSongStart()
+    for i = 0, 3 do
+        setPropertyFromGroup('opponentStrums', i, 'z', 400)     -- far away
+        startTween('spin' .. i, 'playerStrums.members[' .. i .. ']', {angleY = 360}, 1.5, {ease = 'quadInOut'})
+    end
+end</code></pre>
+				<p class="example-note">The opponent's receptors go into the distance, and the player's spin around once, with their notes.</p>
 			</article>
 			<article class="fn" id="setCamera3D">
-				<h3><span class="name">setCamera3D</span><span class="args">(camera:String, angleX:Float, angleY:Float, z:Float)</span><a class="anchor" href="#setCamera3D">#</a></h3>
-				<p>Turns a whole camera in perspective. All zeros put it back to normal. Turning the HUD tilts the receptors and the notes together (the long notes too), like a 3D modchart. Needs the Shaders option on.</p>
-<pre><code class="language-lua">setCamera3D('hud', 30, 0, 0)  -- the HUD leans back</code></pre>
+				<h3><span class="name">setCamera3D</span><span class="args">(camera:String, ?angleX:Float = 0, ?angleY:Float = 0, ?z:Float = 0)</span><span class="ret">:Bool</span><a class="anchor" href="#setCamera3D">#</a></h3>
+				<p>Turns everything a camera shows in perspective, like a card. Turning the HUD tilts the receptors and the notes together (the long notes too), like a 3D modchart. Needs the Shaders option on.</p>
+				<ul class="params">
+					<li><code>camera</code> <span class="type">String</span> <code>"game"</code>, <code>"hud"</code>, <code>"other"</code> or a Lua camera's tag</li>
+					<li><code>angleX</code> <span class="type">Float</span> leaning forward/back <span class="default">(0)</span></li>
+					<li><code>angleY</code> <span class="type">Float</span> turned left/right <span class="default">(0)</span></li>
+					<li><code>z</code> <span class="type">Float</span> pushed away <span class="default">(0)</span></li>
+				</ul>
+				<p class="returns">All zeros put it back to normal. Returns <code>false</code> if it couldn't be turned (Shaders off)</p>
+<pre><code class="language-lua">setCamera3D('hud', 30)     -- the HUD leans back
+setCamera3D('hud')         -- back to normal</code></pre>
+				<p class="example-note">The receptors and notes lean back like a road going into the distance, then go back to flat.</p>
 			</article>
 			<article class="fn" id="getCamera3D">
-				<h3><span class="name">getCamera3D</span><span class="args">(camera:String)</span><a class="anchor" href="#getCamera3D">#</a></h3>
-				<p class="returns">Returns a table: <code>angleX</code>, <code>angleY</code>, <code>z</code></p>
+				<h3><span class="name">getCamera3D</span><span class="args">(camera:String)</span><span class="ret">:Table</span><a class="anchor" href="#getCamera3D">#</a></h3>
+				<p>How a camera is turned now.</p>
+				<ul class="params">
+					<li><code>camera</code> <span class="type">String</span> the camera</li>
+				</ul>
+				<p class="returns">Returns a table with <code>angleX</code>, <code>angleY</code> and <code>z</code> (zeros if it isn't turned)</p>
+<pre><code class="language-lua">local hud = getCamera3D('hud')
+setCamera3D('hud', hud.angleX + 5, hud.angleY, hud.z)</code></pre>
+				<p class="example-note">Leans the HUD 5 degrees more than it already was.</p>
 			</article>
 			<article class="fn" id="tweenCamera3D">
-				<h3><span class="name">tweenCamera3D</span><span class="args">(tag:String, camera:String, angleX:Float, angleY:Float, z:Float, duration:Float, ?ease:String = 'linear')</span><a class="anchor" href="#tweenCamera3D">#</a></h3>
-				<p><code>setCamera3D</code> little by little. <code>onTweenCompleted(tag, camera)</code> at the end, <code>cancelTween(tag)</code> stops it.</p>
-<pre><code class="language-lua">tweenCamera3D('lean', 'hud', 0, 25, 0, 1, 'quadOut')</code></pre>
+				<h3><span class="name">tweenCamera3D</span><span class="args">(tag:String, camera:String, angleX:Float, angleY:Float, z:Float, duration:Float, ?ease:String = 'linear')</span><span class="ret">:String</span><a class="anchor" href="#tweenCamera3D">#</a></h3>
+				<p><code>setCamera3D</code> little by little, from how the camera is now. <code>onTweenCompleted(tag, camera)</code> is called at the end, and <code>cancelTween(tag)</code> stops it.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the tween's name</li>
+					<li><code>camera</code> <span class="type">String</span> the camera</li>
+					<li><code>angleX</code>, <code>angleY</code>, <code>z</code> <span class="type">Float</span> where it goes</li>
+					<li><code>duration</code> <span class="type">Float</span> in seconds</li>
+					<li><code>ease</code> <span class="type">String</span> the ease <span class="default">('linear')</span></li>
+				</ul>
+<pre><code class="language-lua">function onBeatHit()
+    if curBeat % 8 == 0 then
+        tweenCamera3D('sway', 'hud', 0, 20, 0, 1, 'sineInOut')
+    elseif curBeat % 8 == 4 then
+        tweenCamera3D('sway', 'hud', 0, -20, 0, 1, 'sineInOut')
+    end
+end</code></pre>
+				<p class="example-note">The HUD sways from one side to the other every 4 beats.</p>
 			</article>
 			<article class="fn" id="setPerspective">
-				<h3><span class="name">setPerspective</span><span class="args">(distance:Float)</span><a class="anchor" href="#setPerspective">#</a></h3>
-				<p>How far the eye is from the screen, in pixels (1000 if not changed). Smaller is a stronger perspective. Applies to everything 3D, models too.</p>
+				<h3><span class="name">setPerspective</span><span class="args">(distance:Float)</span><span class="ret">:Bool</span><a class="anchor" href="#setPerspective">#</a></h3>
+				<p>How strong the perspective is, for everything 3D (sprites, notes, cameras and models).</p>
+				<ul class="params">
+					<li><code>distance</code> <span class="type">Float</span> how far the eye is from the screen, in pixels (1000 if never changed, at least 50). Smaller is a stronger perspective</li>
+				</ul>
+<pre><code class="language-lua">setPerspective(500)</code></pre>
+				<p class="example-note">Things turned in 3D look much deeper, like seen through a wide lens.</p>
 			</article>
 		</section>
 
@@ -256,30 +393,35 @@ setPropertyFromGroup('opponentStrums', 2, 'z', 400)</code></pre>
 		<section class="docs-section" id="models">
 			<h2>3D models (.obj)</h2>
 			<article class="fn" id="makeLuaModel">
-				<h3><span class="name">makeLuaModel</span><span class="args">(tag:String, model:String, ?texture:String, ?x:Float = 0, ?y:Float = 0)</span><a class="anchor" href="#makeLuaModel">#</a></h3>
+				<h3><span class="name">makeLuaModel</span><span class="args">(tag:String, model:String, ?texture:String, ?x:Float = 0, ?y:Float = 0)</span><span class="ret">:Bool</span><a class="anchor" href="#makeLuaModel">#</a></h3>
+				<p>Makes a 3D model, 200 pixels on its biggest side. It's put on the screen and handled like a Lua sprite: <code>addLuaSprite(tag, front)</code> (behind or in front of the characters),
+				<code>setObjectCamera</code>, <code>setProperty</code>, <code>startTween</code>, <code>removeLuaSprite</code>.</p>
 				<ul class="params">
-					<li><code>model</code> <code>models/NAME.obj</code> of the mod (just <code>"NAME"</code> works)</li>
-					<li><code>texture</code> an image of <code>images/</code>, painted with the model's texture coordinates (without one it's plain white, which <code>color</code> tints)</li>
-					<li><code>x</code>, <code>y</code> where its center goes</li>
+					<li><code>tag</code> <span class="type">String</span> the model's name</li>
+					<li><code>model</code> <span class="type">String</span> <code>models/NAME.obj</code> of the mod (just <code>"NAME"</code> works)</li>
+					<li><code>texture</code> <span class="type">String</span> an image of <code>images/</code>, painted with the model's texture coordinates <span class="default">(none: plain white, tinted by <code>color</code>)</span></li>
+					<li><code>x</code>, <code>y</code> <span class="type">Float</span> where its center goes <span class="default">(0)</span></li>
 				</ul>
-				<p>A 3D model, made to be 200 pixels on its biggest side. Then <code>addLuaSprite(tag, front)</code>, <code>setObjectCamera</code>, <code>removeLuaSprite</code>... like a sprite: added behind or in front of the characters like any sprite.</p>
-				<p>Its properties (<code>setProperty</code> / <code>startTween</code>): <code>x</code>, <code>y</code>, <code>z</code>, <code>angleX</code>, <code>angleY</code>, <code>angle</code>, <code>alpha</code>, <code>color</code>, <code>visible</code>, <code>scrollFactor</code>, and:</p>
+				<p class="returns">Returns <code>false</code> if the model wasn't found or has no triangles that could be read</p>
+				<p>Its properties, besides <code>x</code>, <code>y</code>, <code>z</code>, <code>angleX</code>, <code>angleY</code>, <code>angle</code>, <code>alpha</code>, <code>color</code>, <code>visible</code> and <code>scrollFactor</code>:</p>
 				<ul class="params">
-					<li><code>modelScale</code> pixels per unit of the model</li>
-					<li><code>lighting</code> <code>true</code>: each triangle is shaded by how much it faces the light</li>
-					<li><code>ambient</code> how dark the side away from the light gets, 0 to 1 (0.35)</li>
-					<li><code>cullBack</code> <code>true</code>: triangles facing away aren't drawn (turn it off for open or flat models)</li>
-					<li><code>triangleCount</code> read only</li>
+					<li><code>modelScale</code> <span class="type">Float</span> pixels per unit of the model</li>
+					<li><code>lighting</code> <span class="type">Bool</span> each triangle is shaded by how much it faces the light <span class="default">(true)</span></li>
+					<li><code>ambient</code> <span class="type">Float</span> how dark the side away from the light gets, 0 to 1 <span class="default">(0.35)</span></li>
+					<li><code>cullBack</code> <span class="type">Bool</span> triangles facing away aren't drawn; turn it off for open or flat models <span class="default">(true)</span></li>
+					<li><code>triangleCount</code> <span class="type">Int</span> how many triangles it has (read only)</li>
 				</ul>
 <pre><code class="language-lua">function onCreatePost()
     makeLuaModel('ring', 'ring', 'ringTexture', 600, 300)
-    addLuaSprite('ring', false)
+    setProperty('ring.angleX', 20)
+    addLuaSprite('ring', false)   -- behind the characters
 end
 
 function onUpdate(elapsed)
     setProperty('ring.angleY', getProperty('ring.angleY') + elapsed * 90)
 end</code></pre>
-				<div class="callout info">The triangles are drawn from the farthest to the closest (there's no depth buffer), so models of up to a few thousand triangles work best. Faces with more than 3 corners are split into triangles.</div>
+				<p class="example-note">A textured ring (mods/MyMod/models/ring.obj with images/ringTexture.png) leaning forward and spinning a quarter turn per second, behind the characters.</p>
+				<div class="callout info">The triangles are drawn from the farthest to the closest (there's no depth buffer), so models of up to a few thousand triangles work best. Faces with more than 3 corners are split into triangles. Each model has one texture.</div>
 			</article>
 		</section>
 
@@ -287,68 +429,114 @@ end</code></pre>
 		<section class="docs-section" id="notes">
 			<h2>Notes during the song</h2>
 			<article class="fn" id="spawnNote">
-				<h3><span class="name">spawnNote</span><span class="args">(time:Float, column:Int, mustPress:Bool, ?holdLength:Float = 0, ?noteType:String = '', ?singers:String)</span><a class="anchor" href="#spawnNote">#</a></h3>
+				<h3><span class="name">spawnNote</span><span class="args">(time:Float, column:Int, mustPress:Bool, ?holdLength:Float = 0, ?noteType:String = '', ?singers:String)</span><span class="ret">:Bool</span><a class="anchor" href="#spawnNote">#</a></h3>
+				<p>Adds a note to the song, like one of the chart's. A note added for a time that already went by comes as a miss. Note types with a script must already be in the song's chart to have their script loaded.</p>
 				<ul class="params">
-					<li><code>time</code> in milliseconds of the song</li>
-					<li><code>column</code> from 0 to <code>getKeyCount() - 1</code></li>
-					<li><code>mustPress</code> <code>true</code> for the right side's notes (the player's)</li>
-					<li><code>holdLength</code> in milliseconds (0: not a long note)</li>
-					<li><code>noteType</code> a note type ('' is a normal note)</li>
-					<li><code>singers</code> who sings it: <code>"main"</code>, <code>"all"</code> or extra characters' tags</li>
+					<li><code>time</code> <span class="type">Float</span> when it has to be hit, in milliseconds of the song</li>
+					<li><code>column</code> <span class="type">Int</span> from 0 to <code>getKeyCount() - 1</code> (0 = left on a 4-key song)</li>
+					<li><code>mustPress</code> <span class="type">Bool</span> <code>true</code> for the right side's notes (the player's), <code>false</code> for the opponent's</li>
+					<li><code>holdLength</code> <span class="type">Float</span> in milliseconds; 0 is not a long note <span class="default">(0)</span></li>
+					<li><code>noteType</code> <span class="type">String</span> a note type; '' is a normal note <span class="default">('')</span></li>
+					<li><code>singers</code> <span class="type">String</span> who sings it: <code>"main"</code>, <code>"all"</code> or extra characters' tags <span class="default">(the default singers)</span></li>
 				</ul>
-				<p>A note like the chart's. A note added for a time that already went by comes as a miss. Note types with a script must already be in the song's chart to have their script loaded.</p>
-<pre><code class="language-lua">-- 4 notes, one per column, half a second apart, 2 seconds from now
-for i = 0, 3 do
-    spawnNote(getSongPosition() + 2000 + i * 500, i, true)
+				<p class="returns">Returns <code>false</code> if the column doesn't exist on this song</p>
+<pre><code class="language-lua">function onBeatHit()
+    if curBeat == 32 then
+        for i = 0, 3 do
+            spawnNote(getSongPosition() + 2000 + i * 250, i, true)
+        end
+        spawnNote(getSongPosition() + 3000, 0, true, 800, 'Hurt Note')
+    end
 end</code></pre>
+				<p class="example-note">On beat 32, a left-down-up-right staircase comes 2 seconds later, followed by a long Hurt Note on the left.</p>
 			</article>
 			<article class="fn" id="getKeyCount">
-				<h3><span class="name">getKeyCount</span><span class="args">()</span><a class="anchor" href="#getKeyCount">#</a></h3>
-				<p class="returns">Returns <code>Int</code></p>
-				<p>How many arrows each side has: 4 on most songs, 1 to 9 on songs with extra keys.</p>
+				<h3><span class="name">getKeyCount</span><span class="args">()</span><span class="ret">:Int</span><a class="anchor" href="#getKeyCount">#</a></h3>
+				<p>How many arrows each side has: 4 on most songs, 1 to 9 on songs with <a href="modding.html#extra-keys">extra keys</a>.</p>
+<pre><code class="language-lua">for i = 0, getKeyCount() - 1 do
+    setPropertyFromGroup('playerStrums', i, 'alpha', 0.5)
+end</code></pre>
+				<p class="example-note">Makes every receptor of the player half see-through, whether the song has 4, 6 or 9 of them.</p>
 			</article>
 		</section>
 
 		<!-- ======================================================== extra characters -->
 		<section class="docs-section" id="extra-characters">
 			<h2>Extra characters</h2>
-			<p>Extra characters can be set up in the chart editor (see the <a href="modding.html#extra-characters">modding guide</a>) or added during the song. Scripts get each one by its tag, like a Lua sprite:
-			<code>setProperty('pico2.alpha', 0.5)</code>, <code>playAnim('pico2', 'hey', true)</code>. A "Change Character" event with the tag as its first value changes that extra character.</p>
+			<p>Characters singing besides the opponent, the player and the girlfriend. They're set up in the chart editor (see the <a href="modding.html#extra-characters">modding guide</a>) or added during the song.
+			Scripts get each one by its tag, like a Lua sprite: <code>setProperty('pico2.alpha', 0.5)</code>, <code>playAnim('pico2', 'singUP', true)</code>.
+			A "Change Character" event with the tag as its first value changes that extra character.</p>
 			<article class="fn" id="addExtraCharacter">
-				<h3><span class="name">addExtraCharacter</span><span class="args">(tag:String, character:String, ?side:String = 'opponent', ?x:Float = 0, ?y:Float = 0, ?singsAll:Bool = false, ?behind:Bool = false)</span><a class="anchor" href="#addExtraCharacter">#</a></h3>
+				<h3><span class="name">addExtraCharacter</span><span class="args">(tag:String, character:String, ?side:String = 'opponent', ?x:Float = 0, ?y:Float = 0, ?singsAll:Bool = false, ?behind:Bool = false)</span><span class="ret">:Bool</span><a class="anchor" href="#addExtraCharacter">#</a></h3>
+				<p>Adds an extra character during the song, the same as one of the chart's: it dances, sings the notes of its side that are marked for it (or all of them with <code>singsAll</code>), holds long notes and misses.</p>
 				<ul class="params">
-					<li><code>side</code> <code>"opponent"</code>, <code>"player"</code> or <code>"gf"</code></li>
-					<li><code>x</code>, <code>y</code> from the spot of the main character of that side</li>
-					<li><code>singsAll</code> sings every note of its side</li>
-					<li><code>behind</code> stands behind the main character</li>
+					<li><code>tag</code> <span class="type">String</span> its name for notes and scripts</li>
+					<li><code>character</code> <span class="type">String</span> the character file</li>
+					<li><code>side</code> <span class="type">String</span> <code>"opponent"</code>, <code>"player"</code> or <code>"gf"</code> <span class="default">('opponent')</span></li>
+					<li><code>x</code>, <code>y</code> <span class="type">Float</span> where it stands, from the spot of the main character of that side <span class="default">(0)</span></li>
+					<li><code>singsAll</code> <span class="type">Bool</span> sings every note of its side (a duet) <span class="default">(false)</span></li>
+					<li><code>behind</code> <span class="type">Bool</span> stands behind the main character <span class="default">(false)</span></li>
 				</ul>
 				<p class="returns">Returns <code>false</code> if the tag is already used or the character doesn't exist</p>
-<pre><code class="language-lua">addExtraCharacter('backup', 'pico', 'opponent', -300, 0, true)
-playAnim('backup', 'hey', true)</code></pre>
+<pre><code class="language-lua">function onBeatHit()
+    if curBeat == 64 then
+        addExtraCharacter('backup', 'pico', 'opponent', -300, 0, true)
+        playAnim('backup', 'singUP', true)
+    end
+end</code></pre>
+				<p class="example-note">On beat 64 Pico shows up next to the opponent, strikes a pose, and then sings every note with them.</p>
 			</article>
 			<article class="fn" id="removeExtraCharacter">
-				<h3><span class="name">removeExtraCharacter</span><span class="args">(tag:String)</span><a class="anchor" href="#removeExtraCharacter">#</a></h3>
-				<p>Takes it out of the song.</p>
+				<h3><span class="name">removeExtraCharacter</span><span class="args">(tag:String)</span><span class="ret">:Bool</span><a class="anchor" href="#removeExtraCharacter">#</a></h3>
+				<p>Takes an extra character out of the song (one of the chart's too).</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the extra character</li>
+				</ul>
+				<p class="returns">Returns <code>false</code> if no extra character has that tag</p>
+<pre><code class="language-lua">if curBeat == 128 then removeExtraCharacter('backup') end</code></pre>
+				<p class="example-note">Pico from the example above leaves on beat 128.</p>
 			</article>
 			<article class="fn" id="getExtraCharacters">
-				<h3><span class="name">getExtraCharacters</span><span class="args">()</span><a class="anchor" href="#getExtraCharacters">#</a></h3>
-				<p class="returns">Returns a table with the tags of every extra character of the song</p>
+				<h3><span class="name">getExtraCharacters</span><span class="args">()</span><span class="ret">:Table</span><a class="anchor" href="#getExtraCharacters">#</a></h3>
+				<p>The tags of every extra character of the song.</p>
+<pre><code class="language-lua">for _, tag in ipairs(getExtraCharacters()) do
+    setProperty(tag .. '.alpha', 0.5)
+end</code></pre>
+				<p class="example-note">Every extra character becomes half see-through, without knowing their tags.</p>
 			</article>
 		</section>
 
 		<!-- ======================================================== window -->
 		<section class="docs-section" id="window">
 			<h2>The game's window</h2>
-			<p>Whatever a song changes is put back when the song is left.</p>
+			<p>Whatever a song changes (title, position, size) is put back when the song is left.</p>
 			<article class="fn" id="setWindowTitle">
-				<h3><span class="name">setWindowTitle</span><span class="args">(title:String)</span> · <span class="name">getWindowTitle</span><span class="args">()</span><a class="anchor" href="#setWindowTitle">#</a></h3>
+				<h3><span class="name">setWindowTitle</span><span class="args">(title:String)</span><span class="ret">:Void</span><a class="anchor" href="#setWindowTitle">#</a></h3>
+				<p>Changes the text on the window's title bar.</p>
+				<ul class="params">
+					<li><code>title</code> <span class="type">String</span> the new title</li>
+				</ul>
+<pre><code class="language-lua">setWindowTitle('YOU CAN\'T RUN')</code></pre>
+				<p class="example-note">The window's title bar says "YOU CAN'T RUN" until the song is left.</p>
+			</article>
+			<article class="fn" id="getWindowTitle">
+				<h3><span class="name">getWindowTitle</span><span class="args">()</span><span class="ret">:String</span><a class="anchor" href="#getWindowTitle">#</a></h3>
+				<p>The window's title now.</p>
+<pre><code class="language-lua">setWindowTitle(getWindowTitle() .. ' - Hard Mode')</code></pre>
+				<p class="example-note">Adds " - Hard Mode" to the end of the title.</p>
 			</article>
 			<article class="fn" id="setWindowPosition">
-				<h3><span class="name">setWindowPosition</span><span class="args">(x:Int, y:Int)</span> · <span class="name">getWindowX</span><span class="args">()</span> · <span class="name">getWindowY</span><span class="args">()</span><a class="anchor" href="#setWindowPosition">#</a></h3>
-				<p>Not while the game is fullscreen (returns <code>false</code>).</p>
-<pre><code class="language-lua">-- the window shakes on every beat of a part of the song
-local baseX, baseY
-function onSongStart() baseX = getWindowX(); baseY = getWindowY() end
+				<h3><span class="name">setWindowPosition</span><span class="args">(x:Int, y:Int)</span><span class="ret">:Bool</span><a class="anchor" href="#setWindowPosition">#</a></h3>
+				<p>Moves the window on the computer's screen.</p>
+				<ul class="params">
+					<li><code>x</code>, <code>y</code> <span class="type">Int</span> the window's top-left corner, in pixels of the monitor</li>
+				</ul>
+				<p class="returns">Returns <code>false</code> while the game is fullscreen (it isn't moved)</p>
+<pre><code class="language-lua">local baseX, baseY
+function onSongStart()
+    baseX = getWindowX()
+    baseY = getWindowY()
+end
 function onBeatHit()
     if curBeat >= 64 and curBeat < 96 then
         setWindowPosition(baseX + getRandomInt(-15, 15), baseY + getRandomInt(-15, 15))
@@ -356,22 +544,57 @@ function onBeatHit()
         setWindowPosition(baseX, baseY)
     end
 end</code></pre>
+				<p class="example-note">The window shakes on every beat from 64 to 96, then goes back where it was.</p>
+			</article>
+			<article class="fn" id="getWindowX">
+				<h3><span class="name">getWindowX</span><span class="args">()</span><span class="ret">:Int</span> · <span class="name">getWindowY</span><span class="args">()</span><span class="ret">:Int</span><a class="anchor" href="#getWindowX">#</a></h3>
+				<p>Where the window's top-left corner is on the monitor.</p>
+<pre><code class="language-lua">debugPrint('The window is at ' .. getWindowX() .. ', ' .. getWindowY())</code></pre>
+				<p class="example-note">Prints the window's position.</p>
 			</article>
 			<article class="fn" id="setWindowSize">
-				<h3><span class="name">setWindowSize</span><span class="args">(width:Int, height:Int)</span> · <span class="name">getWindowWidth</span><span class="args">()</span> · <span class="name">getWindowHeight</span><span class="args">()</span><a class="anchor" href="#setWindowSize">#</a></h3>
-				<p>Not while the game is fullscreen (returns <code>false</code>).</p>
+				<h3><span class="name">setWindowSize</span><span class="args">(width:Int, height:Int)</span><span class="ret">:Bool</span><a class="anchor" href="#setWindowSize">#</a></h3>
+				<p>Resizes the window. The game is stretched to fit it, as when the player resizes it.</p>
+				<ul class="params">
+					<li><code>width</code> <span class="type">Int</span> at least 160</li>
+					<li><code>height</code> <span class="type">Int</span> at least 90</li>
+				</ul>
+				<p class="returns">Returns <code>false</code> while the game is fullscreen, or for a size too small</p>
+<pre><code class="language-lua">setWindowSize(960, 540)</code></pre>
+				<p class="example-note">The window shrinks to 960x540, for a "the game is getting smaller" effect.</p>
+			</article>
+			<article class="fn" id="getWindowWidth">
+				<h3><span class="name">getWindowWidth</span><span class="args">()</span><span class="ret">:Int</span> · <span class="name">getWindowHeight</span><span class="args">()</span><span class="ret">:Int</span><a class="anchor" href="#getWindowWidth">#</a></h3>
+				<p>The window's size now.</p>
+<pre><code class="language-lua">setWindowSize(math.floor(getWindowWidth() * 0.9), math.floor(getWindowHeight() * 0.9))</code></pre>
+				<p class="example-note">Makes the window 10% smaller than it is.</p>
 			</article>
 			<article class="fn" id="getScreenWidth">
-				<h3><span class="name">getScreenWidth</span><span class="args">()</span> · <span class="name">getScreenHeight</span><span class="args">()</span><a class="anchor" href="#getScreenWidth">#</a></h3>
+				<h3><span class="name">getScreenWidth</span><span class="args">()</span><span class="ret">:Int</span> · <span class="name">getScreenHeight</span><span class="args">()</span><span class="ret">:Int</span><a class="anchor" href="#getScreenWidth">#</a></h3>
 				<p>The size of the monitor the window is on.</p>
+<pre><code class="language-lua">setWindowPosition(math.floor((getScreenWidth() - getWindowWidth()) / 2), math.floor((getScreenHeight() - getWindowHeight()) / 2))</code></pre>
+				<p class="example-note">Puts the window in the middle of the monitor.</p>
 			</article>
 			<article class="fn" id="isWindowFullscreen">
-				<h3><span class="name">isWindowFullscreen</span><span class="args">()</span><a class="anchor" href="#isWindowFullscreen">#</a></h3>
-				<p class="returns">Returns <code>Bool</code></p>
+				<h3><span class="name">isWindowFullscreen</span><span class="args">()</span><span class="ret">:Bool</span><a class="anchor" href="#isWindowFullscreen">#</a></h3>
+				<p>If the game is fullscreen (then the window can't be moved or resized).</p>
+<pre><code class="language-lua">if not isWindowFullscreen() then
+    setWindowSize(960, 540)
+end</code></pre>
+				<p class="example-note">Only shrinks the window when the player is playing in a window.</p>
 			</article>
 			<article class="fn" id="windowAlert">
-				<h3><span class="name">windowAlert</span><span class="args">(message:String, ?title:String)</span><a class="anchor" href="#windowAlert">#</a></h3>
-				<p>A message box of the system. The game waits until it's closed.</p>
+				<h3><span class="name">windowAlert</span><span class="args">(message:String, ?title:String)</span><span class="ret">:Void</span><a class="anchor" href="#windowAlert">#</a></h3>
+				<p>Shows a message box of the system. The game waits until it's closed.</p>
+				<ul class="params">
+					<li><code>message</code> <span class="type">String</span> the text</li>
+					<li><code>title</code> <span class="type">String</span> the box's title <span class="default">(the window's title)</span></li>
+				</ul>
+<pre><code class="language-lua">function onEndSong()
+    windowAlert('You beat me... for now.', 'Sonic.exe')
+    return Function_Continue
+end</code></pre>
+				<p class="example-note">A Windows message box shows up when the song ends, before the results.</p>
 			</article>
 		</section>
 
@@ -379,32 +602,62 @@ end</code></pre>
 		<section class="docs-section" id="clipboard">
 			<h2>Clipboard</h2>
 			<article class="fn" id="setClipboard">
-				<h3><span class="name">setClipboard</span><span class="args">(text:String)</span> · <span class="name">getClipboard</span><span class="args">()</span><a class="anchor" href="#setClipboard">#</a></h3>
+				<h3><span class="name">setClipboard</span><span class="args">(text:String)</span><span class="ret">:Void</span><a class="anchor" href="#setClipboard">#</a></h3>
+				<p>Puts text on the computer's clipboard (what <kbd>CTRL</kbd>+<kbd>V</kbd> pastes).</p>
+				<ul class="params">
+					<li><code>text</code> <span class="type">String</span> the text</li>
+				</ul>
+<pre><code class="language-lua">function onEndSong()
+    setClipboard('I got ' .. getProperty('songScore') .. ' points on ' .. songName .. '!')
+    return Function_Continue
+end</code></pre>
+				<p class="example-note">The player's score is copied, ready to paste on Discord.</p>
+			</article>
+			<article class="fn" id="getClipboard">
+				<h3><span class="name">getClipboard</span><span class="args">()</span><span class="ret">:String</span><a class="anchor" href="#getClipboard">#</a></h3>
+				<p>The text on the computer's clipboard ('' if there's none).</p>
+<pre><code class="language-lua">if getClipboard() == 'secret code' then
+    debugPrint('You found the secret!')
+end</code></pre>
+				<p class="example-note">A secret that unlocks when the player copied a certain text before the song.</p>
 			</article>
 		</section>
 
 		<!-- ======================================================== callbacks -->
 		<section class="docs-section" id="callbacks">
 			<h2>Callbacks</h2>
-			<p>Called by the engine on Lua and HScript scripts, like Psych's own.</p>
+			<p>Functions the engine calls on Lua and HScript scripts, like Psych's own (<code>onBeatHit</code>, <code>goodNoteHit</code>...).</p>
 			<article class="fn" id="onBreakStart">
 				<h3><span class="name">onBreakStart</span><span class="args">(seconds:Float)</span><a class="anchor" href="#onBreakStart">#</a></h3>
-				<p>A part of the song with 3 seconds or more without notes to hit started; <code>seconds</code> is how long it is (in real seconds, playback rate included). Called even if the player turned the Break Timer off.</p>
+				<p>A part of the song with 3 seconds or more without notes to hit started. Called even if the player turned the Break Timer off.</p>
+				<ul class="params">
+					<li><code>seconds</code> <span class="type">Float</span> how long the break is, in real seconds (playback rate included)</li>
+				</ul>
+<pre><code class="language-lua">function onBreakStart(seconds)
+    doTweenZoom('breakZoom', 'camGame', 0.7, 1, 'quadOut')
+end</code></pre>
+				<p class="example-note">The camera zooms out during the breaks of the song.</p>
 			</article>
 			<article class="fn" id="onBreakEnd">
 				<h3><span class="name">onBreakEnd</span><span class="args">()</span><a class="anchor" href="#onBreakEnd">#</a></h3>
 				<p>The notes are coming again (or the song ended).</p>
-<pre><code class="language-lua">-- zoom out during the breaks
-function onBreakStart(seconds)
-    doTweenZoom('breakZoom', 'camGame', 0.7, 1, 'quadOut')
-end
-function onBreakEnd()
+<pre><code class="language-lua">function onBreakEnd()
     doTweenZoom('breakZoom', 'camGame', getProperty('defaultCamZoom'), 0.5, 'quadIn')
 end</code></pre>
+				<p class="example-note">With the example above: the camera zooms back in when the notes come back.</p>
 			</article>
 			<article class="fn" id="onConversationEnd">
 				<h3><span class="name">onConversationEnd</span><span class="args">(name:String)</span><a class="anchor" href="#onConversationEnd">#</a></h3>
 				<p>A V-Slice dialogue started with <code>startConversation</code> ended.</p>
+				<ul class="params">
+					<li><code>name</code> <span class="type">String</span> the conversation that ended</li>
+				</ul>
+<pre><code class="language-lua">function onConversationEnd(name)
+    if name == 'week1-intro' then
+        playSound('confirmMenu')
+    end
+end</code></pre>
+				<p class="example-note">A sound plays when the intro dialogue is over, right before the countdown.</p>
 			</article>
 		</section>
 
@@ -436,6 +689,12 @@ end</code></pre>
 					</tbody>
 				</table>
 			</div>
+<pre><code class="language-lua">function onSongStart()
+    setProperty('healthDrain', 1.5)
+    setProperty('ghostNotes', true)
+    debugPrint('You are playing ' .. getProperty('playableCharacter.curCharacter'))
+end</code></pre>
+			<p class="example-note">A harder song: strong health drain and ghost notes, whatever the player's options are.</p>
 			<p>On notes (<code>getPropertyFromGroup('notes', i, ...)</code>): <code>playable</code> (the player has to hit it, also with Play as Opponent), <code>singers</code> (who sings it), <code>copy3D</code>, <code>angleX</code>, <code>angleY</code>, <code>z</code>.</p>
 			<p>On the health icons (<code>iconP1</code> / <code>iconP2</code>): <code>autoUpdate</code> (false: the game stops placing and bopping it), <code>isAnimated</code> and <code>hasWinningIcon</code> (read only).</p>
 		</section>
@@ -443,7 +702,7 @@ end</code></pre>
 		<!-- ======================================================== objects -->
 		<section class="docs-section" id="objects">
 			<h2>Objects of Vortex</h2>
-			<p>Vortex's own things, to move, recolor or hide like any other sprite.</p>
+			<p>Vortex's own things on the screen, to move, recolor or hide like any other sprite.</p>
 			<div class="table-wrap">
 				<table>
 					<thead><tr><th>Name</th><th>What it is</th></tr></thead>
@@ -459,9 +718,12 @@ end</code></pre>
 					</tbody>
 				</table>
 			</div>
-<pre><code class="language-lua">setProperty('restCountdownTxt.color', getColorFromHex('FF66CC'))
-setPropertyFromGroup('laneUnderlays', 0, 'color', getColorFromHex('220033'))
-setProperty('susWiggle.waveAmplitude', 0.15)</code></pre>
+<pre><code class="language-lua">function onCreatePost()
+    setProperty('restCountdownTxt.color', getColorFromHex('FF66CC'))
+    setPropertyFromGroup('laneUnderlays', 0, 'color', getColorFromHex('220033'))
+    setProperty('susWiggle.waveAmplitude', 0.15)
+end</code></pre>
+			<p class="example-note">A pink Break Timer, a purple left lane, and long notes that wiggle more.</p>
 		</section>
 
 		<!-- ======================================================== hscript -->

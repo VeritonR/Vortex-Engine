@@ -248,7 +248,7 @@ In the chart (Psych format): a "vortexCharacters" list, and the 5th value of a n
 
 Scripts get each one by its tag, like a Lua sprite:
     setProperty('pico2.alpha', 0.5)
-    playAnim('pico2', 'hey', true)
+    playAnim('pico2', 'singUP', true)
     getProperty('pico2.curCharacter')
 "Change Character" event with the tag as its first value changes that extra character (value 2: the new character).
 Notes: getPropertyFromGroup('notes', i, 'singers') / note.singers (HScript) - who sings it (null = the default ones).
@@ -416,7 +416,7 @@ addExtraCharacter(tag, character, side, x, y, singsAll, behind)
                                 // character of that side. singsAll: sings every note of its side. behind: behind the
                                 // main character. False if the tag is already used or the character doesn't exist.
                                 //     addExtraCharacter('backup', 'pico', 'opponent', -300, 0, true)
-                                //     playAnim('backup', 'hey', true)
+                                //     playAnim('backup', 'singUP', true)
 removeExtraCharacter(tag)       // takes it out of the song
 getExtraCharacters()            // a table with the tags of every extra character of the song
 

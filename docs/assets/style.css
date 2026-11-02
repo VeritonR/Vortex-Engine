@@ -518,3 +518,10 @@ tr:last-child td { border-bottom: 0; }
 	cursor: pointer;
 	padding: 0;
 }
+
+/* (the Lua API entries: return type, defaults, and the sentence under each example) */
+.fn h3 .ret { color: var(--purple-soft); }
+.params .default { color: var(--text-faint); font-size: 0.85rem; }
+.example-note { font-size: 0.9rem; color: var(--text-faint); margin: -8px 0 14px; }
+.example-note::before { content: '↳ '; color: var(--pink); }
+.fn-group-intro { color: var(--text-soft); }
