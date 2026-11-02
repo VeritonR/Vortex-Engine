@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  <a href="https://discord.gg/QKjMSpeHW"><img src="https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the Vortex Engine Discord server"></a>
+</p>
+
+<p align="center">
   <img src="docs/img/vortex/title.jpg" width="49%">
   <img src="docs/img/vortex/mainmenu.jpg" width="49%">
 </p>
@@ -327,6 +331,12 @@ The scripts are in `art/tools/`: `ExportCleanBuild.hx` is the export, and the fo
 ### Custom mouse cursor
 
 Put an image at `images/cursor.png` (the game's `assets/shared/images/`, or a mod's `images/` folder - the mod being played comes first) and it becomes the cursor on every screen. An optional `images/cursor.txt` next to it sets its size and the pixel that clicks: `scale, x, y` (for example `2, 0, 0`, or `1, 16, 16` for a 32x32 crosshair clicking with its middle).
+
+---
+
+## 💬 Community
+
+Questions, bug reports, mods made with Vortex Engine, or someone to play online with: join the **[Vortex Engine Discord server](https://discord.gg/QKjMSpeHW)**.
 
 ---
 

@@ -180,7 +180,7 @@ class MainMenuState extends MusicBeatState
 			}
 			currentY += item.height + 15;
 		}
-		vortexVer = new FlxText(12, FlxG.height - 74, 0, "Vortex Engine v1.2", 14);
+		vortexVer = new FlxText(12, FlxG.height - 74, 0, "Vortex Engine v1.4", 14);
 		vortexVer.scrollFactor.set();
 		vortexVer.antialiasing = ClientPrefs.data.antialiasing;
 		vortexVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
