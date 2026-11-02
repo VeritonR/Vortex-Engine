@@ -105,6 +105,7 @@ class VSliceScripts
 		funkin.play.song.ScriptedSong, funkin.play.stage.Stage.ScriptedStage,
 		funkin.save.Save, funkin.util.Constants,
 		funkin.ui.options.OptionsState, funkin.ui.options.OptionsState.PreferencesMenu, funkin.ui.options.OptionsState.ControlsMenu,
+		funkin.ui.options.OptionsState.OptionsCodex, funkin.ui.options.OptionsState.OptionsMenu,
 		funkin.ui.story.Level, funkin.ui.story.Level.ScriptedLevel,
 		funkin.Assets, funkin.audio.VoicesGroup, funkin.data.character.CharacterDataParser, funkin.data.story.level.LevelRegistry,
 		funkin.modding.ModStore, funkin.modding.PolymodHandler, funkin.play.character.NeneBaseCharacter,
@@ -2366,6 +2367,88 @@ class VSliceScripts
 		if(asState) dispatchToModules(new StateChangeScriptEvent(ScriptEventType.STATE_CHANGE_BEGIN, state, true));
 		else dispatchToModules(new SubStateScriptEvent(ScriptEventType.SUBSTATE_OPEN_BEGIN, state, true));
 		#end
+	}
+
+	/**
+	 * The settings the V-Slice mods add to the options menu: the modules that deal with V-Slice's `OptionsState` are told it opened
+	 * (`onStateChangeEnd`, with a stand-in of it), and what they ask its pages for is given back, with the mod of each one.
+	 * Only those modules: others could take any state change for a real one (play music, switch screens).
+	 */
+	public static function collectModOptions():Array<funkin.ui.options.OptionsState.ModPreference>
+	{
+		var found:Array<funkin.ui.options.OptionsState.ModPreference> = [];
+		#if HSCRIPT_ALLOWED
+		if(modules.length < 1) return found;
+
+		var stand:funkin.ui.options.OptionsState = new funkin.ui.options.OptionsState();
+		var event = new StateChangeScriptEvent(ScriptEventType.STATE_CHANGE_END, stand);
+		var oldMod:String = Mods.currentModDirectory;
+		var oldQuiet:Bool = HxcRuntime.quietErrors;
+		HxcRuntime.quietErrors = true; //(a script reaching for something of V-Slice's menu that isn't here: its options still count)
+		for (module in modules)
+		{
+			var base:Module = cast module.base;
+			if(base == null || !base.active || !dealsWithOptions(module)) continue;
+
+			var owner:String = moduleMods.get(module);
+			if(owner == null) owner = modOfPath(module.cls.module.path);
+			funkin.ui.options.OptionsState.PreferencesMenu.currentMod = owner;
+			#if MODS_ALLOWED
+			if(owner != null) Mods.currentModDirectory = owner;
+			#end
+			try
+			{
+				module.call('onScriptEvent', [event]);
+				module.call('onStateChangeEnd', [event]);
+			}
+			catch(e:Dynamic) trace('Options of "${module.cls.name}": $e');
+		}
+		HxcRuntime.quietErrors = oldQuiet;
+		funkin.ui.options.OptionsState.PreferencesMenu.currentMod = null;
+		Mods.currentModDirectory = oldMod;
+
+		for (name in stand.optionsCodex.pageOrder)
+		{
+			var page:Dynamic = stand.optionsCodex.pages.get(name);
+			if(Std.isOfType(page, funkin.ui.options.OptionsState.PreferencesMenu))
+				for (entry in cast(page, funkin.ui.options.OptionsState.PreferencesMenu).entries) found.push(entry);
+		}
+		#end
+		return found;
+	}
+
+	static var optionsScripts:Map<String, Bool> = new Map();
+	#if HSCRIPT_ALLOWED
+	// If the module's file has anything to do with V-Slice's options menu
+	static function dealsWithOptions(module:HxcInstance):Bool
+	{
+		var path:String = module.cls.module.path;
+		if(path == null) return false;
+		if(optionsScripts.exists(path)) return optionsScripts.get(path);
+		var deals:Bool = false;
+		#if sys
+		try
+		{
+			var text:String = sys.io.File.getContent(path);
+			deals = text.indexOf('OptionsState') > -1 || text.indexOf('optionsCodex') > -1 || text.indexOf('PreferencesMenu') > -1;
+		}
+		catch(e:Dynamic) {}
+		#end
+		optionsScripts.set(path, deals);
+		return deals;
+	}
+	#end
+
+	// "mods/<folder>/scripts/...": the folder
+	static function modOfPath(path:String):String
+	{
+		if(path == null) return null;
+		var clean:String = path.replace('\\', '/');
+		var at:Int = clean.indexOf('mods/');
+		if(at < 0) return null;
+		var rest:String = clean.substr(at + 5);
+		var slash:Int = rest.indexOf('/');
+		return (slash > 0) ? rest.substr(0, slash) : null;
 	}
 
 	/**

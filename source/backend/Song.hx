@@ -113,8 +113,9 @@ class Song
 
 			for (note in section.sectionNotes)
 			{
-				var gottaHitNote:Bool = (note[1] < 4) ? section.mustHitSection : !section.mustHitSection;
-				note[1] = (note[1] % 4) + (gottaHitNote ? 0 : 4);
+				var keys:Int = backend.ExtraKeys.countOf(songJson); //(4, unless the song has another number of arrows)
+				var gottaHitNote:Bool = (note[1] < keys) ? section.mustHitSection : !section.mustHitSection;
+				note[1] = (note[1] % keys) + (gottaHitNote ? 0 : keys);
 
 				if(!Std.isOfType(note[3], String))
 					note[3] = Note.defaultNoteTypes[note[3]]; //compatibility with Week 7 and 0.1-0.3 psych charts

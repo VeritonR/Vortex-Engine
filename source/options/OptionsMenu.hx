@@ -5,6 +5,8 @@ import flixel.FlxCamera;
 import flixel.FlxBasic;
 import flixel.addons.display.FlxBackdrop;
 import flixel.group.FlxSpriteGroup;
+import objects.StrumNote;
+import objects.NoteSplash;
 
 /**
  * The options menu itself: a panel with a tab for each kind of setting (Gameplay, Graphics, Visuals, V-Slice, Vortex Engine and
@@ -33,8 +35,8 @@ class OptionsMenu extends MusicBeatSubstate
 	];
 
 	// The tabs, in their order, and what the "More" one lists (each opens a menu of its own)
-	static final TABS:Array<String> = ['Gameplay', 'Graphics', 'Visuals', 'V-Slice', 'Vortex Engine', 'More'];
-	static final MORE:Array<String> = ['Note Colors', 'Controls', 'Adjust Delay and Combo' #if TRANSLATIONS_ALLOWED , 'Language' #end];
+	static final TABS:Array<String> = ['Gameplay', 'Graphics', 'Visuals', 'V-Slice', 'Vortex Engine', 'Mods', 'More'];
+	static final MORE:Array<String> = ['Note Colors', 'Controls', 'Extra Keys', 'Adjust Delay and Combo' #if TRANSLATIONS_ALLOWED , 'Language' #end];
 
 	public static inline final SLIDE_TIME:Float = 0.8;
 
@@ -100,6 +102,13 @@ class OptionsMenu extends MusicBeatSubstate
 	var holdValue:Float = 0;
 
 	// (while sliding, the menu is on a camera of its own that moves, and the gear on one above it)
+	// The receptors and splashes of the Visuals tab (its own, so a change of skin shows on them), shown by the note and splash settings
+	var previewNotes:FlxTypedGroup<StrumNote> = null;
+	var previewSplashes:FlxTypedGroup<NoteSplash> = null;
+	var previewShown:Float = 0;
+	var previewWanted:Bool = false;
+	var splashesPending:Bool = false;
+
 	var slideCam:FlxCamera = null;
 	var gearCam:FlxCamera = null;
 	var sliding:Bool = false;
@@ -191,8 +200,8 @@ class OptionsMenu extends MusicBeatSubstate
 			tabBacks.push(back);
 			content.add(back);
 
-			var text:FlxText = new FlxText(back.x, PANEL_Y + 18, tabWidth, tabName(tab), 22);
-			text.setFormat(Paths.font('vcr.ttf'), 22, FlxColor.WHITE, CENTER, OUTLINE, 0xFF140820);
+			var text:FlxText = new FlxText(back.x, PANEL_Y + 20, tabWidth, tabName(tab), 20);
+			text.setFormat(Paths.font('vcr.ttf'), 20, FlxColor.WHITE, CENTER, OUTLINE, 0xFF140820);
 			text.borderSize = 2;
 			tabTexts.push(text);
 			content.add(text);
@@ -224,6 +233,11 @@ class OptionsMenu extends MusicBeatSubstate
 	function optionsOf(tab:String):Array<Option>
 	{
 		if(tab == 'More') return [];
+		if(tab == 'Mods')
+		{
+			if(modTabOptions == null) modTabOptions = buildModOptions();
+			return modTabOptions;
+		}
 		var menu:BaseOptionsMenu = menus.get(tab);
 		if(menu == null)
 		{
@@ -238,6 +252,7 @@ class OptionsMenu extends MusicBeatSubstate
 			}
 			if(menu == null) return [];
 			menus.set(tab, menu);
+			if(Std.isOfType(menu, options.VisualsSettingsSubState)) attachPreview(cast menu);
 		}
 		@:privateAccess return (menu.optionsArray != null) ? menu.optionsArray : [];
 	}
@@ -288,12 +303,19 @@ class OptionsMenu extends MusicBeatSubstate
 			return;
 		}
 		var option:Option = tabOptions[index];
+		if(option.header)
+		{
+			text.text = '- ' + option.name + ' -';
+			return;
+		}
 		text.text = option.name + ':  < ' + valueText(option) + ' >';
 	}
 
 	static function valueText(option:Option):String
 	{
 		var value:Dynamic = option.getValue();
+		if(option.formatter != null && Reflect.isFunction(option.formatter))
+			try return Std.string(Reflect.callMethod(null, option.formatter, [value])) catch(e:Dynamic) {}
 		switch(option.type)
 		{
 			case BOOL:
@@ -310,16 +332,230 @@ class OptionsMenu extends MusicBeatSubstate
 		}
 	}
 
+	// ------------------------------------------------------------------------------------------
+	// The "Mods" tab: the settings mods add, each mod under its name
+	// ------------------------------------------------------------------------------------------
+
+	var modTabOptions:Array<Option> = null;
+	var psychModMenus:Array<options.ModSettingsSubState> = [];
+
+	function buildModOptions():Array<Option>
+	{
+		var list:Array<Option> = [];
+
+		// V-Slice mods: what their scripts add to V-Slice's options menu
+		var byMod:Array<{mod:String, entries:Array<funkin.ui.options.OptionsState.ModPreference>}> = [];
+		for (entry in backend.VSliceScripts.collectModOptions())
+		{
+			var group = null;
+			for (other in byMod) if(other.mod == entry.mod) group = other;
+			if(group == null)
+			{
+				group = {mod: entry.mod, entries: []};
+				byMod.push(group);
+			}
+			group.entries.push(entry);
+		}
+		for (group in byMod)
+		{
+			list.push(headerOption(modName(group.mod)));
+			for (entry in group.entries)
+			{
+				var option:Option = vsliceOption(entry);
+				if(option != null) list.push(option);
+			}
+		}
+
+		// Psych mods: their "data/settings.json" (the same settings as their button of the mods menu)
+		#if MODS_ALLOWED
+		for (folder in Mods.parseList().enabled)
+		{
+			var path:String = Paths.mods('$folder/data/settings.json');
+			if(!sys.FileSystem.exists(path)) continue;
+			try
+			{
+				var settings:Array<Dynamic> = tjson.TJSON.parse(sys.io.File.getContent(path));
+				if(settings == null || settings.length < 1) continue;
+				var menu:options.ModSettingsSubState = new options.ModSettingsSubState(settings, folder, modName(folder));
+				psychModMenus.push(menu);
+				@:privateAccess var settingsList:Array<Option> = menu.optionsArray;
+				if(settingsList == null || settingsList.length < 1) continue;
+				list.push(headerOption(modName(folder)));
+				for (option in settingsList) list.push(option);
+			}
+			catch(e:Dynamic) trace('The settings of "$folder" could not be read: $e');
+		}
+		#end
+		return list;
+	}
+
+	static function modName(folder:String):String
+	{
+		if(folder == null || folder.length < 1) return Language.getPhrase('options_mods_other', 'Other');
+		#if MODS_ALLOWED
+		var pack:Dynamic = Mods.getPack(folder);
+		if(pack != null && pack.name != null && Std.string(pack.name).length > 0) return Std.string(pack.name);
+		#end
+		return folder;
+	}
+
+	static function headerOption(name:String):Option
+	{
+		var option:Option = new Option(name, '', '__header', BOOL);
+		option.header = true;
+		option.getValue = function() return null;
+		option.setValue = function(value:Dynamic) return null;
+		return option;
+	}
+
+	// A setting a V-Slice mod asked for: its value kept here, the mod's function called on each change (with the value, like V-Slice)
+	static function vsliceOption(entry:funkin.ui.options.OptionsState.ModPreference):Option
+	{
+		var holder:{value:Dynamic} = {value: entry.value};
+		var option:Option = null;
+		switch(entry.kind)
+		{
+			case 'checkbox':
+				option = new Option(entry.name, entry.description, '__mod', BOOL);
+				option.defaultValue = entry.value;
+			case 'number':
+				var decimals:Int = (entry.precision != null) ? entry.precision : 0;
+				option = new Option(entry.name, entry.description, '__mod', decimals > 0 ? FLOAT : INT);
+				option.minValue = entry.min;
+				option.maxValue = entry.max;
+				option.changeValue = entry.step;
+				option.decimals = decimals;
+				option.scrollSpeed = Math.max(1, (entry.max - entry.min) / 2);
+				option.formatter = entry.formatter;
+				option.defaultValue = entry.value;
+			case 'percentage':
+				option = new Option(entry.name, entry.description, '__mod', INT);
+				option.minValue = entry.min;
+				option.maxValue = entry.max;
+				option.changeValue = 10;
+				option.scrollSpeed = 50;
+				option.displayFormat = '%v%';
+				option.defaultValue = entry.value;
+			case 'enum':
+				// (a list with a single empty value is how some mods write a title between their settings)
+				if(entry.labels.length == 1 && entry.labels[0].trim().length < 1)
+				{
+					var title:Option = headerOption(entry.name.replace('=', '').trim());
+					title.description = entry.description;
+					return title;
+				}
+				option = new Option(entry.name, entry.description, '__mod', STRING, entry.labels);
+				var index:Int = entry.values.indexOf(Std.string(entry.value));
+				option.defaultValue = entry.labels[index > -1 ? index : 0];
+				option.curOption = index > -1 ? index : 0;
+			default:
+				return null;
+		}
+
+		if(entry.kind == 'enum')
+		{
+			option.getValue = function() {
+				var index:Int = entry.values.indexOf(Std.string(holder.value));
+				return entry.labels[index > -1 ? index : 0];
+			};
+			option.setValue = function(label:Dynamic) {
+				var index:Int = entry.labels.indexOf(Std.string(label));
+				holder.value = entry.values[index > -1 ? index : 0];
+				return label;
+			};
+		}
+		else
+		{
+			option.getValue = function() return holder.value;
+			option.setValue = function(value:Dynamic) return holder.value = value;
+		}
+		option.onChange = function() callMod(entry.onChange, holder.value);
+		return option;
+	}
+
+	// (some mods' functions take the old value too: they're given it twice then)
+	static function callMod(func:Dynamic, value:Dynamic):Void
+	{
+		if(func == null || !Reflect.isFunction(func)) return;
+		try Reflect.callMethod(null, func, [value])
+		catch(e:Dynamic)
+		{
+			try Reflect.callMethod(null, func, [value, value]) catch(e2:Dynamic) trace('A mod setting could not be changed: $e');
+		}
+	}
+
+	function attachPreview(visuals:options.VisualsSettingsSubState):Void
+	{
+		@:privateAccess
+		{
+			previewNotes = visuals.notes;
+			previewSplashes = visuals.splashes;
+		}
+		if(previewNotes == null || previewSplashes == null) return;
+		var cameras:Array<FlxCamera> = (content != null) ? content.cameras : null;
+		for (group in [previewNotes, cast previewSplashes])
+		{
+			add(group);
+			if(cameras != null) group.cameras = cameras;
+		}
+		for (note in previewNotes.members) if(note != null) note.alpha = 0;
+	}
+
+	// Shown while a setting of the notes or of their splashes is selected
+	function updatePreview(elapsed:Float):Void
+	{
+		if(previewNotes == null) return;
+		var option:Option = (TABS[curTab] != 'More' && curRow >= 0 && curRow < tabOptions.length) ? tabOptions[curRow] : null;
+		var wanted:Bool = TABS[curTab] == 'Visuals' && option != null && ['noteSkin', 'splashSkin', 'splashAlpha'].contains(option.variable);
+		var splashOption:Bool = wanted && option.variable.startsWith('splash');
+		if(wanted && !previewWanted && splashOption) splashesPending = true;
+		if(wanted && previewWanted && splashOption && previewShown >= 1 && option != lastPreviewOption) splashesPending = true;
+		previewWanted = wanted;
+		lastPreviewOption = option;
+
+		previewShown = wanted ? Math.min(1, previewShown + elapsed * 4) : Math.max(0, previewShown - elapsed * 5);
+		var eased:Float = FlxEase.quadOut(previewShown);
+		var spacing:Float = 112;
+		var left:Float = content.x + PANEL_X + PANEL_W - previewNotes.length * spacing - 30;
+		var top:Float = content.y + LIST_TOP + 24;
+		for (i => note in previewNotes.members)
+		{
+			if(note == null) continue;
+			note.x = left + i * spacing + (spacing - note.width) / 2;
+			note.y = top - 30 * (1 - eased);
+			note.alpha = eased;
+			note.visible = previewShown > 0;
+		}
+		if(previewShown <= 0) for (splash in previewSplashes.members) if(splash != null && splash.alive) splash.kill();
+
+		// (the splashes play once the receptors are there, like they did in the Visuals menu)
+		if(splashesPending && previewShown >= 1)
+		{
+			splashesPending = false;
+			var visuals = menus.get('Visuals');
+			if(visuals != null) @:privateAccess (cast visuals:options.VisualsSettingsSubState).playNoteSplashes();
+		}
+	}
+	var lastPreviewOption:Option = null;
+
 	function changeRow(change:Int, playSound:Bool = true):Void
 	{
 		var count:Int = rows.length;
 		if(count < 1)
 		{
 			rowHighlight.visible = false;
-			descText.text = '';
+			descText.text = (TABS[curTab] == 'Mods') ? Language.getPhrase('options_mods_none', 'None of the mods that are on has settings of its own.') : '';
 			return;
 		}
+		rowHighlight.visible = true;
 		curRow = FlxMath.wrap(curRow + change, 0, count - 1);
+		// (the titles of the "Mods" tab are skipped, in the way it was going)
+		if(TABS[curTab] != 'More')
+		{
+			var step:Int = (change < 0) ? -1 : 1;
+			var tries:Int = 0;
+			while(tabOptions[curRow] != null && tabOptions[curRow].header && tries++ < count) curRow = FlxMath.wrap(curRow + step, 0, count - 1);
+		}
 		if(playSound && change != 0) FlxG.sound.play(Paths.sound('scrollMenu'));
 
 		var visibleRows:Int = Std.int((LIST_BOTTOM - LIST_TOP) / ROW_H);
@@ -340,7 +576,8 @@ class OptionsMenu extends MusicBeatSubstate
 			var y:Float = LIST_TOP + i * ROW_H - scroll;
 			text.y = content.y + y + 6;
 			text.visible = (y >= LIST_TOP - 2 && y + ROW_H <= LIST_BOTTOM + 2);
-			text.color = (i == curRow) ? FlxColor.WHITE : COLOR_TEXT;
+			var isHeader:Bool = TABS[curTab] != 'More' && tabOptions[i] != null && tabOptions[i].header;
+			text.color = isHeader ? 0xFFFF8ADA : ((i == curRow) ? FlxColor.WHITE : COLOR_TEXT);
 			text.alpha = (i == curRow) ? 1 : 0.75;
 		}
 		var selectedY:Float = LIST_TOP + curRow * ROW_H - scroll;
@@ -428,6 +665,8 @@ class OptionsMenu extends MusicBeatSubstate
 				openSubState(new options.NotesColorSubState());
 			case 'Controls':
 				openSubState(new options.ControlsSubState());
+			case 'Extra Keys':
+				openSubState(new options.ExtraKeysSubState());
 			case 'Graphics':
 				openSubState(new options.GraphicsSettingsSubState());
 			case 'Visuals':
@@ -468,6 +707,7 @@ class OptionsMenu extends MusicBeatSubstate
 	{
 		super.update(elapsed);
 		placeRows(elapsed);
+		updatePreview(elapsed);
 		if(sliding || exiting || subState != null) return;
 
 		// (the gear is only there when the menu wasn't opened from a song)
@@ -517,6 +757,7 @@ class OptionsMenu extends MusicBeatSubstate
 		}
 
 		var option:Option = tabOptions[curRow];
+		if(option == null || option.header) return;
 		switch(option.type)
 		{
 			case BOOL:
@@ -623,6 +864,17 @@ class OptionsMenu extends MusicBeatSubstate
 	{
 		removeSlideCameras();
 		lastRows[curTab] = curRow;
+		// (the preview is the Visuals menu's own: it goes with it)
+		if(previewNotes != null) remove(previewNotes, true);
+		if(previewSplashes != null) remove(previewSplashes, true);
+		previewNotes = null;
+		previewSplashes = null;
+		for (menu in psychModMenus)
+		{
+			menu.saveSettings();
+			menu.destroy();
+		}
+		psychModMenus = [];
 		for (menu in menus) menu.destroy();
 		menus.clear();
 		ClientPrefs.loadPrefs();

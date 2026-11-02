@@ -751,9 +751,13 @@ class MultiplayerMenuState extends MusicBeatState
 
     // The host starts the song it picked, the way it was set up
     function startMatch() {
+        // (a mod is being offered or sent: the match starts once the other player has it)
+        if (transferStage != null || ModTransfer.sending) return;
+
         // a song of a mod: the other player is asked if they have it first, and is offered the mod if they don't
         var folder:String = songFolders[curSongSelected];
-        if (folder != null && ModTransfer.validFolder(folder) && transferStage == null) {
+        // (only a folder of "mods": the content that comes with the game, like the V-Slice base songs, everyone has)
+        if (folder != null && ModTransfer.validFolder(folder) #if sys && sys.FileSystem.exists(Paths.mods(folder)) #end) {
             transferStage = "checking";
             transferTime = 0;
             transferFolder = folder;
@@ -1004,6 +1008,10 @@ class MultiplayerMenuState extends MusicBeatState
     function leaveLobby() {
         NetworkManager.log('left the lobby: ' + NetworkManager.statusString);
         inLobby = false;
+        // (a mod that was being offered or received: the other player is gone, so is what came of it)
+        transferStage = null;
+        pendingOffer = null;
+        if (ModTransfer.receiving) ModTransfer.cancelReceiving();
         hostLobby.visible = false;
         diffText.visible = false;
         hostRoleText.visible = false;

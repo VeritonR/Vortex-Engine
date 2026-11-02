@@ -184,8 +184,18 @@ class ModSettingsSubState extends BaseOptionsMenu
 
 	override public function close()
 	{
+		saveSettings();
+		super.close();
+	}
+
+	/**
+	 * Writes the values down (the options menu's "Mods" tab shows these settings without opening this menu).
+	 */
+	public function saveSettings():Void
+	{
+		if(_crashed) return;
+		if(FlxG.save.data.modSettings == null) FlxG.save.data.modSettings = new Map<String, Dynamic>();
 		FlxG.save.data.modSettings.set(folder, save);
 		FlxG.save.flush();
-		super.close();
 	}
 }

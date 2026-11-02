@@ -40,12 +40,7 @@ class EditorPlayState extends MusicBeatSubstate
 	var lastRating:FlxSprite;
 	var lastCombo:FlxSprite;
 	var lastScore:Array<FlxSprite> = [];
-	var keysArray:Array<String> = [
-		'note_left',
-		'note_down',
-		'note_up',
-		'note_right'
-	];
+	var keysArray:Array<String> = backend.ExtraKeys.actions(); //(the song's number of arrows, see backend.ExtraKeys)
 	
 	var songHits:Int = 0;
 	var songMisses:Int = 0;
@@ -445,7 +440,7 @@ class EditorPlayState extends MusicBeatSubstate
 	{
 		var strumLineX:Float = ClientPrefs.data.middleScroll ? PlayState.STRUM_X_MIDDLESCROLL : PlayState.STRUM_X;
 		var strumLineY:Float = ClientPrefs.data.downScroll ? (FlxG.height - 150) : 50;
-		for (i in 0...4)
+		for (i in 0...backend.ExtraKeys.keyCount)
 		{
 			// FlxG.log.add(i);
 			var targetAlpha:Float = 1;
@@ -466,7 +461,7 @@ class EditorPlayState extends MusicBeatSubstate
 				if(ClientPrefs.data.middleScroll)
 				{
 					babyArrow.x += 310;
-					if(i > 1) { //Up and Right
+					if(i >= Std.int(backend.ExtraKeys.keyCount / 2)) { //Up and Right (the second half)
 						babyArrow.x += FlxG.width / 2 + 25;
 					}
 				}

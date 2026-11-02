@@ -224,8 +224,10 @@ class NoteSplash extends FlxSprite
 		if (babyArrow != null)
 			setPosition(babyArrow.psychX - Note.swagWidth * 0.95, babyArrow.psychY - Note.swagWidth); // To prevent it from being misplaced for one game tick
 
+		// (the colors are the column's, the animation the one of its arrow: they're not the same with more or fewer than 4 arrows)
+		var colorColumn:Int = (note != null) ? note.noteData : noteData % Note.colArray.length;
 		if (note != null)
-			noteData = note.noteData;
+			noteData = backend.ExtraKeys.animShape(note.noteData);
 
 		if (randomize && maxAnims > 1)
 			noteData = noteData % Note.colArray.length + (FlxG.random.int(0, maxAnims - 1) * Note.colArray.length);
@@ -236,7 +238,7 @@ class NoteSplash extends FlxSprite
 		var tempShader:RGBPalette = null;
 		if (config.allowRGB)
 		{
-			Note.initializeGlobalRGBShader(noteData % Note.colArray.length);
+			Note.initializeGlobalRGBShader(colorColumn);
 			if (inEditor || (note == null || note.noteSplashData.useRGBShader) && (PlayState.SONG == null || !PlayState.SONG.disableNoteRGB))
 			{
 				tempShader = new RGBPalette();
@@ -250,8 +252,7 @@ class NoteSplash extends FlxSprite
 						{
 							if (i > 2) break;
 
-							var arr:Array<FlxColor> = ClientPrefs.data.arrowRGB[noteData % Note.colArray.length];
-							if (PlayState.isPixelStage) arr = ClientPrefs.data.arrowRGBPixel[noteData % Note.colArray.length];
+							var arr:Array<FlxColor> = backend.ExtraKeys.rgbOf(colorColumn, PlayState.isPixelStage);
 
 							var rgb = colors[i];
 							if (rgb == null)
@@ -276,7 +277,7 @@ class NoteSplash extends FlxSprite
 							else if (i == 2) tempShader.b = color;
 						}
 					}
-					else tempShader.copyValues(Note.globalRgbShaders[noteData % Note.colArray.length]);
+					else tempShader.copyValues(Note.globalRgbShaders[colorColumn]);
 
 					if (note != null)
 					{
@@ -285,7 +286,7 @@ class NoteSplash extends FlxSprite
 						if (note.noteSplashData.b != -1) tempShader.b = note.noteSplashData.b;
 					}
 				}
-				else tempShader.copyValues(Note.globalRgbShaders[noteData % Note.colArray.length]);
+				else tempShader.copyValues(Note.globalRgbShaders[colorColumn]);
 			}
 		}
 		rgbShader.copyValues(tempShader);

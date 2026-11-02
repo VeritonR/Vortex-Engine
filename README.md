@@ -117,8 +117,33 @@ Each of these is an option, and Psych mods get them too.
 * **Animated health icons** (an `.xml` next to the icon) and **winning icons** (3 frames).
 * **Window Mode** (windowed or fullscreen) and **Sharpness**.
 * **Supersampling:** the game is drawn bigger than the window and shrunk to it, for smoother edges (like DSR on NVIDIA cards).
-* **The options menu** is one panel with tabs (Gameplay, Graphics, Visuals, V-Slice, Vortex Engine and More), usable with the keyboard or the mouse.
+* **The options menu** is one panel with tabs (Gameplay, Graphics, Visuals, V-Slice, Vortex Engine, Mods and More), usable with the keyboard or the mouse. The note and splash settings show the arrows, with the splashes playing.
+* **Mods tab:** the settings mods add, each mod under its name. V-Slice mods add theirs the way they do on V-Slice (`createPrefItemCheckbox`, `createPrefItemEnum`, `createPrefItemNumber` and `createPrefItemPercentage` on the options menu's pages, from a module's `onStateChangeEnd`), and Psych mods with their `data/settings.json`.
 * **Controls:** two actions on the same key that work during a song (a note key that's also the chat's, for example) get a warning.
+
+---
+
+## 🎹 Extra keys (1 to 9 arrows)
+
+Songs can have more or fewer than 4 arrows per side, for mods like Shaggy's 6 and 9 key songs.
+
+* **In the chart:** `"keyCount": 6` (Psych Engine Extra Keys' `"mania"` works too: its number plus one). The notes are `0` to `keyCount - 1` on one side and `keyCount` to `keyCount * 2 - 1` on the other, like Psych's 0-3 and 4-7.
+* **In the chart editor:** "Arrows per side" in the Song tab. Changing it keeps each note on its side and in its column (as far as there are columns).
+* **The arrows:** each column uses one of the 4 arrows, or the middle one (the "space" key, drawn with the up arrow), with the color of its direction from Note Colors; a second arrow of the same direction gets another color. They get smaller the more there are.
+
+| Arrows | Columns | Default keys |
+| --- | --- | --- |
+| 1 | middle | Space |
+| 2 | ← → | F J |
+| 3 | ← middle → | F Space J |
+| 5 | ← ↓ middle ↑ → | D F Space J K |
+| 6 | ← ↑ → ← ↓ → | S D F J K L |
+| 7 | ← ↑ → middle ← ↓ → | S D F Space J K L |
+| 8 | ← ↓ ↑ → ← ↓ ↑ → | A S D F H J K L |
+| 9 | ← ↓ ↑ → middle ← ↓ ↑ → | A S D F Space H J K L |
+
+* **Keys:** Options → More → **Extra Keys** (UP/DOWN pick how many arrows, LEFT/RIGHT the arrow, ENTER changes its key, R puts the default ones back).
+* Characters sing the animation of the arrow's direction (the middle one sings up). Scripts see the column as always, in `noteData`.
 
 <p align="center">
   <img src="docs/img/vortex/options.jpg" width="49%">

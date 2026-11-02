@@ -1,5 +1,5 @@
 {
-	"button": "bottom-right",
+	"button": "top-right",
 	"steps": [
 		{"text": "The options! Everything is in tabs on this panel."},
 		{"text": "The tabs: Q/E (or TAB) change them, or click them.", "target": "tabBacks", "zoom": 1.6},

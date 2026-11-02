@@ -164,7 +164,7 @@ class FunkinLua {
 			set('onlineHost', backend.NetworkManager.connected && backend.NetworkManager.isHost);
 			set('practice', game.practiceMode);
 	
-			for (i in 0...4) {
+			for (i in 0...backend.ExtraKeys.MAX) {
 				set('defaultPlayerStrumX' + i, 0);
 				set('defaultPlayerStrumY' + i, 0);
 				set('defaultOpponentStrumX' + i, 0);

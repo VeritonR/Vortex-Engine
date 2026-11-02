@@ -485,12 +485,10 @@ class PlayState extends MusicBeatState
 		PauseSubState.songName = null; //Reset to default
 		playbackRate = ClientPrefs.getGameplaySetting('songspeed');
 
-		keysArray = [
-			'note_left',
-			'note_down',
-			'note_up',
-			'note_right'
-		];
+		// (a song can have more or fewer than 4 arrows per side, see backend.ExtraKeys)
+		backend.ExtraKeys.setKeyCount(backend.ExtraKeys.countOf(SONG));
+		totalColumns = backend.ExtraKeys.keyCount;
+		keysArray = backend.ExtraKeys.actions();
 
 		if(FlxG.sound.music != null)
 			FlxG.sound.music.stop();
@@ -2357,7 +2355,7 @@ class PlayState extends MusicBeatState
 		var strumLineY:Float = down ? (FlxG.height - 150) : 50;
 		StrumNote.vsliceHitbox = vsliceStrumSize();
 		StrumNote.songRoom = StrumNote.vsliceHitbox;
-		for (i in 0...4)
+		for (i in 0...totalColumns)
 		{
 			// FlxG.log.add(i);
 			var targetAlpha:Float = 1;
@@ -2387,7 +2385,7 @@ class PlayState extends MusicBeatState
 			if(ClientPrefs.data.middleScroll && !played)
 			{
 				babyArrow.x += 310;
-				if(i > 1) { //Up and Right
+				if(i >= Std.int(totalColumns / 2)) { //Up and Right (the second half)
 					babyArrow.x += FlxG.width / 2 + 25;
 				}
 			}
@@ -2574,7 +2572,7 @@ class PlayState extends MusicBeatState
 
 		if (laneUnderlays != null)
         {
-            for (i in 0...4)
+            for (i in 0...laneUnderlays.length)
             {
                 var strum:StrumNote = playableStrums.members[i];
                 var lane:FlxSprite = laneUnderlays.members[i];
@@ -2589,7 +2587,7 @@ class PlayState extends MusicBeatState
         }
 		if (otherLanes != null)
 		{
-			for (i in 0...4)
+			for (i in 0...otherLanes.length)
 			{
 				var strum:StrumNote = otherStrums.members[i];
 				var lane:FlxSprite = otherLanes.members[i];
@@ -2693,7 +2691,7 @@ class PlayState extends MusicBeatState
 					var char:Character = otherCharacter;
 					var charAnim:String = (char != null) ? char.getAnimationName() : null;
 					if (char != null && (charAnim == null || !charAnim.endsWith('miss'))) {
-						char.playAnim(singAnimations[nData], true);
+						char.playAnim(singAnimations[backend.ExtraKeys.animShape(nData)], true);
 						char.holdTimer = 0;
 					}
 				}
@@ -4233,14 +4231,14 @@ class PlayState extends MusicBeatState
 
 	function makeLaneUnderlays(fadeIn:Bool):Void
 	{
-		if (laneUnderlays != null || playableStrums.length < 4) return;
+		if (laneUnderlays != null || playableStrums.length < totalColumns) return;
 		makeLaneCamera();
 
 		laneUnderlays = new FlxTypedGroup<FlxSprite>();
-		for (i in 0...4)
+		for (i in 0...totalColumns)
 		{
 			var lane:FlxSprite = new FlxSprite(playableStrums.members[i].x, -FlxG.height).makeGraphic(1, 1, FlxColor.BLACK);
-			lane.scale.set(112, FlxG.height * 3);
+			lane.scale.set(Note.swagWidth, FlxG.height * 3);
 			lane.updateHitbox();
 			lane.alpha = fadeIn ? 0 : laneUnderlayAlpha;
 			lane.cameras = [camLanes];
@@ -4253,14 +4251,14 @@ class PlayState extends MusicBeatState
 	// The other player's lanes (online, when they use "Lane Underlay"): see `otherLaneUnderlay`
 	function makeOtherLanes(fadeIn:Bool):Void
 	{
-		if (otherLanes != null || otherStrums.length < 4) return;
+		if (otherLanes != null || otherStrums.length < totalColumns) return;
 		makeLaneCamera();
 
 		otherLanes = new FlxTypedGroup<FlxSprite>();
-		for (i in 0...4)
+		for (i in 0...totalColumns)
 		{
 			var lane:FlxSprite = new FlxSprite(otherStrums.members[i].x, -FlxG.height).makeGraphic(1, 1, FlxColor.BLACK);
-			lane.scale.set(112, FlxG.height * 3);
+			lane.scale.set(Note.swagWidth, FlxG.height * 3);
 			lane.updateHitbox();
 			lane.alpha = 0;
 			lane.cameras = [camLanes];
@@ -4277,7 +4275,7 @@ class PlayState extends MusicBeatState
 	{
 		showLaneUnderlay = show;
 		if (alpha != null) laneUnderlayAlpha = FlxMath.bound(alpha, 0, 1);
-		if (show && playableStrums.length >= 4) makeLaneUnderlays(false);
+		if (show && playableStrums.length >= totalColumns) makeLaneUnderlays(false);
 		else if (show) makeLaneCamera(); //(the lanes are made with the receptors)
 	}
 
@@ -4926,7 +4924,7 @@ class PlayState extends MusicBeatState
 			var postfix:String = '';
 			if(note != null) postfix = note.animSuffix;
 
-			var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, direction)))] + 'miss' + postfix;
+			var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(direction))))] + 'miss' + postfix;
 			char.playAnim(animToPlay, true);
 
 			if(char != gf && lastCombo > 5 && gf != null && gf.hasAnimation('sad'))
@@ -5008,7 +5006,7 @@ class PlayState extends MusicBeatState
         else if(!note.noAnimation)
         {
             var char:Character = botChar;
-            var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, note.noteData)))] + note.animSuffix;
+            var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(note.noteData))))] + note.animSuffix;
             if(note.gfNote) char = gf;
             singExtraCharacters(note, animToPlay);
 
@@ -5108,7 +5106,7 @@ class PlayState extends MusicBeatState
 		{
 			if(!note.noAnimation)
 			{
-				var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, note.noteData)))] + note.animSuffix;
+				var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(note.noteData))))] + note.animSuffix;
 				singExtraCharacters(note, animToPlay);
 
 				var char:Character = playerChar;
@@ -5527,7 +5525,7 @@ class PlayState extends MusicBeatState
 			if(note != null ? !extra.sings(note) : (extra.side != side || !extra.singsAll)) continue;
 
 			var postfix:String = (note != null) ? note.animSuffix : '';
-			char.playAnim(singAnimations[Std.int(Math.abs(Math.min(singAnimations.length - 1, direction)))] + 'miss' + postfix, true);
+			char.playAnim(singAnimations[Std.int(Math.abs(Math.min(singAnimations.length - 1, backend.ExtraKeys.animShape(direction))))] + 'miss' + postfix, true);
 		}
 	}
 
@@ -6306,7 +6304,7 @@ class PlayState extends MusicBeatState
         var startFrame:Int = (char.animation.curAnim != null) ? char.animation.curAnim.curFrame : 0;
         if (singAnim == null || char.animation.getByName(singAnim) == null || singAnim.startsWith('idle') || singAnim.startsWith('dance'))
         {
-            singAnim = (noteDirection >= 0 && noteDirection < singAnimations.length) ? singAnimations[noteDirection] : null;
+            singAnim = (noteDirection >= 0) ? singAnimations[backend.ExtraKeys.animShape(noteDirection)] : null;
             startFrame = 0;
         }
         if (singAnim != null && char.animation.getByName(singAnim) != null && char.offsetOf(singAnim) != null)
@@ -6379,7 +6377,7 @@ class PlayState extends MusicBeatState
 		} else {
 			// Se der lag e a nota não for encontrada, toca a animação mesmo assim
 			var char:Character = otherCharacter;
-			var animToPlay:String = singAnimations[Std.int(Math.abs(noteData))];
+			var animToPlay:String = singAnimations[backend.ExtraKeys.animShape(Std.int(Math.abs(noteData)))];
 			if (char != null) {
 				char.playAnim(animToPlay, true);
 				char.holdTimer = 0;
@@ -6405,7 +6403,7 @@ class PlayState extends MusicBeatState
 		missExtraCharacters(null, noteData, playAsOpponent ? 'player' : 'opponent');
 		var char:Character = otherCharacter;
 		if (char != null && char.hasMissAnimations) {
-			var animToPlay:String = singAnimations[Std.int(Math.abs(noteData))] + 'miss';
+			var animToPlay:String = singAnimations[backend.ExtraKeys.animShape(Std.int(Math.abs(noteData)))] + 'miss';
 			char.playAnim(animToPlay, true);
 		}
 		//if (opponentVocals != null) opponentVocals.volume = 0;

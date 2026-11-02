@@ -179,6 +179,7 @@ class Main extends Sprite
 		backend.OnlineChat.init(); //(the online matches' chat, over every screen)
 		backend.Screenshots.init(); //(the screenshot key, see the Controls menu)
 		backend.Tutorial.init(); //(the "Tutorial" button of the screens that have one)
+		backend.ExtraKeys.init(); //(songs with more or fewer than 4 arrows)
 
 		#if !mobile
 		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);

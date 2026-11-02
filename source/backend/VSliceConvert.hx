@@ -571,6 +571,9 @@ class VSliceConvert
 			// without offsets the sprite keeps the ones from its hitbox, which is what a scaled prop needs
 			var offsets:Array<Float> = pair(anim.offsets, 0, 0);
 			if(offsets[0] != 0 || offsets[1] != 0) psychAnim.offsets = offsets;
+			// (an animation can be mirrored on its own: Philly Streets' cars going the other way)
+			if(anim.flipX == true) psychAnim.flipX = true;
+			if(anim.flipY == true) psychAnim.flipY = true;
 
 			if(animName == firstAnim) hasFirstAnim = true;
 			if(animName == 'idle') hasIdle = true;

@@ -52,6 +52,7 @@ typedef TutorialFile = {
  * A step's text is translated with the key "tutorial_<screen>_<number>" (its number from 1), the text in the file being the English one.
  */
 @:access(flixel.FlxSubState)
+@:access(flixel.FlxState)
 class Tutorial extends Sprite
 {
 	public static var instance(default, null):Tutorial;
@@ -88,9 +89,11 @@ class Tutorial extends Sprite
 	var step:Int = 0;
 	var textKey:String = null;
 	var pause:FlxSubState;
+	var pauseParent:FlxState; //(the screen the pause was opened on)
 	var undo:Array<{object:Dynamic, field:String, value:Dynamic}> = [];
 	var oldSystemCursor:Bool = false;
 	var oldMouseVisible:Bool = false;
+	var oldPersistentUpdate:Bool = false;
 
 	var shownText:String = '';
 	var typed:Float = 0;
@@ -110,6 +113,12 @@ class Tutorial extends Sprite
 	var mascotRight:Bool = true;
 	var hole:{x:Float, y:Float, width:Float, height:Float} = null;
 	var pulse:Float = 0;
+	// (what was drawn last: the shapes are only drawn again when it changes)
+	var drawnDim:String = null;
+	var drawnBubble:String = null;
+	var drawnFrame:FlxFrame = null;
+	var drawnFlip:Bool = false;
+	var textHeight:Float = 0;
 
 	// Boyfriend
 	static var atlas:FlxAtlasFrames;
@@ -148,6 +157,9 @@ class Tutorial extends Sprite
 		addChild(layer);
 
 		blocker = new Sprite();
+		blocker.graphics.beginFill(0, 0);
+		blocker.graphics.drawRect(0, 0, FlxG.width, FlxG.height);
+		blocker.graphics.endFill();
 		blocker.visible = false;
 		blocker.addEventListener(MouseEvent.MOUSE_DOWN, function(event:MouseEvent) {
 			event.stopPropagation();
@@ -170,16 +182,18 @@ class Tutorial extends Sprite
 		bubble.mouseChildren = false;
 		bubbleText = makeField(21, 0x101010);
 		bubbleText.width = BUBBLE_WIDTH - 40;
+		bubbleText.autoSize = LEFT; //(as tall as its lines, with the width kept)
 		bubbleText.x = 20;
 		bubbleText.y = 16;
 		bubble.addChild(bubbleText);
-		hintText = makeField(13, 0x6A5A80);
-		hintText.width = BUBBLE_WIDTH - 120;
+		hintText = makeField(12, 0x6A5A80);
+		hintText.wordWrap = false;
+		hintText.width = BUBBLE_WIDTH - 85;
 		hintText.x = 20;
 		bubble.addChild(hintText);
 		countText = makeField(14, 0x6A5A80);
-		countText.width = 80;
-		countText.x = BUBBLE_WIDTH - 100;
+		countText.width = 50;
+		countText.x = BUBBLE_WIDTH - 65;
 		var format = countText.defaultTextFormat;
 		format.align = TextFormatAlign.RIGHT;
 		countText.defaultTextFormat = format;
@@ -379,6 +393,10 @@ class Tutorial extends Sprite
 		// the screen stops while it's explained
 		pause = new FlxSubState();
 		pause.bgColor = 0;
+		// (some screens go on under their substates: not this time, or the keys of the tutorial would work on them too)
+		oldPersistentUpdate = screen.persistentUpdate;
+		screen.persistentUpdate = false;
+		pauseParent = screen;
 		screen.openSubState(pause);
 
 		oldSystemCursor = FlxG.mouse.useSystemCursor;
@@ -391,6 +409,8 @@ class Tutorial extends Sprite
 		moveX = moveY = fromX = fromY = toX = toY = 0;
 
 		blocker.visible = dim.visible = frame.visible = mascot.visible = bubble.visible = true;
+		drawnDim = drawnBubble = null;
+		drawnFrame = null;
 		FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
 		go(0);
 	}
@@ -405,7 +425,11 @@ class Tutorial extends Sprite
 
 		// what the steps changed, back as it was (the last change first)
 		var i:Int = undo.length;
-		while(--i >= 0) try Reflect.setProperty(undo[i].object, undo[i].field, undo[i].value) catch(e:Dynamic) {}
+		while(--i >= 0)
+		{
+			try Reflect.setProperty(undo[i].object, undo[i].field, undo[i].value) catch(e:Dynamic) {}
+			if(Std.isOfType(undo[i].object, backend.ui.PsychUIBox)) paintTabs(undo[i].object);
+		}
 		undo = [];
 
 		if(FlxG.game != null)
@@ -414,13 +438,34 @@ class Tutorial extends Sprite
 			FlxG.game.x = FlxG.scaleMode.offset.x;
 			FlxG.game.y = FlxG.scaleMode.offset.y;
 		}
-		if(pause != null && pause._parentState != null) pause.close();
+		if(pauseParent != null)
+		{
+			pauseParent.persistentUpdate = oldPersistentUpdate;
+			// (asked for and not open yet, which takes until the screen's next update: it doesn't open anymore)
+			if(pauseParent._requestedSubState == pause) pauseParent._requestedSubState = null;
+			else if(pause != null && pause._parentState != null) pause.close();
+		}
 		pause = null;
+		pauseParent = null;
+		// (the key that ended it doesn't go on to the screen: ESC would leave it, ENTER would pick something)
+		if(FlxG.keys != null) FlxG.keys.reset();
 		FlxG.mouse.useSystemCursor = oldSystemCursor;
 		FlxG.mouse.visible = oldMouseVisible;
 
 		blocker.visible = dim.visible = frame.visible = mascot.visible = bubble.visible = false;
 		area = null; //(the button looks at the screen again)
+	}
+
+	// The colors of a box's tabs, which it only redoes when it updates (and the screen is stopped)
+	static function paintTabs(box:backend.ui.PsychUIBox):Void
+	{
+		for (tab in box.tabs)
+		{
+			var style = (tab == box.selectedTab) ? box.selectedStyle : box.unselectedStyle;
+			tab.color = style.bgColor;
+			tab.alpha = style.bgAlpha;
+			tab.text.color = style.textColor;
+		}
 	}
 
 	function next():Void
@@ -456,6 +501,7 @@ class Tutorial extends Sprite
 				{
 					undo.push({object: place.object, field: place.field, value: Reflect.getProperty(place.object, place.field)});
 					Reflect.setProperty(place.object, place.field, Reflect.field(data.set, path));
+					if(Std.isOfType(place.object, backend.ui.PsychUIBox)) paintTabs(place.object);
 				}
 				catch(e:Dynamic) trace('Tutorial: "$path" could not be changed ($e)');
 			}
@@ -465,7 +511,13 @@ class Tutorial extends Sprite
 		shownText = (textKey != null) ? Language.getPhrase('${textKey}_${step + 1}', english) : english;
 		typed = 0;
 		lastBlip = 0;
+		// (the bubble is as tall as the whole text, so it doesn't grow while it's typed)
+		bubbleText.text = shownText;
+		textHeight = bubbleText.textHeight + 6;
 		bubbleText.text = '';
+		hintText.text = Language.getPhrase('tutorial_hint', 'ENTER/Click: next  BACKSPACE: back  ESC: leave');
+		countText.text = (step + 1) + '/' + steps.length;
+		drawnDim = null;
 
 		var target = targetRect(data);
 		var center:Float = (target != null) ? target.x + target.width / 2 : FlxG.width;
@@ -509,8 +561,10 @@ class Tutorial extends Sprite
 
 	function updateTutorial(elapsed:Float):Void
 	{
-		// the screen went away (a state change, the connection lost...)
-		if(pause == null || pause._parentState == null || FlxG.state == null)
+		// the screen went away (a state change, the connection lost...); a pause still opening is waited for (a click on the button
+		// starts the tutorial before the screen's update, which is when it opens)
+		var opening:Bool = pause != null && pause._parentState == null && pauseParent != null && pauseParent._requestedSubState == pause;
+		if(!opening && (pause == null || pause._parentState == null || FlxG.state == null))
 		{
 			stop();
 			return;
@@ -556,15 +610,18 @@ class Tutorial extends Sprite
 	{
 		var width:Float = FlxG.width;
 		var height:Float = FlxG.height;
-		blocker.graphics.clear();
-		blocker.graphics.beginFill(0, 0);
-		blocker.graphics.drawRect(0, 0, width, height);
-		blocker.graphics.endFill();
+		var darkness:Float = 0.55;
+		var showHole:Bool = hole != null && zoomTime >= 1;
+		pulse += elapsed;
+		frame.alpha = 0.6 + 0.4 * Math.sin(pulse * 5);
+		var key:String = showHole ? '${Math.round(moveX)},${Math.round(moveY)},${Math.round(zoom * 100)},${Math.round(hole.x)},${Math.round(hole.y)},${Math.round(hole.width)},${Math.round(hole.height)}'
+			: (hole != null ? 'dark' : 'light');
+		if(key == drawnDim) return;
+		drawnDim = key;
 
 		dim.graphics.clear();
 		frame.graphics.clear();
-		var darkness:Float = 0.55;
-		if(hole != null && zoomTime >= 1)
+		if(showHole)
 		{
 			// (the dark around where the target is now: four pieces, the graphics card doesn't cut holes)
 			var pad:Float = 6;
@@ -583,9 +640,7 @@ class Tutorial extends Sprite
 			if(right < width) dim.graphics.drawRect(right, top, width - right, bottom - top);
 			dim.graphics.endFill();
 
-			pulse += elapsed;
-			var glow:Float = 0.6 + 0.4 * Math.sin(pulse * 5);
-			frame.graphics.lineStyle(4, 0xFF5FB4, glow);
+			frame.graphics.lineStyle(4, 0xFF5FB4, 1);
 			frame.graphics.drawRoundRect(x - 2, y - 2, w + 4, h + 4, 12, 12);
 		}
 		else
@@ -666,6 +721,9 @@ class Tutorial extends Sprite
 
 	function drawFrame(frame:FlxFrame):Void
 	{
+		if(frame == drawnFrame && drawnFlip == mascotRight) return;
+		drawnFrame = frame;
+		drawnFlip = mascotRight;
 		var scale:Float = MASCOT_SCALE;
 		var left:Float = (frame.offset.x - animOffset[0]) * scale;
 		var top:Float = (frame.offset.y - animOffset[1]) * scale;
@@ -709,15 +767,6 @@ class Tutorial extends Sprite
 		var text:String = shownText.substr(0, Std.int(typed));
 		if(bubbleText.text != text) bubbleText.text = text;
 
-		hintText.text = Language.getPhrase('tutorial_hint', 'ENTER / Click: next   BACKSPACE: back   ESC: leave');
-		countText.text = (step + 1) + '/' + steps.length;
-
-		// (as tall as the whole text, so it doesn't grow while it's typed)
-		var measure:String = bubbleText.text;
-		bubbleText.text = shownText;
-		var textHeight:Float = bubbleText.textHeight + 6;
-		bubbleText.text = measure;
-
 		var height:Float = 16 + textHeight + 14 + 20 + 12;
 		hintText.y = height - 34;
 		countText.y = hintText.y;
@@ -726,6 +775,9 @@ class Tutorial extends Sprite
 		bubble.x = x;
 		bubble.y = Math.max(10, y);
 
+		var key:String = '$height,$mascotRight';
+		if(key == drawnBubble) return;
+		drawnBubble = key;
 		var g = bubble.graphics;
 		g.clear();
 		g.lineStyle(3, 0x1C0A30, 1);

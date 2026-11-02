@@ -248,6 +248,7 @@ class ModTransfer
 		closeFile();
 		receiving = false;
 		if(receivingFolder != null) try deleteFolder(INCOMING + receivingFolder) catch(e:Dynamic) {}
+		try if(FileSystem.exists(INCOMING) && FileSystem.readDirectory(INCOMING).length < 1) FileSystem.deleteDirectory(INCOMING) catch(e:Dynamic) {}
 	}
 
 	/**

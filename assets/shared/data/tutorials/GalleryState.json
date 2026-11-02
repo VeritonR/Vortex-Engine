@@ -2,7 +2,7 @@
 	"button": "bottom-right",
 	"steps": [
 		{"text": "The gallery! The images of the game and of the mods, and your screenshots (F3 takes one anywhere)."},
-		{"text": "LEFT/RIGHT (or the arrows) go through the images.", "target": ["leftArrow", "rightArrow"], "zoom": 1},
+		{"text": "LEFT/RIGHT (or the arrows) go through the images. F shows one on the whole screen, the mouse wheel zooms in, dragging moves it and R puts it back.", "target": ["leftArrow", "rightArrow"], "zoom": 1},
 		{"text": "The name of the image and who made it.", "target": ["titleText", "creatorText"], "zoom": 1.8},
 		{"text": "S (or this button) saves a copy of the image wherever you want.", "target": "saveButton", "zoom": 2.5}
 	]

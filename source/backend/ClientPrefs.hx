@@ -183,6 +183,7 @@ class ClientPrefs {
 
 	public static function loadDefaultKeys()
 	{
+		ExtraKeys.addDefaultBinds(keyBinds); //(the keys of songs with more or fewer than 4 arrows)
 		defaultKeys = keyBinds.copy();
 		defaultButtons = gamepadBinds.copy();
 	}

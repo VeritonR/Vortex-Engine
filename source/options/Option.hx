@@ -35,6 +35,8 @@ class Option
 	public var decimals:Int = 1; //Only used in float/percent type
 
 	public var displayFormat:String = '%v'; //How String/Float/Percent/Int values are shown, %v = Current value, %d = Default value
+	public var formatter:Dynamic = null; //(a function that gives the text of a value, instead of displayFormat: a V-Slice mod's number setting)
+	public var header:Bool = false; //(not a setting: the title of the ones under it, the name of a mod in the "Mods" tab)
 	public var description:String = '';
 	public var name:String = 'Unknown';
 

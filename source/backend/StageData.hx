@@ -240,10 +240,12 @@ class StageData {
 							var anims:Array<objects.Character.AnimArray> = cast data.animations;
 							for (key => anim in anims)
 							{
+								var animFlipX:Bool = (Reflect.field(anim, 'flipX') == true);
+								var animFlipY:Bool = (Reflect.field(anim, 'flipY') == true);
 								if(anim.indices == null || anim.indices.length < 1)
-									spr.animation.addByPrefix(anim.anim, anim.name, anim.fps, anim.loop);
+									spr.animation.addByPrefix(anim.anim, anim.name, anim.fps, anim.loop, animFlipX, animFlipY);
 								else
-									spr.animation.addByIndices(anim.anim, anim.name, anim.indices, '', anim.fps, anim.loop);
+									spr.animation.addByIndices(anim.anim, anim.name, anim.indices, '', anim.fps, anim.loop, animFlipX, animFlipY);
 	
 								if(anim.offsets != null)
 									spr.addOffset(anim.anim, anim.offsets[0], anim.offsets[1]);

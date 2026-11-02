@@ -1,5 +1,5 @@
 {
-	"button": "bottom-center",
+	"button": [1150, 646],
 	"steps": [
 		{"text": "Freeplay, V-Slice style! UP/DOWN pick a song, LEFT/RIGHT the difficulty, and ENTER plays it."},
 		{"text": "The songs of the character you're playing as. TAB opens Character Select to change it.", "target": "grpCapsules", "zoom": 1.1},

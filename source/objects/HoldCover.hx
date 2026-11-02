@@ -45,7 +45,7 @@ class HoldCover extends FlxSprite
 		this.strum = strum;
 		this.style = style;
 
-		direction = direction % 4;
+		direction = backend.ExtraKeys.animShape(direction);
 		var atlas = Paths.getSparrowAtlas(style.assets[direction]);
 		if(atlas != null)
 		{

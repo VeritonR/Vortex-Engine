@@ -192,10 +192,9 @@ class Note extends FlxSprite
 
 	public function defaultRGB()
 	{
-		var arr:Array<FlxColor> = ClientPrefs.data.arrowRGB[noteData];
-		if(PlayState.isPixelStage) arr = ClientPrefs.data.arrowRGBPixel[noteData];
+		var arr:Array<FlxColor> = (noteData > -1) ? backend.ExtraKeys.rgbOf(noteData, PlayState.isPixelStage) : null; //(by column, see backend.ExtraKeys)
 
-		if (arr != null && noteData > -1 && noteData <= arr.length)
+		if (arr != null && noteData > -1)
 		{
 			rgbShader.r = arr[0];
 			rgbShader.g = arr[1];
@@ -284,9 +283,9 @@ class Note extends FlxSprite
 			texture = '';
 
 			x += swagWidth * (noteData);
-			if(!isSustainNote && noteData < colArray.length) { //Doing this 'if' check to fix the warnings on Senpai songs
+			if(!isSustainNote && noteData < backend.ExtraKeys.keyCount) { //Doing this 'if' check to fix the warnings on Senpai songs
 				var animToPlay:String = '';
-				animToPlay = colArray[noteData % colArray.length];
+				animToPlay = colArray[shape];
 				animation.play(animToPlay + 'Scroll');
 			}
 		}
@@ -306,7 +305,7 @@ class Note extends FlxSprite
 			offsetX += width / 2;
 			copyAngle = false;
 
-			animation.play(colArray[noteData % colArray.length] + 'holdend');
+			animation.play(colArray[shape] + 'holdend');
 
 			updateHitbox();
 
@@ -317,7 +316,7 @@ class Note extends FlxSprite
 
 			if (prevNote.isSustainNote)
 			{
-				prevNote.animation.play(colArray[prevNote.noteData % colArray.length] + 'hold');
+				prevNote.animation.play(colArray[prevNote.shape] + 'hold');
 
 				prevNote.scale.y *= Conductor.stepCrochet / 100 * 1.05;
 				if(createdFrom != null && createdFrom.songSpeed != null) prevNote.scale.y *= createdFrom.songSpeed;
@@ -350,9 +349,10 @@ class Note extends FlxSprite
 		if(globalRgbShaders[noteData] == null)
 		{
 			var newRGB:RGBPalette = new RGBPalette();
-			var arr:Array<FlxColor> = (!PlayState.isPixelStage) ? ClientPrefs.data.arrowRGB[noteData] : ClientPrefs.data.arrowRGBPixel[noteData];
+			// (by column: with more or fewer than 4 arrows, each one has the color of its place, see backend.ExtraKeys)
+			var arr:Array<FlxColor> = (noteData > -1) ? backend.ExtraKeys.rgbOf(noteData, PlayState.isPixelStage) : null;
 			
-			if (arr != null && noteData > -1 && noteData <= arr.length)
+			if (arr != null && noteData > -1)
 			{
 				newRGB.r = arr[0];
 				newRGB.g = arr[1];
@@ -413,7 +413,7 @@ class Note extends FlxSprite
 				var graphic = Paths.image('pixelUI/' + skinPixel + skinPostfix);
 				loadGraphic(graphic, true, Math.floor(graphic.width / 4), Math.floor(graphic.height / 5));
 			}
-			setGraphicSize(Std.int(width * PlayState.daPixelZoom));
+			setGraphicSize(Std.int(width * PlayState.daPixelZoom * backend.ExtraKeys.scale()));
 			loadPixelNoteAnims();
 			antialiasing = false;
 
@@ -482,31 +482,41 @@ class Note extends FlxSprite
 		return skin;
 	}
 
+	/**
+	 * The arrow this note is drawn with: 0 left, 1 down, 2 up, 3 right (its column, unless the song has more or fewer than 4 arrows,
+	 * see backend.ExtraKeys).
+	 */
+	public var shape(get, never):Int;
+	function get_shape():Int
+		return (noteData < 0) ? 0 : backend.ExtraKeys.animShape(noteData);
+
 	function loadNoteAnims() {
-		if (colArray[noteData] == null)
+		if (noteData < 0 || colArray[shape] == null)
 			return;
 
+		var color:String = colArray[shape];
 		if (isSustainNote)
 		{
 			attemptToAddAnimationByPrefix('purpleholdend', 'pruple end hold', 24, true); // this fixes some retarded typo from the original note .FLA
-			animation.addByPrefix(colArray[noteData] + 'holdend', colArray[noteData] + ' hold end', 24, true);
-			animation.addByPrefix(colArray[noteData] + 'hold', colArray[noteData] + ' hold piece', 24, true);
+			animation.addByPrefix(color + 'holdend', color + ' hold end', 24, true);
+			animation.addByPrefix(color + 'hold', color + ' hold piece', 24, true);
 		}
-		else animation.addByPrefix(colArray[noteData] + 'Scroll', colArray[noteData] + '0');
+		else animation.addByPrefix(color + 'Scroll', color + '0');
 
-		setGraphicSize(Std.int(width * 0.7));
+		setGraphicSize(Std.int(width * 0.7 * backend.ExtraKeys.scale()));
 		updateHitbox();
 	}
 
 	function loadPixelNoteAnims() {
-		if (colArray[noteData] == null)
+		if (noteData < 0 || colArray[shape] == null)
 			return;
 
+		var color:String = colArray[shape];
 		if(isSustainNote)
 		{
-			animation.add(colArray[noteData] + 'holdend', [noteData + 4], 24, true);
-			animation.add(colArray[noteData] + 'hold', [noteData], 24, true);
-		} else animation.add(colArray[noteData] + 'Scroll', [noteData + 4], 24, true);
+			animation.add(color + 'holdend', [shape + 4], 24, true);
+			animation.add(color + 'hold', [shape], 24, true);
+		} else animation.add(color + 'Scroll', [shape + 4], 24, true);
 	}
 
 	function attemptToAddAnimationByPrefix(name:String, prefix:String, framerate:Float = 24, doLoop:Bool = true)

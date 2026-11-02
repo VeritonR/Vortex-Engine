@@ -78,10 +78,9 @@ class StrumNote extends FlxSprite
 		rgbShader.enabled = false;
 		if(PlayState.SONG != null && PlayState.SONG.disableNoteRGB) useRGBShader = false;
 		
-		var arr:Array<FlxColor> = ClientPrefs.data.arrowRGB[leData];
-		if(PlayState.isPixelStage) arr = ClientPrefs.data.arrowRGBPixel[leData];
-		
-		if(leData <= arr.length)
+		var arr:Array<FlxColor> = backend.ExtraKeys.rgbOf(leData, PlayState.isPixelStage);
+
+		if(arr != null)
 		{
 			@:bypassAccessor
 			{
@@ -125,13 +124,13 @@ class StrumNote extends FlxSprite
 			loadGraphic(Paths.image('pixelUI/' + texture), true, Math.floor(width), Math.floor(height));
 
 			antialiasing = false;
-			setGraphicSize(Std.int(width * PlayState.daPixelZoom));
+			setGraphicSize(Std.int(width * PlayState.daPixelZoom * backend.ExtraKeys.scale()));
 
 			animation.add('green', [6]);
 			animation.add('red', [7]);
 			animation.add('blue', [5]);
 			animation.add('purple', [4]);
-			switch (Math.abs(noteData) % 4)
+			switch (backend.ExtraKeys.animShape(noteData))
 			{
 				case 0:
 					animation.add('static', [0]);
@@ -160,9 +159,9 @@ class StrumNote extends FlxSprite
 			animation.addByPrefix('red', 'arrowRIGHT');
 
 			antialiasing = ClientPrefs.data.antialiasing;
-			setGraphicSize(Std.int(width * 0.7));
+			setGraphicSize(Std.int(width * 0.7 * backend.ExtraKeys.scale()));
 
-			switch (Math.abs(noteData) % 4)
+			switch (backend.ExtraKeys.animShape(noteData))
 			{
 				case 0:
 					animation.addByPrefix('static', 'arrowLEFT');
@@ -283,7 +282,7 @@ class StrumNote extends FlxSprite
 	public function playerPosition()
 	{
 		x += Note.swagWidth * noteData;
-		x += 50;
+		x += 50 + backend.ExtraKeys.sideShift(); //(more or fewer than 4 arrows: centered where 4 would be)
 		x += ((FlxG.width / 2) * player);
 	}
 

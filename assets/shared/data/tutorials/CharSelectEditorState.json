@@ -1,5 +1,5 @@
 {
-	"button": "top-center",
+	"button": "bottom-center",
 	"steps": [
 		{"text": "The Character Select editor: how a playable character shows up on Character Select, in Freeplay (its DJ) and on the results screen."},
 		{"text": "Player: its id, its name, its place on the grid, the characters it owns and where the file is saved. Save and Reload are here.", "target": "mainBox", "set": {"mainBox.selectedName": "Player"}},

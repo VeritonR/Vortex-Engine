@@ -257,6 +257,9 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		if(_shouldReset) Conductor.songPosition = 0;
 		persistentUpdate = false;
+		// (the song's number of arrows per side: the grid has that many columns for each one, see backend.ExtraKeys)
+		GRID_COLUMNS_PER_PLAYER = backend.ExtraKeys.countOf(PlayState.SONG);
+		backend.ExtraKeys.setKeyCount(GRID_COLUMNS_PER_PLAYER);
 		setupExtraFields();
 		FlxG.mouse.visible = true;
 		FlxG.sound.list.add(vocals);
@@ -744,6 +747,16 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 	function prepareReload()
 	{
+		// (a chart with another number of arrows: the editor is made again for it)
+		if(backend.ExtraKeys.countOf(PlayState.SONG) != GRID_COLUMNS_PER_PLAYER)
+		{
+			Conductor.songPosition = 0;
+			reopenTab = mainBox.selectedName;
+			flixel.addons.transition.FlxTransitionableState.skipNextTransIn = true;
+			flixel.addons.transition.FlxTransitionableState.skipNextTransOut = true;
+			MusicBeatState.switchState(new ChartingState(false));
+			return;
+		}
 		updateJsonData();
 		loadMusic();
 		reloadNotes();
@@ -4165,11 +4178,41 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		tab_group.add(new FlxText(playerDropDown.x, playerDropDown.y - 15, 80, 'Player:'));
 		tab_group.add(new FlxText(opponentDropDown.x, opponentDropDown.y - 15, 80, 'Opponent:'));
 		tab_group.add(new FlxText(girlfriendDropDown.x, girlfriendDropDown.y - 15, 80, 'Girlfriend:'));
+		// arrows per side (Shaggy's 6 and 9 key songs...): the notes keep their side and their column, as far as there are columns
+		keyCountStepper = new PsychUINumericStepper(objX + 140, objY + 80, 1, GRID_COLUMNS_PER_PLAYER, backend.ExtraKeys.MIN, backend.ExtraKeys.MAX, 0);
+		keyCountStepper.onValueChange = function()
+		{
+			var count:Int = Std.int(keyCountStepper.value);
+			if(count == GRID_COLUMNS_PER_PLAYER) return;
+			updateChartData();
+			var old:Int = GRID_COLUMNS_PER_PLAYER;
+			for (section in PlayState.SONG.notes)
+			{
+				for (note in section.sectionNotes)
+				{
+					var data:Int = Std.int(note[1]);
+					if(data < 0 || data >= old * 2) continue; //(events, and the fields of extra characters)
+					var side:Int = Math.floor(data / old);
+					var column:Int = Std.int(Math.min(data % old, count - 1));
+					note[1] = side * count + column;
+				}
+			}
+			Reflect.setField(PlayState.SONG, 'keyCount', count);
+			if(Reflect.hasField(PlayState.SONG, 'mania')) Reflect.deleteField(PlayState.SONG, 'mania');
+			reopenTab = mainBox.selectedName;
+			flixel.addons.transition.FlxTransitionableState.skipNextTransIn = true;
+			flixel.addons.transition.FlxTransitionableState.skipNextTransOut = true;
+			MusicBeatState.switchState(new ChartingState(false));
+		};
+		tab_group.add(new FlxText(keyCountStepper.x, keyCountStepper.y - 15, 120, 'Arrows per side:'));
+		tab_group.add(keyCountStepper);
+
 		tab_group.add(stageDropDown);
 		tab_group.add(girlfriendDropDown);
 		tab_group.add(opponentDropDown);
 		tab_group.add(playerDropDown);
 	}
+	var keyCountStepper:PsychUINumericStepper;
 
 	function addFileTab()
 	{
