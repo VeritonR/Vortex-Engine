@@ -288,10 +288,15 @@ class LuaUtils
 
 	public static inline function getLowestCharacterGroup():FlxSpriteGroup
 	{
-		var stageData:StageFile = StageData.getStageFile(PlayState.SONG.stage);
-		var group:FlxSpriteGroup = (stageData.hide_girlfriend ? PlayState.instance.boyfriendGroup : PlayState.instance.gfGroup);
-
+		// (the lowest of the ones that are on the state: Girlfriend's isn't when the stage hides her. Not read from the stage's file
+		// each time anymore, which was the chart's stage even after a "Change Stage")
+		var group:FlxSpriteGroup = PlayState.instance.gfGroup;
 		var pos:Int = PlayState.instance.members.indexOf(group);
+		if(pos < 0)
+		{
+			group = PlayState.instance.boyfriendGroup;
+			pos = PlayState.instance.members.indexOf(group);
+		}
 
 		var newPos:Int = PlayState.instance.members.indexOf(PlayState.instance.boyfriendGroup);
 		if(newPos < pos)

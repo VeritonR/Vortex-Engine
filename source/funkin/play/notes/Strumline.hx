@@ -99,6 +99,9 @@ class Strumline
 			if(facade != null) note = facade.note;
 		}
 		if(note == null || game == null) return;
+		#if HSCRIPT_ALLOWED
+		if(note == backend.VSliceScripts.protectedNote) return; //(being hit by the one playing: it goes away as a hit, its long note stays)
+		#end
 
 		for (piece in [note].concat(note.tail))
 		{
@@ -394,10 +397,13 @@ class Strumline
 	public var holdNotes(get, never):Dynamic;
 	function get_holdNotes():Dynamic
 	{
+		// (by the side of the chart, like the health scripts get: with Play as Opponent "the opponent's" receptors are the computer's,
+		// but its long notes are the dad's, which a mod drains Boyfriend's health with while they're held. See funkin.play.PlayState.health)
+		var side:Bool = (game != null && game.playAsOpponent) ? !isPlayer : isPlayer;
 		var found:Array<SustainTrail> = [];
 		if(game != null && game.notes != null)
 			for (note in game.notes.members)
-				if(note != null && note.isSustainNote && note.mustPress == isPlayer && note.parent != null)
+				if(note != null && note.isSustainNote && note.mustPress == side && note.parent != null)
 				{
 					var trail:SustainTrail = SustainTrail.get(note.parent);
 					if(!found.contains(trail)) found.push(trail);

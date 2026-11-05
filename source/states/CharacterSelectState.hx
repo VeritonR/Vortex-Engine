@@ -340,27 +340,62 @@ class CharacterSelectState extends MusicBeatState
 		}
 	}
 
+	/**
+	 * The pixel icon of a player, the way V-Slice finds it (`PixelatedIcon.setCharacter()`): "freeplay/icons/(id)pixel", or the
+	 * id without its last "-parts" ("bf-holiday" uses "bfpixel" if there's no "bf-holidaypixel"). Null if there's none.
+	 */
+	public static function pixelIconKey(id:String):String
+	{
+		if(id == null) return null;
+		var parts:Array<String> = id.split('-');
+		var name:String = '';
+		var found:String = null;
+		for (i in 0...parts.length)
+		{
+			name += parts[i];
+			if(Paths.fileExists('images/freeplay/icons/${name}pixel.png', IMAGE)) found = name;
+			if(i < parts.length - 1) name += '-';
+		}
+		return (found != null) ? 'freeplay/icons/${found}pixel' : null;
+	}
+
+	/**
+	 * A pixel icon as the grid shows it, from its picture and, for an animated one, its .xml ("idle", "confirm" and "confirm-hold",
+	 * like the base game's). Also how the Character Select editor shows one that isn't saved yet.
+	 */
+	public static function makePixelIcon(graphic:flixel.graphics.FlxGraphic, xml:String):FlxSprite
+	{
+		var icon:FlxSprite = new FlxSprite();
+		if(xml != null)
+		{
+			icon.frames = flixel.graphics.frames.FlxAtlasFrames.fromSparrow(graphic, xml);
+			icon.animation.addByPrefix('idle', 'idle0', 10, true);
+			icon.animation.addByPrefix('confirm', 'confirm0', 10, false);
+			icon.animation.addByPrefix('confirm-hold', 'confirm-hold0', 10, true);
+			// (as on V-Slice: after "confirm" it holds the last pose, with its own animation if it has one)
+			icon.animation.finishCallback = function(name:String)
+			{
+				if(name == 'confirm' && icon.animation.exists('confirm-hold')) icon.animation.play('confirm-hold');
+			};
+			if(icon.animation.exists('idle')) icon.animation.play('idle');
+		}
+		else icon.loadGraphic(graphic);
+
+		icon.antialiasing = false;
+		icon.setGraphicSize(128, 128);
+		icon.updateHitbox();
+		icon.scale.set(2, 2);
+		return icon;
+	}
+
 	public static function makePlayerIcon(player:PlayableCharacter):FlxSprite
 	{
 		// Pixel icon, the same ones V-Slice uses on Freeplay
-		var key:String = 'freeplay/icons/${player.id}pixel';
-		if(Paths.fileExists('images/$key.png', IMAGE))
+		var key:String = pixelIconKey(player.id);
+		if(key != null)
 		{
-			var icon:FlxSprite = new FlxSprite();
-			if(Paths.fileExists('images/$key.xml', TEXT))
-			{
-				icon.frames = Paths.getSparrowAtlas(key);
-				icon.animation.addByPrefix('idle', 'idle0', 10, true);
-				icon.animation.addByPrefix('confirm', 'confirm0', 10, false);
-				icon.animation.play('idle');
-			}
-			else icon.loadGraphic(Paths.image(key));
-
-			icon.antialiasing = false;
-			icon.setGraphicSize(128, 128);
-			icon.updateHitbox();
-			icon.scale.set(2, 2);
-			return icon;
+			var xml:String = Paths.fileExists('images/$key.xml', TEXT) ? Paths.getTextFromFile('images/$key.xml') : null;
+			return makePixelIcon(Paths.image(key), xml);
 		}
 
 		// Health icon of its character as a replacement

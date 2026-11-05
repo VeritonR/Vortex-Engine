@@ -5,6 +5,8 @@ import flixel.graphics.frames.FlxFrame.FlxFrameAngle;
 import flixel.graphics.frames.FlxFrame.FlxFrameType;
 import flixel.graphics.tile.FlxDrawTrianglesItem.DrawData;
 
+using flixel.util.FlxColorTransformUtil;
+
 /**
  * Vortex Engine: sprites turned in 3D. A sprite with `angleX` (turned forward/back), `angleY` (turned left/right) or `z` (pushed
  * away from the screen, or toward it with a negative number) is drawn as a flat card in 3D, seen in perspective from the center of
@@ -38,6 +40,42 @@ class Perspective3D
 		for (i in 0...4) list[i] = 0xFFFFFFFF;
 		list;
 	};
+
+	/**
+	 * If triangles flixel would draw on that camera are on it, with flixel's own test (`FlxDrawTrianglesItem.addTriangles()`).
+	 * The ones it finds off the camera have to be skipped before: flixel drops their corners but keeps their color, and from then on
+	 * every triangle drawn after them in the same batch gets the color of another (a model's leaves in its trunk's brown).
+	 */
+	public static function onCamera(points:DrawData<Float>, camera:FlxCamera):Bool
+	{
+		var left:Float = points[0], right:Float = points[0];
+		var top:Float = points[1], bottom:Float = points[1];
+		var i:Int = 2;
+		while(i < points.length)
+		{
+			if(points[i] < left) left = points[i];
+			if(points[i] > right) right = points[i];
+			if(points[i + 1] < top) top = points[i + 1];
+			if(points[i + 1] > bottom) bottom = points[i + 1];
+			i += 2;
+		}
+		return right > 0 && left < camera.width && bottom > 0 && top < camera.height;
+	}
+
+	/**
+	 * Makes the next triangles of that camera start a batch of their own. Flixel 5.6.1 puts calls of the same texture together, and
+	 * on each one gives the colors and the alpha again for every triangle the batch already has (`numTriangles` there is the batch's,
+	 * not the call's): from the second call on every triangle got another one's color (a model's trunk in its leaves' green, notes
+	 * turned in 3D with the alpha of another). A batch with only one call is right.
+	 */
+	public static function freshBatch(camera:FlxCamera, graphic:flixel.graphics.FlxGraphic, smoothing:Bool, blend:openfl.display.BlendMode,
+		transform:openfl.geom.ColorTransform, shader:flixel.system.FlxAssets.FlxShader):Void
+	{
+		// (a new one, linked after what was drawn before, with what drawTriangles() is going to ask for: it takes this one as it is.
+		// Colors are always given for the corners, so it's a colored one)
+		if(!FlxG.renderTile) return;
+		camera.getNewDrawTrianglesItem(graphic, smoothing, true, blend, transform != null && transform.hasRGBAOffsets(), shader);
+	}
 
 	public static inline function isTurned(angleX:Float, angleY:Float, z:Float):Bool
 		return angleX != 0 || angleY != 0 || z != 0;
@@ -113,6 +151,8 @@ class Perspective3D
 				vertices[i * 2 + 1] = centerY + (originY + y2 - centerY) * scale;
 			}
 			if(behind) continue; //(it went behind the eye: nothing to see)
+			if(!onCamera(vertices, camera)) continue; //(off the camera: see onCamera())
+			freshBatch(camera, sprite.graphic, sprite.antialiasing, sprite.blend, sprite.colorTransform, sprite.shader);
 
 			sprite._point.set(0, 0);
 camera.drawTriangles(sprite.graphic, vertices, indices, uvs, colors, sprite._point, sprite.blend, false, sprite.antialiasing, sprite.colorTransform, sprite.shader);

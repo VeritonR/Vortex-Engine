@@ -185,6 +185,7 @@ class TextFunctions
 		Lua_helper.add_callback(lua, "addLuaText", function(tag:String) {
 			var text:FlxText = MusicBeatState.getVariables().get(tag);
 			if(text != null) LuaUtils.getTargetInstance().add(text);
+			if(text != null && PlayState.instance != null) PlayState.instance.stageScriptAdded(funk, text);
 		});
 		Lua_helper.add_callback(lua, "removeLuaText", function(tag:String, destroy:Bool = true) {
 			var variables = MusicBeatState.getVariables();

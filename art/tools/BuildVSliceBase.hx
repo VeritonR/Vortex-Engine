@@ -244,6 +244,25 @@ class BuildVSliceBase
 		for (lib in WEEK_LIBS)
 			addTree(lib, '', 'week art');
 
+		// V-Slice's fonts: its scripts ask for them by name ("vcr.ttf") and lay their texts out by them. The engine has fonts with the
+		// same names that are other fonts (its HUD's), so these go too: V-Slice scripts get them (see funkin.Paths.font)
+		var fontsRoot:String = '$SRC/fonts';
+		if (isDir(fontsRoot))
+			for (file in sorted(FileSystem.readDirectory(fontsRoot)))
+			{
+				var lower:String = file.toLowerCase();
+				if (!isFile('$fontsRoot/$file') || !(lower.endsWith('.ttf') || lower.endsWith('.otf'))) continue;
+				var src:String = '$fontsRoot/$file';
+				var eng:String = '$ENG/fonts/$file';
+				if (isFile(eng) && Tools.fileSize(eng) == Tools.fileSize(src) && Tools.md5(eng) == Tools.md5(src))
+				{
+					skippedSame++;
+					continue;
+				}
+				setCopied('fonts/$file', src);
+				addSize('fonts', Tools.fileSize(src));
+			}
+
 		// ---------------------------------------------------------------------------------------------
 		var variationNames:Array<String> = [];
 		for (pair in included) if (!variationNames.contains(pair[1])) variationNames.push(pair[1]);

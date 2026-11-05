@@ -21,6 +21,21 @@ class OptionsState
 	{
 		optionsCodex = new OptionsCodex();
 	}
+
+	// (V-Slice's is a state: mods open their own menus over it. Here they go over whatever is open when they ask)
+	public function openSubState(subState:flixel.FlxSubState):Void
+	{
+		var over:flixel.FlxState = FlxG.state;
+		while(over != null && over.subState != null) over = over.subState;
+		if(over != null) over.openSubState(subState);
+	}
+
+	public function closeSubState():Void
+	{
+		var over:flixel.FlxState = FlxG.state;
+		while(over != null && over.subState != null && over.subState.subState != null) over = over.subState;
+		if(over != null && over.subState != null) over.closeSubState();
+	}
 }
 
 /**
@@ -30,7 +45,13 @@ class OptionsCodex
 {
 	public var pages:Map<String, Dynamic> = new Map();
 	public var pageOrder:Array<String> = [];
-	public var currentPage:String = 'options';
+
+	/**
+	 * The name of the page that's open, and the page itself (V-Slice's `Codex`: scripts get the page, not its name).
+	 */
+	public var currentName:String = 'options';
+	public var currentPage(get, never):Dynamic;
+	function get_currentPage():Dynamic return pages.get(currentName);
 
 	public function new()
 	{
@@ -49,7 +70,12 @@ class OptionsCodex
 
 	public function switchPage(name:String):Void
 	{
-		currentPage = name;
+		currentName = name;
+	}
+
+	public function setPage(name:String):Void
+	{
+		currentName = name;
 	}
 }
 
@@ -64,6 +90,7 @@ typedef ModPreference = {
 	var value:Dynamic;
 	@:optional var values:Array<String>; //(enum: the values, in the order they were given)
 	@:optional var labels:Array<String>; //(enum: what's shown for each one)
+	@:optional var rawValues:Array<Dynamic>; //(enum: what the mod gave for each one, given back to its function with the name)
 	@:optional var min:Null<Float>;
 	@:optional var max:Null<Float>;
 	@:optional var step:Null<Float>;
@@ -117,14 +144,14 @@ class PreferencesMenu extends FlxTypedGroup<FlxBasic>
 	public function createPrefItemEnum(name:String, description:String, values:Dynamic, onChange:Dynamic, defaultValue:Dynamic):Dynamic
 	{
 		var keys:Array<String> = [];
-		var labels:Array<String> = [];
-		// (a map of value => what's shown, or a plain list)
+		var raw:Array<Dynamic> = [];
+		// (V-Slice's is a map of what's shown => its value: the key is shown, and both are given to the mod's function. Or a plain list)
 		if(Std.isOfType(values, Array))
 		{
 			for (value in (values:Array<Dynamic>))
 			{
 				keys.push(Std.string(value));
-				labels.push(Std.string(value));
+				raw.push(value);
 			}
 		}
 		else if(values != null)
@@ -133,17 +160,21 @@ class PreferencesMenu extends FlxTypedGroup<FlxBasic>
 			for (key in map.keys())
 			{
 				keys.push(Std.string(key));
-				labels.push(Std.string(map.get(key)));
+				raw.push(map.get(key));
 			}
 		}
 		if(keys.length < 1) return null;
 		entries.push({kind: 'enum', name: name, description: description, onChange: onChange, value: Std.string(defaultValue), values: keys,
-			labels: labels, mod: currentMod});
+			labels: keys.copy(), rawValues: raw, mod: currentMod});
 		return null;
 	}
 
 	// (anything else of V-Slice's page a script may call: nothing to do here)
 	public function createPrefHeader(?name:String):Dynamic return null;
+
+	// (what V-Slice's pages have: leaving them is the engine's menu's to do)
+	public var canExit:Bool = true;
+	public function exit():Void {}
 
 	static function number(value:Dynamic, fallback:Float):Float
 	{
@@ -160,15 +191,92 @@ class OptionsMenu extends FlxTypedGroup<FlxBasic>
 {
 	public var onExit:FlxSignal = new FlxSignal();
 	public var enabled:Bool = true;
+	public var canExit:Bool = true;
+
+	/**
+	 * Its lines, as V-Slice's has them on a computer (scripts rename one and put it back at the end: "EXIT").
+	 */
+	public var items:OptionsMenuItems = new OptionsMenuItems();
 
 	public function new()
 	{
 		super();
+		for (name in ['PREFERENCES', 'CONTROLS', 'INPUT OFFSETS', 'EXIT'])
+			items.createItem(0, 0, name, 'bold', null);
 	}
 
 	public function createItem(name:String, ?onChange:Dynamic, ?fireInstantly:Bool = false):Dynamic
 	{
-		return new flixel.text.FlxText(0, 0, 0, name);
+		var item:OptionsMenuItem = items.createItem(0, 100 + items.length * 100, name, 'bold', onChange);
+		item.fireInstantly = (fireInstantly == true);
+		return item;
+	}
+
+	// (leaving it is the engine's menu's to do)
+	public function exit():Void {}
+}
+
+/**
+ * The lines of V-Slice's list of pages (a `TextMenuList`): kept by name, with what each does.
+ */
+class OptionsMenuItems
+{
+	public var members:Array<OptionsMenuItem> = [];
+	public var byName:Map<String, OptionsMenuItem> = new Map();
+	public var active:Bool = true;
+	public var enabled:Bool = true;
+	public var length(get, never):Int;
+	function get_length():Int return members.length;
+
+	public function new() {}
+
+	public function createItem(x:Float = 0, y:Float = 0, name:String, ?font:String, ?callback:Dynamic, ?fireInstantly:Bool = false):OptionsMenuItem
+	{
+		var item:OptionsMenuItem = new OptionsMenuItem(x, y, name, callback);
+		item.fireInstantly = (fireInstantly == true);
+		members.push(item);
+		byName.set(name, item);
+		return item;
+	}
+
+	// The line called `name` becomes `newName`, doing something else
+	public function resetItem(name:String, newName:String, ?callback:Dynamic):OptionsMenuItem
+	{
+		var item:OptionsMenuItem = byName.get(name);
+		if(item == null) return null;
+		byName.remove(name);
+		item.name = newName;
+		item.label.text = newName;
+		if(callback != null) item.callback = callback;
+		byName.set(newName, item);
+		return item;
+	}
+
+	public function has(name:String):Bool return byName.exists(name);
+	public function getItem(name:String):OptionsMenuItem return byName.get(name);
+}
+
+class OptionsMenuItem extends flixel.FlxSprite
+{
+	public var name:String;
+	public var callback:Dynamic;
+	public var fireInstantly:Bool = false;
+	public var available:Bool = true;
+	public var label:flixel.text.FlxText;
+
+	public function new(x:Float, y:Float, name:String, ?callback:Dynamic)
+	{
+		super(x, y);
+		this.name = name;
+		this.callback = callback;
+		label = new flixel.text.FlxText(0, 0, 0, name);
+	}
+
+	public function setItem(name:String, ?callback:Dynamic):Void
+	{
+		this.name = name;
+		label.text = name;
+		if(callback != null) this.callback = callback;
 	}
 }
 

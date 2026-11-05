@@ -20,6 +20,16 @@ typedef ExtraCharacterFile =
 	@:optional var singsAll:Bool;
 	/** It stands behind the main character of its side instead of in front. */
 	@:optional var behind:Bool;
+	/**
+	 * Its notes come down receptors of its own instead of its side's (a strumline of its own, like Codename Engine's). Played by the
+	 * player if it's on the player's side, by the computer otherwise; the player's keys press both.
+	 */
+	@:optional var ownStrum:Bool;
+	/** Where its receptors are: the left of the first one (blank: in the middle of the screen) and the top (blank: the side's). */
+	@:optional var strumX:Null<Float>;
+	@:optional var strumY:Null<Float>;
+	/** Its receptors can be seen (false: the notes come to nothing, see "hidden" for notes nobody sees either). */
+	@:optional var strumVisible:Bool;
 }
 
 /**
@@ -40,6 +50,18 @@ class ExtraCharacter
 	public static inline final ALL:String = 'all';
 	/** Among other names: the ones a note with nothing set has (the main character and the extra ones that sing everything). */
 	public static inline final DEFAULT:String = 'default';
+	/** Among other names: the girlfriend sings it (like the "GF Sing" note type, which leaves the note its own type). */
+	public static inline final GIRLFRIEND:String = 'gf';
+	/** Among other names: nobody sees the note (a character singing in the background, see `objects.Note.hiddenNote`). */
+	public static inline final HIDDEN:String = 'hidden';
+
+	/** If a note's singers have that name. */
+	public static function hasSinger(singers:String, name:String):Bool
+	{
+		if(singers == null || singers.length < 1) return false;
+		for (part in singers.split(',')) if(part.trim() == name) return true;
+		return false;
+	}
 
 	public var tag:String;
 	public var side:String;
@@ -47,6 +69,12 @@ class ExtraCharacter
 	public var behind:Bool;
 	public var offsetX:Float;
 	public var offsetY:Float;
+	public var ownStrum:Bool;
+	public var strumX:Null<Float>;
+	public var strumY:Null<Float>;
+	public var strumVisible:Bool;
+	/** Its receptors, with `ownStrum` (made with the song's, see `states.PlayState.makeExtraStrums()`). */
+	public var strums:Array<StrumNote> = null;
 
 	/** The character it is now. */
 	public var char:Character;
@@ -61,7 +89,11 @@ class ExtraCharacter
 		behind = (data.behind == true);
 		offsetX = (data.x != null && !Math.isNaN(data.x)) ? data.x : 0;
 		offsetY = (data.y != null && !Math.isNaN(data.y)) ? data.y : 0;
-	}
+		ownStrum = (data.ownStrum == true);
+		strumX = (data.strumX != null && !Math.isNaN(data.strumX)) ? data.strumX : null;
+		strumY = (data.strumY != null && !Math.isNaN(data.strumY)) ? data.strumY : null;
+		strumVisible = (data.strumVisible != false);
+}
 
 	/**
 	 * The extra characters of a chart that can be used: with a character and a tag no other one has.

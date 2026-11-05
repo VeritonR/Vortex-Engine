@@ -62,6 +62,15 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 	var statusText:FlxText;
 	var helpText:FlxText;
 
+	// The icon (see the "Icon" tab): a new picture waits here until the player is saved, and is shown on the grid meanwhile
+	var pendingIcon:openfl.display.BitmapData = null;
+	var pendingIconGraphic:flixel.graphics.FlxGraphic = null;
+	var pendingIconXml:String = null; //(its animations; null: a still picture)
+	var pendingIconName:String = null;
+	var iconStatusText:FlxText;
+	var iconSaveText:FlxText;
+	var iconDialog:states.editors.content.FileDialogHandler;
+
 	public function new(?playerId:String)
 	{
 		super();
@@ -300,7 +309,8 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			var icon:FlxSprite = null;
 			if(i == slot)
 			{
-				icon = CharacterSelectState.makePlayerIcon(player);
+				if(pendingIconGraphic != null) icon = CharacterSelectState.makePixelIcon(pendingIconGraphic, pendingIconXml);
+				else withPlayerMod(function() icon = CharacterSelectState.makePlayerIcon(player));
 				playerIcon = icon;
 			}
 			if(icon == null) icon = CharacterSelectState.makeLock(i);
@@ -402,7 +412,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 
 	function makeMainBox():Void
 	{
-		mainBox = new PsychUIBox(FlxG.width - 320, 10, 310, 400, ['Player', 'Player Sheet', 'Girlfriend', 'Freeplay DJ', 'Results']);
+		mainBox = new PsychUIBox(FlxG.width - 320, 10, 310, 400, ['Player', 'Icon', 'Player Sheet', 'Girlfriend', 'Freeplay DJ', 'Results']);
 		mainBox.scrollFactor.set();
 		add(mainBox);
 
@@ -445,6 +455,27 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		tab.add(viewButton);
 		tab.add(fileText);
 		tab.add(playerDropDown);
+
+		// ---- Icon
+		var tab = mainBox.getTab('Icon').menu;
+		tab.add(new FlxText(10, 7, 290, 'Icon on the grid and in Freeplay (V-Slice\'s pixel icon):'));
+		iconStatusText = new FlxText(10, 27, 290, '', 8);
+		iconStatusText.wordWrap = true;
+		tab.add(iconStatusText);
+		tab.add(new PsychUIButton(10, 100, 'Load image...', loadIconImage, 100));
+		tab.add(new PsychUIButton(120, 100, 'From health icon', iconFromHealthIcon, 110));
+		tab.add(new FlxText(10, 132, 0, 'Play its animation (animated icons):'));
+		tab.add(new PsychUIButton(10, 147, 'Idle', function() playIconAnim('idle'), 60));
+		tab.add(new PsychUIButton(80, 147, 'Confirm', function() playIconAnim('confirm'), 70));
+		iconSaveText = new FlxText(10, 182, 290, '', 8);
+		iconSaveText.wordWrap = true;
+		tab.add(iconSaveText);
+		var iconHelp:FlxText = new FlxText(10, 232, 290, 'A .png, with its .xml next to it for an animated icon (animations "idle", "confirm" and "confirm-hold", '
+			+ 'like the base game\'s, 50x50 frames). "Save" puts it where V-Slice looks for it (images/freeplay/icons/' + playerId + 'pixel.png), '
+			+ 'so it works there too. V-Slice draws it twice as big, and shows no icon for a player that has none (Vortex shows its health icon).', 8);
+		iconHelp.wordWrap = true;
+		tab.add(iconHelp);
+		describeIcon();
 
 		// ---- Girlfriend
 		var tab = mainBox.getTab('Girlfriend').menu;
@@ -1403,6 +1434,220 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 	var file:FileReference = null;
 	var sheetWarningAccepted:Bool = false;
 
+	// ------------------------------------------------------------------------------------------
+	// The icon: "images/freeplay/icons/(id)pixel.png" (+ .xml), V-Slice's pixel icon of the player
+	// ------------------------------------------------------------------------------------------
+
+	// Where "Save" puts it: the player's mod (V-Slice finds it there too), or the mods folder for the game's own players
+	function iconFolder():String
+	{
+		#if MODS_ALLOWED
+		var mod:String = (player != null) ? player.mod : null;
+		if(mod != null && mod.length > 0 && mod != backend.PolymodCompat.BASE_MOD) return Paths.mods('$mod/images/freeplay/icons');
+		return Paths.mods('images/freeplay/icons');
+		#else
+		return 'mods/images/freeplay/icons';
+		#end
+	}
+
+	function describeIcon():Void
+	{
+		if(iconStatusText == null) return;
+		if(pendingIcon != null)
+		{
+			iconStatusText.text = 'New icon, not saved yet: $pendingIconName (${pendingIcon.width}x${pendingIcon.height}, '
+				+ ((pendingIconXml != null) ? 'animated' : 'a still picture') + '). "Save" on the Player tab keeps it.';
+		}
+		else
+		{
+			var key:String = null;
+			var path:String = null;
+			var animated:Bool = false;
+			withPlayerMod(function()
+			{
+				key = CharacterSelectState.pixelIconKey(playerId);
+				if(key == null) return;
+				path = Paths.getPath('images/$key.png', IMAGE);
+				animated = Paths.fileExists('images/$key.xml', TEXT);
+			});
+			iconStatusText.text = (key == null)
+				? 'No icon: Vortex shows the health icon here, V-Slice shows nothing. Load one, or make one from the health icon.'
+				: 'Uses images/$key.png' + (animated ? ' (animated)' : ' (a still picture)') + '\n' + path;
+		}
+		iconSaveText.text = 'Saving puts it in:\n' + iconFolder() + '/${playerId}pixel.png';
+	}
+
+	function loadIconImage():Void
+	{
+		var direct:String = DirectPlay.editorOpen();
+		if(direct != null)
+		{
+			takeIconImage(direct);
+			return;
+		}
+		if(iconDialog == null) iconDialog = new states.editors.content.FileDialogHandler();
+		if(!iconDialog.completed) return;
+		iconDialog.open(null, 'Pick the icon (.png)', [new openfl.net.FileFilter('PNG image', 'png')], function() takeIconImage(iconDialog.path));
+	}
+
+	// A picture from the computer, and its .xml next to it if it has one (then it's animated)
+	function takeIconImage(path:String):Void
+	{
+		#if sys
+		if(path == null) return;
+		try
+		{
+			var bitmap:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(path);
+			if(bitmap == null)
+			{
+				iconStatusText.text = 'Could not read "$path" as an image.';
+				return;
+			}
+			var xmlPath:String = haxe.io.Path.withoutExtension(path) + '.xml';
+			var xml:String = sys.FileSystem.exists(xmlPath) ? sys.io.File.getContent(xmlPath) : null;
+			// (an .xml without the icon's "idle" animation isn't this picture's: it's taken as a still one)
+			if(xml != null && xml.indexOf('"idle0') < 0) xml = null;
+			setPendingIcon(bitmap, xml, haxe.io.Path.withoutDirectory(path));
+		}
+		catch(e:Dynamic)
+		{
+			iconStatusText.text = 'Could not load the icon: $e';
+		}
+		#end
+	}
+
+	/**
+	 * A pixel icon made from the health icon of the player's character: its first frame shrunk to 50x50 (the size of the base
+	 * game's icons, drawn twice as big), each new pixel the average of the ones it covers, solid or see-through.
+	 */
+	function iconFromHealthIcon():Void
+	{
+		#if sys
+		var path:String = null;
+		var name:String = null;
+		withPlayerMod(function()
+		{
+			var character:String = PlayableCharacters.getMainCharacter(player);
+			name = CharacterSelectState.getHealthIconName(player, (character != null) ? character : playerId);
+			// (from the file itself: what the game has in memory may only be on the graphics card, with GPU caching)
+			for (key in ['icons/$name', 'icons/icon-$name'])
+			{
+				var file:String = Paths.getPath('images/$key.png', IMAGE);
+				if(sys.FileSystem.exists(file))
+				{
+					path = file;
+					break;
+				}
+			}
+		});
+		if(path == null)
+		{
+			iconStatusText.text = 'The health icon "$name" was not found.';
+			return;
+		}
+
+		var source:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(path);
+		if(source == null) return;
+		var frame:Int = Std.int(Math.min(source.width, source.height)); //(the first frame: square, as tall as the picture)
+		var size:Int = 50;
+		var made:openfl.display.BitmapData = new openfl.display.BitmapData(size, size, true, 0);
+		var step:Float = frame / size;
+		for (y in 0...size)
+			for (x in 0...size)
+			{
+				var red:Float = 0, green:Float = 0, blue:Float = 0, alpha:Float = 0, count:Int = 0;
+				for (sy in Std.int(y * step)...Std.int(Math.max(y * step + 1, (y + 1) * step)))
+					for (sx in Std.int(x * step)...Std.int(Math.max(x * step + 1, (x + 1) * step)))
+					{
+						var pixel:Int = source.getPixel32(sx, sy);
+						var a:Float = (pixel >>> 24) & 0xFF;
+						red += ((pixel >> 16) & 0xFF) * a;
+						green += ((pixel >> 8) & 0xFF) * a;
+						blue += (pixel & 0xFF) * a;
+						alpha += a;
+						count++;
+					}
+				if(count < 1 || alpha / count < 128) continue; //(mostly see-through: left empty, pixel art has no soft edges)
+				var color:Int = (0xFF << 24) | (Std.int(red / alpha) << 16) | (Std.int(green / alpha) << 8) | Std.int(blue / alpha);
+				made.setPixel32(x, y, color);
+			}
+		source.dispose();
+		setPendingIcon(made, null, 'made from the health icon "$name"');
+		#end
+	}
+
+	function setPendingIcon(bitmap:openfl.display.BitmapData, xml:String, name:String):Void
+	{
+		for (icon in icons.members) if(icon != null) icon.destroy(); //(the old one may be drawn with the graphic that's replaced)
+		icons.clear();
+		if(pendingIconGraphic != null) pendingIconGraphic.destroy();
+
+		pendingIcon = bitmap;
+		pendingIconXml = xml;
+		pendingIconName = name;
+		pendingIconGraphic = flixel.graphics.FlxGraphic.fromBitmapData(bitmap, true);
+		pendingIconGraphic.persist = true;
+		unsaved = true;
+		reloadIcons();
+		describeIcon();
+	}
+
+	function playIconAnim(name:String):Void
+	{
+		if(playerIcon == null || playerIcon.animation.getByName(name) == null)
+		{
+			iconStatusText.text = 'This icon has no "$name" animation (a still picture, or an .xml without it).';
+			return;
+		}
+		playerIcon.animation.play(name, true);
+	}
+
+	// Writes the new icon where V-Slice looks for it. False if it couldn't be written
+	function savePendingIcon():Bool
+	{
+		#if sys
+		if(pendingIcon == null) return true;
+		var fileName:String = '${playerId}pixel';
+		try
+		{
+			var png:haxe.io.Bytes = pendingIcon.encode(pendingIcon.rect, new openfl.display.PNGEncoderOptions());
+			if(DirectPlay.editorSaveBytes('$fileName.png', png))
+			{
+				if(pendingIconXml != null) DirectPlay.editorSave('$fileName.xml', pendingIconXml);
+			}
+			else
+			{
+				var folder:String = iconFolder();
+				if(!sys.FileSystem.exists(folder)) sys.FileSystem.createDirectory(folder);
+				sys.io.File.saveBytes('$folder/$fileName.png', png);
+				var xmlPath:String = '$folder/$fileName.xml';
+				if(pendingIconXml != null) sys.io.File.saveContent(xmlPath, pendingIconXml);
+				// (a still picture replacing an animated icon: its old .xml would cut the new picture into frames that aren't there)
+				else if(sys.FileSystem.exists(xmlPath)) sys.FileSystem.deleteFile(xmlPath);
+			}
+		}
+		catch(e:Dynamic)
+		{
+			iconStatusText.text = 'Could not save the icon: $e';
+			return false;
+		}
+
+		// the game reads the icon again from the file next time (the old one stays in memory otherwise)
+		for (icon in icons.members) if(icon != null) icon.destroy();
+		icons.clear();
+		var cacheKey:String = 'images/freeplay/icons/$fileName.png';
+		Paths.currentTrackedAssets.remove(cacheKey);
+		if(FlxG.bitmap.checkCache(cacheKey)) FlxG.bitmap.removeByKey(cacheKey);
+		if(pendingIconGraphic != null) pendingIconGraphic.destroy();
+		pendingIcon = null;
+		pendingIconGraphic = null;
+		pendingIconXml = null;
+		reloadIcons();
+		describeIcon();
+		#end
+		return true;
+	}
+
 	function saveFile():Void
 	{
 		if(file != null) return;
@@ -1413,6 +1658,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			return;
 		}
 		sheetWarningAccepted = false;
+		if(!savePendingIcon()) return; //(the icon first: it goes straight into the mod's folder)
 		// (an empty spritesheet isn't kept in the file)
 		for (owner in [data.charSelect, data.charSelect.gf])
 			if(owner != null && owner.vortexSheet != null && PlayableCharacters.validSheet(owner.vortexSheet) == null)

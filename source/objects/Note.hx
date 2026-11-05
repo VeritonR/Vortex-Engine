@@ -149,6 +149,19 @@ class Note extends FlxSprite
 	var followedX:Float = Math.NaN;
 	public var copyY:Bool = true;
 	public var copyAngle:Bool = true;
+	/**
+	 * A note nobody sees, of a character that sings in the background (the "hidden" singer, a Codename Engine strumline that isn't
+	 * visible): it's drawn see-through, and its receptor doesn't light up when it's sung.
+	 */
+	public var hiddenNote(default, set):Bool = false;
+	/** The extra character whose own receptors the note comes down (see `objects.ExtraCharacter.ownStrum`), null: its side's. */
+	public var strumOwner:ExtraCharacter = null;
+	function set_hiddenNote(value:Bool):Bool
+	{
+		if(value) multAlpha = 0;
+		return hiddenNote = value;
+	}
+
 	/** It's turned in 3D like its receptor (angleX, angleY, z), long notes too. */
 	public var copy3D:Bool = true;
 	public var copyAlpha:Bool = true;

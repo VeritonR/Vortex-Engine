@@ -19,6 +19,15 @@ class VortexFunctions
 		var lua:State = funk.lua;
 
 		// ------------------------------------------------------------------------------------------
+		// Stage
+		// ------------------------------------------------------------------------------------------
+
+		// Another stage in the middle of the song, like the "Change Stage" event: changeStage("school", "snap")
+		Lua_helper.add_callback(lua, "changeStage", function(name:String, ?flags:String = '') {
+			return (PlayState.instance != null) ? PlayState.instance.changeStage(name, flags) : false;
+		});
+
+		// ------------------------------------------------------------------------------------------
 		// Cameras
 		// ------------------------------------------------------------------------------------------
 
@@ -278,7 +287,16 @@ class VortexFunctions
 				return false;
 			}
 			var graphic:flixel.graphics.FlxGraphic = (texture != null && texture.length > 0) ? Paths.image(texture) : null;
-			var made:objects.Model3D = new objects.Model3D(x, y, sys.io.File.getContent(path), graphic);
+			var objText:String = sys.io.File.getContent(path);
+			// (the colors of its materials, from the .mtl file the .obj names, next to it)
+			var mtlText:String = null;
+			var mtlName:String = objects.Model3D.mtlFileOf(objText);
+			if(mtlName != null)
+			{
+				var mtlPath:String = haxe.io.Path.join([haxe.io.Path.directory(path), mtlName]);
+				if(sys.FileSystem.exists(mtlPath)) mtlText = sys.io.File.getContent(mtlPath);
+			}
+			var made:objects.Model3D = new objects.Model3D(x, y, objText, graphic, mtlText);
 			if(!made.loaded)
 			{
 				FunkinLua.luaTrace('makeLuaModel: "$model" has no triangles that could be read', false, false, FlxColor.RED);
@@ -287,6 +305,26 @@ class VortexFunctions
 			}
 			MusicBeatState.getVariables().set(tag, made);
 			return true;
+		});
+
+		// The color of one of a model's materials (the parts its .obj names with "usemtl": a tree's trunk and leaves)
+		Lua_helper.add_callback(lua, "setModelMaterialColor", function(tag:String, material:String, color:String) {
+			var made:objects.Model3D = Std.downcast(MusicBeatState.getVariables().get(tag), objects.Model3D);
+			if(made == null)
+			{
+				FunkinLua.luaTrace('setModelMaterialColor: there is no model "$tag"', false, false, FlxColor.RED);
+				return false;
+			}
+			if(!made.setMaterialColor(material, CoolUtil.colorFromString(color)))
+			{
+				FunkinLua.luaTrace('setModelMaterialColor: "$tag" has no material "$material" (it has: ' + made.materials.join(', ') + ')', false, false, FlxColor.RED);
+				return false;
+			}
+			return true;
+		});
+		Lua_helper.add_callback(lua, "getModelMaterials", function(tag:String) {
+			var made:objects.Model3D = Std.downcast(MusicBeatState.getVariables().get(tag), objects.Model3D);
+			return (made != null) ? made.materials.copy() : [];
 		});
 
 		// ------------------------------------------------------------------------------------------

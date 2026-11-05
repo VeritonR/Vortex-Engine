@@ -62,10 +62,12 @@ class Paths
 		backend.Paths.setCurrentLevel(name);
 	}
 
+	// (a sound that isn't there is null, not the engine's "beep": on V-Slice it's the path of a file that isn't there, so
+	// `Assets.exists(Paths.sound(...))` is false. Scripts look for numbered sounds that way, "thing1", "thing2"... until one is missing)
 	public static function sound(key:String, ?library:String):Sound
 	{
 		var name:String = stripLibrary(key);
-		return backend.Paths.returnSound('sounds/$name', getLibrary(key, library, 'sounds/$name.${backend.Paths.SOUND_EXT}', SOUND));
+		return backend.Paths.returnSound('sounds/$name', getLibrary(key, library, 'sounds/$name.${backend.Paths.SOUND_EXT}', SOUND), true, false);
 	}
 
 	/**
@@ -79,7 +81,17 @@ class Paths
 	public static function music(key:String, ?library:String):Sound
 	{
 		var name:String = stripLibrary(key);
-		return backend.Paths.returnSound('music/$name', getLibrary(key, library, 'music/$name.${backend.Paths.SOUND_EXT}', SOUND));
+		var sound:Sound = backend.Paths.returnSound('music/$name', getLibrary(key, library, 'music/$name.${backend.Paths.SOUND_EXT}', SOUND), true, false);
+
+		// V-Slice keeps each music in a folder of its own ("freakyMenu/freakyMenu"), the engine's are on their own ("freakyMenu")
+		var parts:Array<String> = name.split('/');
+		if(sound == null && parts.length >= 2 && parts[parts.length - 1] == parts[parts.length - 2])
+		{
+			parts.pop();
+			var plain:String = parts.join('/');
+			sound = backend.Paths.returnSound('music/$plain', getLibrary(key, library, 'music/$plain.${backend.Paths.SOUND_EXT}', SOUND), true, false);
+		}
+		return sound;
 	}
 
 	public static function inst(song:String, ?suffix:String):Sound
@@ -100,10 +112,46 @@ class Paths
 		return stripLibrary(path);
 	}
 
+	// A mod's own font, then V-Slice's (the engine's "vcr.ttf" is another font, its HUD's, and scripts lay their texts out by
+	// V-Slice's: spaces to line words up), then the engine's
 	public static function font(key:String):String
 	{
-		return backend.Paths.font(key);
+		var found:String = backend.Paths.font(key);
+		#if sys
+		if(StringTools.startsWith(found, 'assets/'))
+		{
+			var vslice:String = backend.PolymodCompat.BASE_FOLDER + '/fonts/$key';
+			if(sys.FileSystem.exists(vslice)) return vsliceFont(vslice);
+		}
+		#end
+		return found;
 	}
+
+	#if sys
+	static var vsliceFonts:Map<String, String> = [];
+
+	// A font of V-Slice's, loaded from its bytes and given by its name instead of by its path: OpenFL also finds fonts by the name
+	// of their file, and the engine's own "vcr.ttf" (its HUD's) would be taken for it, or it for the engine's
+	static function vsliceFont(path:String):String
+	{
+		if(vsliceFonts.exists(path)) return vsliceFonts.get(path);
+		var font:openfl.text.Font = null;
+		try
+		{
+			font = openfl.text.Font.fromBytes(openfl.utils.ByteArray.fromBytes(sys.io.File.getBytes(path)));
+		}
+		catch(e:Dynamic) {}
+		if(font == null || font.fontName == null || font.fontName.length < 1) return path;
+
+		@:privateAccess
+		{
+			openfl.text.Font.__registeredFonts.push(font);
+			openfl.text.Font.__fontByName.set(font.fontName, font);
+		}
+		vsliceFonts.set(path, font.fontName);
+		return font.fontName;
+	}
+	#end
 
 	public static function file(key:String, ?type:Dynamic, ?library:String):String
 	{

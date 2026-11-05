@@ -485,7 +485,13 @@ class ResultsState extends MusicBeatState
 				case 'animateatlas':
 					var sprite:AtlasSprite = null;
 					if(animData.scriptClass != null) sprite = makeScriptedAtlas(animData.scriptClass, offsets[0], offsets[1]);
-					else sprite = new AtlasSprite(offsets[0], offsets[1], path);
+					else
+					{
+						// (with V-Slice's "applyStageMatrix", where the art was on its Animate file: Spooky Mix's Perfect characters walk in
+						// from off its stage, and without it they were drawn from somewhere else, off the screen)
+						sprite = new AtlasSprite(offsets[0], offsets[1]);
+						sprite.loadTextureAtlas(path, null, {applyStageMatrix: (animData.applyStageMatrix == true)});
+					}
 					backend.StepLog.add('Results animation ' + ((animData.scriptClass != null) ? 'of the class ' + animData.scriptClass : '"$path"') + ' at ' + offsets + ': ' + ((sprite != null) ? sprite.describe() : 'not made'));
 					if(sprite == null || !sprite.loaded) continue;
 

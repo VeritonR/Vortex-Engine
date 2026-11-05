@@ -113,6 +113,10 @@ function onBreakStart(seconds)     // a part of the song with 3 seconds or more 
                                    // Called even if the player turned the break timer off.
 function onBreakEnd()              // the notes are coming again (or the song ended)
 function onConversationEnd(name)   // a V-Slice dialogue started with startConversation ended
+function onChangeStage(newStage, oldStage)      // the stage is about to change (the "Change Stage" event or changeStage);
+                                                // return Function_Stop to call it off
+function onChangeStagePost(newStage, oldStage)  // it changed: curStage, defaultBoyfriendX/Y, defaultOpponentX/Y and
+                                                // defaultGirlfriendX/Y have the new stage's values
 
 Example (Lua) - zoom out during the breaks:
     function onBreakStart(seconds)
@@ -230,6 +234,11 @@ On the chart editor, the "Extras" tab adds characters besides the opponent, the 
     Character  the character file
     X / Y      where it stands, from the spot of the main character of its side
     Sings every note of its side (duet) / Behind the main character
+    Receptors of its own   its notes come down receptors of its own instead of its side's (a strumline of its own, like
+                           Codename Engine's): "Receptors X" is the left of the first one, "Receptors Y" the top (50 is
+                           where the sides' are; with Downscroll it's mirrored), "Seen" hides them. On the player's side
+                           the player hits its notes with the same keys, which press its receptors too.
+                           Off (the default): its notes come down its side's receptors.
 Each extra character gets a field of 4 columns of its own on the grid, after the opponent's (up to 4 of them; the columns
 get narrower to fit): a note put on it is a note of its side (the player's or the opponent's lanes - a girlfriend's extra
 uses the opponent's) that only it sings. Dragging notes from one field to another changes who sings them. The same note on
@@ -243,8 +252,17 @@ They dance on the beat, sing, hold long notes and miss like the main ones (also 
 
 In the chart (Psych format): a "vortexCharacters" list, and the 5th value of a note says who sings it:
     "vortexCharacters": [{"tag": "pico2", "character": "pico", "side": "opponent", "x": -250, "y": 0,
-                          "singsAll": false, "behind": true}]
+                          "singsAll": false, "behind": true,
+                          "ownStrum": true, "strumX": 416, "strumY": 50, "strumVisible": true}]
+Also in the chart (made by the Codename Engine charts, for Psych charts too):
+    "vortexStrumlines": {"player": {"x": 96, "y": 50, "visible": true}, "opponent": {"visible": false}}
+                    where the receptors of each side are (x: the left of the first one); not with Middlescroll
+    "hideGirlfriend": true      the song has no girlfriend
     [1200, 5, 0, "", "pico2"]      // "main", "all", a tag, or tags separated by commas ("main,pico2")
+Two more names change the note itself (with the others, separated by commas):
+    "gf"       the girlfriend sings it (like the "GF Sing" note type, but the note keeps its own type): "main,gf"
+    "hidden"   nobody sees the note and its receptor doesn't light up: a character singing in the background
+               ("default,hidden": the opponent sings notes that aren't shown; "pico2,hidden": an extra character does)
 
 Scripts get each one by its tag, like a Lua sprite:
     setProperty('pico2.alpha', 0.5)
@@ -255,6 +273,33 @@ Notes: getPropertyFromGroup('notes', i, 'singers') / note.singers (HScript) - wh
 HScript: game.extraCharacters (a list: .tag, .side, .char), game.getExtraCharacter('pico2').char
 
 Other engines don't have them: the extra characters don't show up there and the main characters sing every note.
+
+CODENAME ENGINE CHARTS
+A Codename Engine chart ("codenameChart": true, notes in "strumLines") is read like a Psych one: put it where the song's chart
+goes (data/<song>/<song>-<difficulty>.json) or load it in the chart editor (File > Open Codename Engine Chart...: its
+strumlines get fields of their own on the grid right away, and "Save" suggests "<song>-<difficulty>.json", as Codename's
+file is only "<difficulty>.json"). Only the chart: the song's music, characters and stage are the engine's own files, with
+the same names.
+    meta.json      its BPM (and time signature): next to the chart, or in the folder above it (Codename's songs/<song>/).
+                   Without one, the chart's own "meta", or 100 BPM.
+    events.json    the song's events for every difficulty, read too (same places).
+    strumlines     the first opponent and player ones are the opponent and the player; strumline 2, an "additional" one,
+                   is the girlfriend. Every other strumline, and the other characters of a strumline, become extra
+                   characters (the ones of the main strumlines sing every note with them). The ones that can be seen
+                   get receptors of their own where Codename puts them, those that can't sing "hidden" notes. The
+                   main strumlines' places ("strumPos", "strumLinePos", "visible") become "vortexStrumlines". A song
+                   without a girlfriend strumline has no girlfriend. An event with one of Codename's names but more
+                   values than Codename's is a mod's own (it's kept as it is).
+    note types     noteTypes[type - 1], as Codename has them (0 is a normal note).
+    events         BPM Change, Continuous BPM Change (a change at its start) and Time Signature Change make the sections;
+                   Camera Movement and Camera Position -> Camera Target (with their ease, time and offset); Add Camera Zoom and Camera Bop ->
+                   Add Camera Zoom; Camera Zoom -> Set Camera Zoom; Camera Modulo Change -> Camera Bop; Camera Flash ->
+                   Flash Camera (reversed: Fade Screen); Scroll Speed Change -> Change Scroll Speed; Play Animation ->
+                   (Continuous BPM Change goes little by little, a step on each beat; Camera Zoom on camHUD is the HUD's zoom.)
+                   Play Animation; Alt Animation Toggle -> the notes' "Alt Animation" type (and Alt Idle Animation).
+                   Others (HScript Call, a mod's own) keep their name: scripts get them in onEvent (value 1: the first
+                   value, value 2: the others separated by commas).
+Saving it in the chart editor makes a Psych chart: the editor asks where, so the Codename file isn't replaced.
 
 
 //------------------------------------------------------------------------------------------------------------------//
@@ -278,15 +323,29 @@ Flash Camera     V1: color, duration (FFFFFF, 1)           V2: camera: game, hud
                  (off when the player turned off Flashing Lights)
 Fade Screen      V1: color, alpha 0-1 (000000, 1)          V2: duration, ease (1, linear)
                  a color over the whole screen: "000000, 1" fades to black, ", 0" back
-Set Camera Zoom  V1: zoom (blank: the stage's)            V2: duration, ease (blank: at once)
+Set Camera Zoom  V1: zoom (blank: the stage's; "*1.2": the stage's times 1.2)   V2: duration, ease (blank: at once)
+                 ", hud" after the ease: the HUD's zoom instead, which stays after its bops ("1, quadOut, hud")
 Fade HUD         V1: alpha 0-1 (1)                         V2: duration, ease (0.5, linear)
 Cinematic Bars   V1: size in pixels (100; 0 takes them away) V2: duration, ease (0.5, linear)
 Lyrics           V1: text (blank clears it, \n = new line) V2: color (FFFFFF)
-Camera Target    V1: dad, bf, gf or the tag of an extra character (blank: follows the sections again)
+Camera Target    V1: dad, bf, gf or the tag of an extra character (blank: follows the sections again), or a spot "x, y"
+                     ("+x, +y": from where it's looking)
+                 V2 (optional): seconds, ease, offset x, offset y. Blank: the camera's usual easing; "snap": at once
+                     ("0.5, quadOut"   "snap"   ", , 50, -20": the usual easing, 50 to the right and 20 up)
+Play Animation   (Psych's) V2 can also be the tag of an extra character
 Camera Bop       V1: beats between bops (blank: each section, 0: none)   V2: how strong (1)
 Character Trail  V1: dad, bf, gf or the tag of an extra character        V2: color (blank removes the trail)
 Notes Fade       V1: player, opponent or both              V2: alpha, duration, ease (0, 0.5, linear)
 Camera Angle     V1: game, hud or other                    V2: angle, duration, ease (0, 0, linear)
+Change Stage     V1: the stage's name (its file in "stages", a V-Slice stage, or one the game makes: "school", "limo"...)
+                 V2 (optional), separated by commas: keep (the characters stay where they are), snap (the camera is
+                     there at once), keepzoom (the camera's zoom stays)
+                 The old stage's sprites and scripts go away (its scripts get onDestroy first), the new one is built
+                 where the characters are and they go to its places, with its camera zoom, offsets and speed. The new
+                 stage's scripts get onCreate and onCreatePost. Its images are loaded with the song. The notes keep
+                 their look (a pixel stage doesn't turn them pixel). The chart still starts on its own stage, and so
+                 does a restart. Sprites a stage's HScript adds after its onCreate, and cameras or shaders its scripts
+                 make, are theirs to take away in onDestroy.
 Scripts still get them on onEvent, like any other event.
 
 
@@ -420,6 +479,10 @@ addExtraCharacter(tag, character, side, x, y, singsAll, behind)
 removeExtraCharacter(tag)       // takes it out of the song
 getExtraCharacters()            // a table with the tags of every extra character of the song
 
+STAGE
+changeStage(name, flags)        // another stage, like the "Change Stage" event (flags: keep, snap, keepzoom).
+                                // False if it didn't change.       changeStage('school', 'snap')
+
 CLIPBOARD
 setClipboard(text) / getClipboard()
 
@@ -469,6 +532,13 @@ Its properties (setProperty / startTween):
     ambient        how dark the side away from the light gets, 0 to 1 (0.35)
     cullBack       true: triangles facing away aren't drawn (turn it off for open or flat models)
     triangleCount  (read only)
+Materials: the parts an .obj names with "usemtl" (a tree's trunk and leaves). Their colors come from the .mtl file the .obj names
+("mtllib", next to it: its "Kd" colors), for models with no texture. Without one they're white, and these change them:
+setModelMaterialColor(tag, material, color)   // color like "6B4226"; false if the model has no material with that name
+getModelMaterials(tag)                        // a table with the names of its materials
+    makeLuaModel('tree', 'tree', '', 300, 400)
+    setModelMaterialColor('tree', 'Bark', '6B4226')   -- the trunk brown
+    setModelMaterialColor('tree', 'Tree', '3E9E4F')   -- the leaves green
 Example - a spinning model in the stage:
     function onCreatePost()
         makeLuaModel('ring', 'ring', 'ringTexture', 600, 300)

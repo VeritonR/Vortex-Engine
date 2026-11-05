@@ -240,8 +240,9 @@ class PlayState
 	function get_cameraFollowPoint():FlxObject return game.camFollow;
 
 	// On V-Slice the health is always Boyfriend's (its side of the bar), and scripts draw their own bars and drain it that way. With Play
-	// as Opponent (the dad's side online too) the game's own is the one of who's playing, the dad's: scripts get it as Boyfriend's,
-	// or their bars went the wrong way (Schwiftying's)
+	// as Opponent (the dad's side online too) the game's own is the one of who's playing, the dad's: scripts get it as Boyfriend's, so
+	// a mod's own health bar looks like the engine's (the one playing the dad on the left, their part growing from there) and its drains
+	// go by the sides of the chart: what the opponent's notes take from Boyfriend is what the one playing them wins
 	public var health(get, set):Float;
 	function get_health():Float return game.playAsOpponent ? 2 - game.health : game.health;
 	function set_health(value:Float):Float
@@ -271,11 +272,19 @@ class PlayState
 		return value;
 	}
 
-	public var isBotPlayMode(get, never):Bool;
+	// (both are variables V-Slice scripts set: a mod that makes the player fail on purpose turns Practice Mode off first)
+	public var isBotPlayMode(get, set):Bool;
 	function get_isBotPlayMode():Bool return game.cpuControlled;
+	function set_isBotPlayMode(value:Bool):Bool
+	{
+		game.cpuControlled = value;
+		if(game.botplayTxt != null) game.botplayTxt.visible = value;
+		return value;
+	}
 
-	public var isPracticeMode(get, never):Bool;
+	public var isPracticeMode(get, set):Bool;
 	function get_isPracticeMode():Bool return game.practiceMode;
+	function set_isPracticeMode(value:Bool):Bool return game.practiceMode = value;
 
 	public var startingSong(get, never):Bool;
 	function get_startingSong():Bool return game.startingSong;

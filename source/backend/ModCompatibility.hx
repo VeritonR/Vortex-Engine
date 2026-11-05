@@ -45,8 +45,9 @@ class ModCompatibility
 	/** Worth knowing, usually fine. */
 	public static inline final NOTE:Int = 2;
 
-	static final FUNCTIONS:Array<String> = ['setLaneUnderlay', 'setScoreCamera', 'setHiddenNotes', 'getTallies', 'startConversation', 'makeStrumsEarly', 'getExtraCharacter'];
-	static final CALLBACKS:Array<String> = ['onBreakStart', 'onBreakEnd', 'onConversationEnd'];
+	static final FUNCTIONS:Array<String> = ['setLaneUnderlay', 'setScoreCamera', 'setHiddenNotes', 'getTallies', 'startConversation', 'makeStrumsEarly', 'getExtraCharacter',
+		'changeStage'];
+	static final CALLBACKS:Array<String> = ['onBreakStart', 'onBreakEnd', 'onConversationEnd', 'onChangeStage', 'onChangeStagePost'];
 	static final VARIABLES:Array<String> = ['playAsOpponent', 'onlinePlay', 'onlineHost'];
 	static final PROPERTIES:Array<String> = ['iconBop', 'sustainWiggle', 'showBreakTimer', 'ghostNotes', 'healthDrain', 'speedMiss',
 		'hiddennotes', 'showLaneUnderlay', 'laneUnderlayAlpha', 'isResting', 'maxRestTime', 'maxCombo', 'scoreCamera', 'isVSliceStage',

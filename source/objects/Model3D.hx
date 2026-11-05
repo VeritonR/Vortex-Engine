@@ -37,6 +37,15 @@ class Model3D extends FlxSprite
 	var faces:Array<Int> = [];
 	var faceUVs:Array<Int> = [];
 
+	/**
+	 * The materials of the model ("usemtl" in the .obj), in the order they show up. Each one has a color: the "Kd" of its .mtl file
+	 * if there is one, white otherwise, and `setMaterialColor()` changes it (a tree's "Bark" brown and "Leaves" green). It's mixed with
+	 * the texture, the model's `color` and the lighting.
+	 */
+	public var materials(default, null):Array<String> = [];
+	var materialColors:Array<FlxColor> = [];
+	var faceMaterials:Array<Int> = []; //(one per triangle, -1: none)
+
 	// (the turned and projected corners of each frame, kept to not make new arrays every frame)
 	var projected:Array<Float> = [];
 	var order:Array<Int> = [];
@@ -59,20 +68,65 @@ class Model3D extends FlxSprite
 
 	/**
 	 * @param objText   What the ".obj" file has
-	 * @param texture   The picture it's painted with (null: plain white, colored with `color`)
+	 * @param texture   The picture it's painted with (null: plain white, colored with `color` and the materials)
+	 * @param mtlText   What its ".mtl" file has (the materials' colors), if it has one
 	 */
-	public function new(x:Float = 0, y:Float = 0, objText:String, ?texture:flixel.graphics.FlxGraphic)
+	public function new(x:Float = 0, y:Float = 0, objText:String, ?texture:flixel.graphics.FlxGraphic, ?mtlText:String)
 	{
 		super(x, y);
 		if(texture != null) loadGraphic(texture);
 		else makeGraphic(4, 4, FlxColor.WHITE);
 		antialiasing = ClientPrefs.data.antialiasing;
 		if(objText != null) readObj(objText);
+		// (a model painted with a texture keeps it as it is: the colors of a .mtl go with models that have none, they're usually
+		// a plain grey when there's a texture)
+		if(mtlText != null && texture == null) readMtl(mtlText);
+	}
+
+	/** The "mtllib" file an .obj names (where its materials' colors are), null if none. */
+	public static function mtlFileOf(objText:String):String
+	{
+		for (line in objText.split('\n'))
+		{
+			line = StringTools.trim(line);
+			if(StringTools.startsWith(line, 'mtllib ')) return StringTools.trim(line.substr(7));
+		}
+		return null;
+	}
+
+	/**
+	 * Changes the color of one of its materials. False if it has no material with that name.
+	 */
+	public function setMaterialColor(material:String, value:FlxColor):Bool
+	{
+		var index:Int = materials.indexOf(material);
+		if(index < 0) return false;
+		materialColors[index] = value;
+		return true;
+	}
+
+	function readMtl(text:String):Void
+	{
+		var current:Int = -1;
+		for (line in text.split('\n'))
+		{
+			var parts:Array<String> = [for (part in ~/\s+/g.split(StringTools.trim(line))) if(part.length > 0) part];
+			if(parts.length < 2) continue;
+			switch(parts[0])
+			{
+				case 'newmtl':
+					current = materials.indexOf(parts[1]);
+				case 'Kd' if(current >= 0 && parts.length >= 4):
+					materialColors[current] = FlxColor.fromRGBFloat(Math.min(1, number(parts[1])), Math.min(1, number(parts[2])), Math.min(1, number(parts[3])));
+				default:
+			}
+		}
 	}
 
 	function readObj(text:String):Void
 	{
 		var lines:Array<String> = text.split('\n');
+		var material:Int = -1;
 		for (line in lines)
 		{
 			line = StringTools.trim(line);
@@ -82,6 +136,14 @@ class Model3D extends FlxSprite
 			{
 				case 'v' if(parts.length >= 4):
 					for (i in 1...4) positions.push(number(parts[i]));
+				case 'usemtl' if(parts.length >= 2):
+					material = materials.indexOf(parts[1]);
+					if(material < 0)
+					{
+						materials.push(parts[1]);
+						materialColors.push(FlxColor.WHITE);
+						material = materials.length - 1;
+					}
 				case 'vt' if(parts.length >= 3):
 					texCoords.push(number(parts[1]));
 					texCoords.push(number(parts[2]));
@@ -102,6 +164,7 @@ class Model3D extends FlxSprite
 						if(ids[0] < 0 || ids[i] < 0 || ids[i + 1] < 0) continue;
 						faces.push(ids[0]); faces.push(ids[i]); faces.push(ids[i + 1]);
 						faceUVs.push(uvIds[0]); faceUVs.push(uvIds[i]); faceUVs.push(uvIds[i + 1]);
+						faceMaterials.push(material);
 					}
 				default:
 			}
@@ -223,8 +286,12 @@ class Model3D extends FlxSprite
 		}
 		order.sort(function(first:Int, second:Int):Int return depths[first] < depths[second] ? 1 : (depths[first] > depths[second] ? -1 : 0));
 
+		// The triangles go to flixel in runs of the same color (each run is one call, with one color for all of it), from the
+		// farthest to the closest. (A color per call: see Perspective3D.freshBatch() for why each call is a batch of its own)
 		var base:ColorTransform = colorTransform;
 		_point.set(0, 0);
+		runLength = 0;
+		var runRed:Float = -1, runGreen:Float = -1, runBlue:Float = -1;
 		for (t in order)
 		{
 			for (k in 0...3)
@@ -247,18 +314,59 @@ class Model3D extends FlxSprite
 				}
 			}
 
-			shadeTransform.redMultiplier = base.redMultiplier * shades[t];
-			shadeTransform.greenMultiplier = base.greenMultiplier * shades[t];
-			shadeTransform.blueMultiplier = base.blueMultiplier * shades[t];
+			if(!backend.Perspective3D.onCamera(points, camera)) continue; //(off the camera: see Perspective3D.onCamera())
+
+			// (the shading in 64 steps: the eye can't tell them apart, and more triangles end up in a run)
+			var shade:Float = Math.round(shades[t] * 64) / 64;
+			var material:Int = faceMaterials[t];
+			var tint:FlxColor = (material >= 0) ? materialColors[material] : FlxColor.WHITE;
+			var red:Float = base.redMultiplier * shade * tint.redFloat;
+			var green:Float = base.greenMultiplier * shade * tint.greenFloat;
+			var blue:Float = base.blueMultiplier * shade * tint.blueFloat;
+			if(runLength > 0 && (red != runRed || green != runGreen || blue != runBlue)) drawRun(camera);
+			runRed = red; runGreen = green; runBlue = blue;
+
+			for (k in 0...3)
+			{
+				runPoints[runLength * 6 + k * 2] = points[k * 2];
+				runPoints[runLength * 6 + k * 2 + 1] = points[k * 2 + 1];
+				runUVs[runLength * 6 + k * 2] = cornerUVs[k * 2];
+				runUVs[runLength * 6 + k * 2 + 1] = cornerUVs[k * 2 + 1];
+				runIndices[runLength * 3 + k] = runLength * 3 + k;
+				runColors[runLength * 3 + k] = 0xFFFFFFFF; //(white: see cornerColors)
+			}
+			runLength++;
+			shadeTransform.redMultiplier = red;
+			shadeTransform.greenMultiplier = green;
+			shadeTransform.blueMultiplier = blue;
 			shadeTransform.alphaMultiplier = base.alphaMultiplier;
-camera.drawTriangles(graphic, points, corners, cornerUVs, cornerColors, _point, blend, true, antialiasing, shadeTransform, shader);
 		}
+		if(runLength > 0) drawRun(camera);
+	}
+
+	// (the run being put together: the corners, texture points and order of its triangles)
+	var runPoints:DrawData<Float> = new DrawData<Float>();
+	var runUVs:DrawData<Float> = new DrawData<Float>();
+	var runIndices:DrawData<Int> = new DrawData<Int>();
+	var runColors:DrawData<Int> = new DrawData<Int>();
+	var runLength:Int = 0;
+
+	function drawRun(camera:FlxCamera):Void
+	{
+		runPoints.length = runLength * 6;
+		runUVs.length = runLength * 6;
+		runIndices.length = runLength * 3;
+		runColors.length = runLength * 3;
+		backend.Perspective3D.freshBatch(camera, graphic, antialiasing, blend, shadeTransform, shader);
+		camera.drawTriangles(graphic, runPoints, runIndices, runUVs, runColors, _point, blend, true, antialiasing, shadeTransform, shader);
+		runLength = 0;
 	}
 
 	override function destroy()
 	{
 		positions = texCoords = projected = depths = shades = null;
-		faces = faceUVs = order = null;
+		faces = faceUVs = order = faceMaterials = null;
+		materialColors = null;
 		super.destroy();
 	}
 }

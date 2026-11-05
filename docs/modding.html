@@ -41,6 +41,7 @@
 			<h4>Charts</h4>
 			<a href="#extra-characters">Extra characters</a>
 			<a href="#extra-keys">Extra keys</a>
+			<a href="#codename-charts">Codename Engine charts</a>
 			<a href="#events">Chart events</a>
 			<h4>Screens</h4>
 			<a href="#tutorials">Tutorials</a>
@@ -107,6 +108,7 @@
 						<tr><td>Character</td><td>The character file.</td></tr>
 						<tr><td>X / Y</td><td>Where it stands, from the spot of the main character of its side.</td></tr>
 						<tr><td>Sings every note / Behind</td><td>A duet with the main character / stands behind it.</td></tr>
+						<tr><td>Receptors of its own</td><td>Its notes come down receptors of its own (a strumline of its own, like Codename Engine's) instead of its side's: <strong>Receptors X</strong> (the left of the first one), <strong>Receptors Y</strong> (the top) and <strong>Seen</strong>. On the player's side, the player hits them with the same keys.</td></tr>
 					</tbody>
 				</table>
 			</div>
@@ -134,6 +136,38 @@
 			</ul>
 		</section>
 
+		<!-- ======================================================== codename charts -->
+		<section class="docs-section" id="codename-charts">
+			<h2>Codename Engine charts</h2>
+			<p>A Codename Engine chart is read like a Psych one: put it where the song's chart goes (<code>data/&lt;song&gt;/&lt;song&gt;-&lt;difficulty&gt;.json</code>) or load it in the chart editor with <strong>File &gt; Open Codename Engine Chart...</strong>:
+			its strumlines get fields of their own on the grid right away, and <strong>Save</strong> suggests <code>&lt;song&gt;-&lt;difficulty&gt;.json</code> (Codename's file is only <code>&lt;difficulty&gt;.json</code>).
+			Only the chart is converted: the song's music, characters and stage are the engine's own files, with the same names.</p>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>In the Codename chart</th><th>In Vortex</th></tr></thead>
+					<tbody>
+						<tr><td><code>meta.json</code> (BPM, time signature)</td><td>Read from next to the chart, or from the folder above it (Codename's <code>songs/&lt;song&gt;/</code>). Without one: the chart's own <code>meta</code>, or 100 BPM.</td></tr>
+						<tr><td><code>events.json</code></td><td>Read too, from the same places.</td></tr>
+						<tr><td>First opponent / player strumline</td><td>The opponent / the player.</td></tr>
+						<tr><td>Strumline 2 (additional)</td><td>The girlfriend.</td></tr>
+						<tr><td>Other strumlines, and the other characters of a strumline</td><td><a href="#extra-characters">Extra characters</a> (the ones of the main strumlines sing every note with them). Visible strumlines get receptors of their own, where Codename puts them.</td></tr>
+						<tr><td>The main strumlines' places and visibility</td><td>Where the opponent's and the player's receptors are (not with Middlescroll).</td></tr>
+						<tr><td>No girlfriend strumline</td><td>The song has no girlfriend.</td></tr>
+						<tr><td>Strumlines that aren't visible</td><td>Their characters sing notes nobody sees (the <code>"hidden"</code> singer).</td></tr>
+						<tr><td><code>noteTypes</code></td><td>Each note's type is <code>noteTypes[type - 1]</code> (0 is a normal note).</td></tr>
+						<tr><td>BPM Change, Continuous BPM Change, Time Signature Change</td><td>The sections (a measure each, cut where the tempo changes; a continuous change goes a step each beat).</td></tr>
+						<tr><td>Camera Movement / Camera Position</td><td>Camera Target, with the same time, ease and offset.</td></tr>
+						<tr><td>Add Camera Zoom, Camera Bop / Camera Zoom</td><td>Add Camera Zoom / Set Camera Zoom.</td></tr>
+						<tr><td>Camera Modulo Change / Camera Flash</td><td>Camera Bop / Flash Camera (reversed: Fade Screen).</td></tr>
+						<tr><td>Scroll Speed Change / Play Animation</td><td>Change Scroll Speed / Play Animation (extra characters too).</td></tr>
+						<tr><td>Alt Animation Toggle</td><td>The notes' "Alt Animation" type, and Alt Idle Animation.</td></tr>
+						<tr><td>HScript Call, a mod's own events</td><td>Kept with their name: scripts get them in <code>onEvent</code>. An event with a Codename name but more values than Codename's is taken as the mod's own.</td></tr>
+					</tbody>
+				</table>
+			</div>
+			<p>Saving it in the chart editor makes a Psych chart: the editor asks where, so the Codename file isn't replaced.</p>
+		</section>
+
 		<!-- ======================================================== events -->
 		<section class="docs-section" id="events">
 			<h2>Chart events</h2>
@@ -153,6 +187,7 @@
 						<tr><td><strong>Character Trail</strong></td><td>dad, bf, gf or an extra character's tag</td><td>color (blank removes it)</td></tr>
 						<tr><td><strong>Notes Fade</strong></td><td>player, opponent or both</td><td>alpha, duration, ease</td></tr>
 						<tr><td><strong>Camera Angle</strong></td><td>game, hud or other</td><td>angle, duration, ease</td></tr>
+						<tr><td><strong>Change Stage</strong></td><td>the stage's name</td><td>(optional) keep, snap, keepzoom</td></tr>
 					</tbody>
 				</table>
 			</div>

@@ -20,6 +20,15 @@ class PopUpStuff
 	 */
 	public var noteStyle:funkin.play.notes.notestyle.NoteStyle = null;
 
+	/**
+	 * Only a rating popping up ("sick", "good", "bad", "shit"), with no note and no score (V-Slice scripts show their own judgements
+	 * with it).
+	 */
+	public function displayRating(?daRating:String):Void
+	{
+		if(game != null) game.popUpRating((daRating != null) ? daRating : 'good');
+	}
+
 	var group(get, never):FlxSpriteGroup;
 	inline function get_group():FlxSpriteGroup return game.comboGroup;
 

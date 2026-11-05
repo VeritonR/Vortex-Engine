@@ -105,6 +105,35 @@ class DirectPlay
 		#end
 	}
 
+	/** The same, for files that aren't text (an editor's images). */
+	public static function editorSaveBytes(fileName:String, bytes:haxe.io.Bytes):Bool
+	{
+		#if sys
+		read();
+		if(!options.exists('editorsave')) return false;
+		var folder:String = options.get('editorsave');
+		if(!sys.FileSystem.exists(folder)) sys.FileSystem.createDirectory(folder);
+		sys.io.File.saveBytes(haxe.io.Path.join([folder, fileName]), bytes);
+		trace('Editor saved "$fileName" to $folder');
+		return true;
+		#else
+		return false;
+		#end
+	}
+
+	/**
+	 * "--editoropen=FILE": the file an editor's "open" button takes, without its dialog (null when not given).
+	 */
+	public static function editorOpen():String
+	{
+		#if sys
+		read();
+		return options.exists('editoropen') ? options.get('editoropen') : null;
+		#else
+		return null;
+		#end
+	}
+
 	static function number(name:String, fallback:Float):Float
 	{
 		var value:Float = options.exists(name) ? Std.parseFloat(options.get(name)) : Math.NaN;
@@ -369,7 +398,8 @@ class DirectPlay
 		}
 		catch(e:Dynamic)
 		{
-			trace('Could not open the song the game was started with: $e');
+			trace('Could not open the song the game was started with: $e
+' + haxe.CallStack.toString(haxe.CallStack.exceptionStack()));
 		}
 		return false;
 	}

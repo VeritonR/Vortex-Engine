@@ -49,10 +49,30 @@ class Assets
 		#end
 	}
 
-	public static function getPath(path:String):String
+	public static function getPath(path:Dynamic):String
 	{
+		// (what `Paths` already loaded: the file it came from, which is what V-Slice's `Paths` would have given)
+		if(path != null && !Std.isOfType(path, String)) return fileOf(path);
+
 		var found:String = resolve(path);
 		return (found != null) ? found : path;
+	}
+
+	// The file a sound or an image `Paths` loaded came from (null if it isn't one of those)
+	static function fileOf(loaded:Dynamic):String
+	{
+		if(Std.isOfType(loaded, Sound))
+		{
+			for (file => sound in backend.Paths.currentTrackedSounds)
+				if(sound == loaded) return file;
+			return null;
+		}
+		if(Std.isOfType(loaded, flixel.graphics.FlxGraphic))
+		{
+			var graphic:flixel.graphics.FlxGraphic = loaded;
+			return (graphic.assetsKey != null) ? graphic.assetsKey : graphic.key;
+		}
+		return null;
 	}
 
 	public static function exists(path:Dynamic, ?type:Dynamic):Bool
@@ -182,4 +202,90 @@ class Assets
 	{
 		return true;
 	}
+
+	/**
+	 * What's already loaded, by the path it came from (OpenFL's cache on V-Slice): scripts put another sound or image in the place of
+	 * one ("Assets.cache.setSound(Paths.music('freakyMenu/freakyMenu'), ...)" to change the menu's music).
+	 */
+	public static var cache(default, null):AssetCache = new AssetCache();
+}
+
+/**
+ * The engine's loaded sounds and images, under the names V-Slice's cache has for them.
+ */
+class AssetCache
+{
+	public var enabled:Bool = true;
+
+	public function new() {}
+
+	// The file something is kept for: a path (V-Slice's, or the file's), or something `Paths` loaded
+	static function key(id:Dynamic):String
+	{
+		if(id == null) return null;
+		var path:String = Assets.getPath(id);
+		return (path != null) ? path.replace('\\', '/') : null;
+	}
+
+	public function hasSound(id:Dynamic):Bool
+	{
+		var file:String = key(id);
+		return file != null && backend.Paths.currentTrackedSounds.exists(file);
+	}
+
+	public function getSound(id:Dynamic):Sound
+	{
+		var file:String = key(id);
+		return (file != null) ? backend.Paths.currentTrackedSounds.get(file) : null;
+	}
+
+	public function setSound(id:Dynamic, sound:Sound):Void
+	{
+		var file:String = key(id);
+		if(file == null || sound == null) return;
+		backend.Paths.currentTrackedSounds.set(file, sound);
+	}
+
+	public function removeSound(?id:Dynamic):Bool
+	{
+		var file:String = key(id);
+		return file != null && backend.Paths.currentTrackedSounds.remove(file);
+	}
+
+	public function hasBitmapData(id:Dynamic):Bool
+	{
+		var file:String = key(id);
+		return file != null && FlxG.bitmap.get(file) != null;
+	}
+
+	public function getBitmapData(id:Dynamic):BitmapData
+	{
+		var file:String = key(id);
+		var graphic:flixel.graphics.FlxGraphic = (file != null) ? FlxG.bitmap.get(file) : null;
+		return (graphic != null) ? graphic.bitmap : null;
+	}
+
+	public function setBitmapData(id:Dynamic, bitmap:BitmapData):Void
+	{
+		var file:String = key(id);
+		if(file == null || bitmap == null) return;
+		var old:flixel.graphics.FlxGraphic = FlxG.bitmap.get(file);
+		if(old != null) FlxG.bitmap.remove(old);
+		FlxG.bitmap.add(bitmap, false, file);
+	}
+
+	public function removeBitmapData(?id:Dynamic):Bool
+	{
+		var file:String = key(id);
+		var graphic:flixel.graphics.FlxGraphic = (file != null) ? FlxG.bitmap.get(file) : null;
+		if(graphic == null) return false;
+		FlxG.bitmap.remove(graphic);
+		return true;
+	}
+
+	// (fonts are the engine's to keep)
+	public function hasFont(id:Dynamic):Bool return false;
+	public function removeFont(?id:Dynamic):Bool return false;
+
+	public function clear(?prefix:String):Void {}
 }

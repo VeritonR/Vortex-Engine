@@ -34,7 +34,9 @@ class NoteSprite
 	function get_holdNoteSprite():Dynamic
 	{
 		if(customHold != null) return customHold;
-		return (note.tail != null && note.tail.length > 0) ? SustainTrail.get(note) : null;
+		// (any note with a length has one, like on V-Slice, where `isHoldNote` and this always agree: one too short for a piece of its own here
+		// has an empty one)
+		return (note.sustainLength > 0 || (note.tail != null && note.tail.length > 0)) ? SustainTrail.get(note) : null;
 	}
 	function set_holdNoteSprite(value:Dynamic):Dynamic return customHold = value;
 

@@ -104,39 +104,125 @@ class StageData {
 	public static function laterStageImages(song:SwagSong):Array<String>
 	{
 		var images:Array<String> = [];
-		var vslice:Dynamic = (song != null) ? song.vslice : null;
-		var events:Array<Dynamic> = (vslice != null) ? vslice.eventValues : null;
-		if(events == null) return images;
-
-		var stages:Array<String> = [song.stage];
-		for (event in events)
+		// (only V-Slice's: their stages have no library of their own. The engine's own event loads its stages itself, each from its
+		// library, see PlayState.precacheStage())
+		for (id in laterStages(song, true))
 		{
-			if(event == null || (event.e != 'ChangeStage' && event.e != 'Change Stage')) continue;
+			var file:StageFile = getStageFile(id);
+			if(file == null) continue;
+			for (image in stageImages(file))
+				if(!images.contains(image)) images.push(image);
+		}
+		return images;
+	}
 
-			var value:Dynamic = event.v;
-			var id:Dynamic = null;
-			if(Std.isOfType(value, String)) id = value;
-			else if(value != null)
+	/**
+	 * The stages a song changes to while it plays: its "Change Stage" events (the engine's, and "ChangeStage" of V-Slice mods' stage
+	 * changer), without the one it starts on.
+	 */
+	public static function laterStages(song:SwagSong, onlyVSlice:Bool = false):Array<String>
+	{
+		var stages:Array<String> = [];
+		if(song == null) return stages;
+
+		function found(value:Dynamic):Void
+		{
+			var id:String = stageIdOf(value);
+			if(id.length > 0 && id != song.stage && !stages.contains(id)) stages.push(id);
+		}
+
+		var vslice:Dynamic = song.vslice;
+		var vsliceEvents:Array<Dynamic> = (vslice != null) ? vslice.eventValues : null;
+		if(vsliceEvents != null)
+			for (event in vsliceEvents)
+				if(event != null && (event.e == 'ChangeStage' || event.e == 'Change Stage')) found(event.v);
+
+		// Psych's: [time, [[name, value 1, value 2], ...]]
+		if(!onlyVSlice && song.events != null)
+			for (group in song.events)
 			{
-				for (field in ['stageid', 'stageId', 'stage', 'id'])
-				{
-					id = Reflect.field(value, field);
-					if(id != null) break;
-				}
+				var list:Array<Dynamic> = (group != null && group.length > 1) ? group[1] : null;
+				if(list == null) continue;
+				for (event in list)
+					if(event != null && event.length > 1 && (event[0] == 'Change Stage' || event[0] == 'ChangeStage')) found(event[1]);
 			}
-			if(id == null || stages.contains(Std.string(id))) continue;
-			stages.push(Std.string(id));
+		return stages;
+	}
 
-			var file:StageFile = getStageFile(Std.string(id));
-			if(file == null || file.objects == null) continue;
+	/**
+	 * The name of a stage as an event gives it: plain, or written the way V-Slice's events have it ({"stageid": "school"}).
+	 */
+	public static function stageIdOf(value:Dynamic):String
+	{
+		if(value == null) return '';
+		var data:Dynamic = value;
+		if(Std.isOfType(value, String))
+		{
+			var text:String = StringTools.trim(value);
+			if(!StringTools.startsWith(text, '{')) return text;
+			try data = Json.parse(text) catch(e:Dynamic) return text;
+		}
+		for (field in ['stageid', 'stageId', 'stage', 'id', 'value1'])
+		{
+			var id:Dynamic = Reflect.field(data, field);
+			if(id != null) return StringTools.trim(Std.string(id));
+		}
+		return '';
+	}
+
+	/**
+	 * The images a stage's file uses: its sprites' and its "preload" list's.
+	 */
+	public static function stageImages(file:StageFile):Array<String>
+	{
+		var images:Array<String> = [];
+		if(file == null) return images;
+		if(file.objects != null)
 			for (sprite in file.objects)
-			{
 				if((sprite.type == 'sprite' || sprite.type == 'animatedSprite') && sprite.image != null
 					&& (sprite.filters < 0 || validateVisibility(sprite.filters)) && !images.contains(sprite.image))
 					images.push(sprite.image);
+
+		var preload:Dynamic = file.preload;
+		if(preload != null)
+			for (key in Reflect.fields(preload))
+			{
+				var filters:Int = Std.int(Reflect.field(preload, key));
+				if(StringTools.startsWith(key, 'images/') && (filters < 0 || validateVisibility(filters)))
+				{
+					var image:String = key.substr('images/'.length);
+					if(!images.contains(image)) images.push(image);
+				}
 			}
-		}
 		return images;
+	}
+
+	/**
+	 * The stages the game makes by itself (`states.stages`).
+	 */
+	public static final HARDCODED_STAGES:Array<String> = ['stage', 'spooky', 'philly', 'limo', 'mall', 'mallEvil', 'school', 'schoolEvil', 'tank',
+		'phillyStreets', 'phillyBlazin'];
+
+	/**
+	 * If there's a stage of that name: a file of it ("stages/<name>.json", or only its script), a V-Slice one, or one the game makes.
+	 */
+	public static function stageExists(stage:String):Bool
+	{
+		if(stage == null || StringTools.trim(stage).length < 1) return false;
+		if(HARDCODED_STAGES.contains(stage)) return true;
+		#if MODS_ALLOWED
+		if(PolymodCompat.getStageFile(stage) != null) return true;
+		#end
+		for (extension in ['json', 'lua', 'hx'])
+		{
+			var path:String = Paths.getPath('stages/$stage.$extension', TEXT, null, true);
+			#if sys
+			if(sys.FileSystem.exists(path)) return true;
+			#else
+			if(Assets.exists(path)) return true;
+			#end
+		}
+		return false;
 	}
 
 	/**

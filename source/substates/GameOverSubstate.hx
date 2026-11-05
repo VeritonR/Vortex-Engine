@@ -360,7 +360,7 @@ class GameOverSubstate extends MusicBeatSubstate
 			}
 			else if (justPlayedLoop)
 			{
-				switch(PlayState.SONG.stage)
+				switch(PlayState.curStage) //(the one being played: a "Change Stage" may have changed it)
 				{
 					case 'tank':
 						coolStartDeath(0.2);

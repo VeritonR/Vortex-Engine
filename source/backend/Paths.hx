@@ -419,7 +419,9 @@ class Paths
 		var folderKey:String = Language.getFileTranslation('fonts/$key');
 		#if MODS_ALLOWED
 		var file:String = modFolders(folderKey);
-		if(FileSystem.exists(file)) return file;
+		// (not V-Slice's own, from the V-Slice content that comes with the engine: those are for V-Slice scripts, see funkin.Paths.font.
+		// The engine's texts keep the engine's fonts on its songs too)
+		if(FileSystem.exists(file) && !file.startsWith(PolymodCompat.BASE_FOLDER + '/')) return file;
 		#end
 		return 'assets/$folderKey';
 	}
@@ -648,6 +650,12 @@ class Paths
 	inline static public function modsImagesJson(key:String)
 		return modFolders('images/' + key + '.json');
 
+	/**
+	 * The mod of the V-Slice script that's running, when it isn't the song's (one made for every song, like a scoring system):
+	 * its own files are found after the song's mod's, the way V-Slice has the files of every mod at once. Null otherwise.
+	 */
+	public static var scriptModDirectory:String = null;
+
 	static public function modFolders(key:String)
 	{
 		if(Mods.currentModDirectory != null && Mods.currentModDirectory.length > 0)
@@ -658,6 +666,17 @@ class Paths
 
 			// Polymod (V-Slice) mods keep most of their assets inside library folders: shared/, week1/...
 			fileToCheck = PolymodCompat.findInLibraries(Mods.currentModDirectory, key);
+			if(fileToCheck != null)
+				return fileToCheck;
+		}
+
+		if(scriptModDirectory != null && scriptModDirectory != Mods.currentModDirectory)
+		{
+			var fileToCheck:String = mods(scriptModDirectory + '/' + key);
+			if(FileSystem.exists(fileToCheck))
+				return fileToCheck;
+
+			fileToCheck = PolymodCompat.findInLibraries(scriptModDirectory, key);
 			if(fileToCheck != null)
 				return fileToCheck;
 		}

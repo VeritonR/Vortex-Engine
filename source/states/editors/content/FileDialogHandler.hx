@@ -62,6 +62,19 @@ class FileDialogHandler extends FlxBasic
 		filter = [];
 		#end
 
+		// (tests: "--editoropen=FILE" is taken without the dialog)
+		#if sys
+		var direct:String = backend.DirectPlay.editorOpen();
+		if(direct != null && sys.FileSystem.exists(direct))
+		{
+			path = direct;
+			data = sys.io.File.getContent(direct);
+			completed = true;
+			if(this.onComplete != null) this.onComplete();
+			return;
+		}
+		#end
+
 		removeEvents();
 		_currentEvent = onLoadComplete;
 		_fileRef.addEventListener(#if desktop Event.SELECT #else Event.COMPLETE #end, _currentEvent);

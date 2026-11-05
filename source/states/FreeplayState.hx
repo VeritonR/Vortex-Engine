@@ -63,8 +63,22 @@ class FreeplayState extends MusicBeatState
 
 	var player:MusicPlayer;
 
+	/** If the V-Slice Freeplay is the one the player picked (then it opens instead of this one, see `create()`). */
+	public static function vsliceInstead():Bool
+		return ClientPrefs.data.freeplayStyle == 'V-Slice';
+
 	override function create()
 	{
+		// Opened while the player picked the V-Slice Freeplay (a mod's own pause menu that switches to this one by itself): that one
+		// opens instead. The engine's own menus already ask for the one picked
+		if(vsliceInstead())
+		{
+			super.create();
+			FlxTransitionableState.skipNextTransIn = true;
+			FlxTransitionableState.skipNextTransOut = true;
+			MusicBeatState.switchState(new FreeplayStateVslice());
+			return;
+		}
 		
 		//Paths.clearStoredMemory();
 		//Paths.clearUnusedMemory();

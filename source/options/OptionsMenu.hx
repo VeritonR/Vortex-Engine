@@ -471,19 +471,25 @@ class OptionsMenu extends MusicBeatSubstate
 			option.getValue = function() return holder.value;
 			option.setValue = function(value:Dynamic) return holder.value = value;
 		}
-		option.onChange = function() callMod(entry.onChange, holder.value);
+		if(entry.kind == 'enum')
+		{
+			// (V-Slice gives the name that's shown and what the mod set for it)
+			option.onChange = function() {
+				var index:Int = entry.values.indexOf(Std.string(holder.value));
+				var raw:Dynamic = (entry.rawValues != null && index > -1) ? entry.rawValues[index] : holder.value;
+				callMod(entry.onChange, [holder.value, raw]);
+			};
+		}
+		else option.onChange = function() callMod(entry.onChange, [holder.value]);
 		return option;
 	}
 
-	// (some mods' functions take the old value too: they're given it twice then)
-	static function callMod(func:Dynamic, value:Dynamic):Void
+	// The mod's function, with what V-Slice gives it
+	static function callMod(func:Dynamic, args:Array<Dynamic>):Void
 	{
 		if(func == null || !Reflect.isFunction(func)) return;
-		try Reflect.callMethod(null, func, [value])
-		catch(e:Dynamic)
-		{
-			try Reflect.callMethod(null, func, [value, value]) catch(e2:Dynamic) trace('A mod setting could not be changed: $e');
-		}
+		try Reflect.callMethod(null, func, args)
+		catch(e:Dynamic) trace('A mod setting could not be changed: $e');
 	}
 
 	function attachPreview(visuals:options.VisualsSettingsSubState):Void

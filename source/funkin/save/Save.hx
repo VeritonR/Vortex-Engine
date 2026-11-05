@@ -23,6 +23,7 @@ class Save
 		if(_modOptions == null)
 		{
 			_modOptions = new Map<String, Dynamic>();
+			watchExit();
 
 			// saved as a structure, which survives whatever the save file goes through
 			var saved:Dynamic = FlxG.save.data.vsliceModOptions;
@@ -37,14 +38,38 @@ class Save
 
 	public function flush():Void
 	{
-		if(_modOptions != null)
-		{
-			var saved:Dynamic = {};
-			for (key => value in _modOptions)
-				Reflect.setField(saved, key, value);
-			FlxG.save.data.vsliceModOptions = saved;
-		}
+		keepModOptions();
 		FlxG.save.flush();
+	}
+
+	/**
+	 * Puts the mods' options in the engine's save, for its next flush. On V-Slice they're part of the save, and every time it's
+	 * written they go with it: mods change them and never save them themselves. Here they go whenever the engine saves its
+	 * settings, and when the game closes.
+	 */
+	public static function keepModOptions():Void
+	{
+		if(_instance == null || _instance._modOptions == null) return;
+
+		var saved:Dynamic = {};
+		for (key => value in _instance._modOptions)
+			Reflect.setField(saved, key, value);
+		FlxG.save.data.vsliceModOptions = saved;
+	}
+
+	static var watchingExit:Bool = false;
+
+	// (once, when the options are first read: written to the save when the game closes)
+	static function watchExit():Void
+	{
+		if(watchingExit || lime.app.Application.current == null) return;
+		watchingExit = true;
+		lime.app.Application.current.onExit.add(function(_)
+		{
+			if(_instance == null || _instance._modOptions == null) return;
+			keepModOptions();
+			FlxG.save.flush();
+		});
 	}
 
 	public function getModOptions(modId:String):Dynamic

@@ -195,6 +195,7 @@ class ClientPrefs {
 			Reflect.setField(FlxG.save.data, key, Reflect.field(data, key));
 
 		#if ACHIEVEMENTS_ALLOWED Achievements.save(); #end
+		funkin.save.Save.keepModOptions(); //(the options of V-Slice mods go with the engine's)
 		FlxG.save.flush();
 
 		//Placing this in a separate save so that it can be manually deleted without removing your Score and stuff

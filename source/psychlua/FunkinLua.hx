@@ -101,7 +101,7 @@ class FunkinLua {
 		set('loadedSongPath', Paths.formatToSongPath(Song.loadedSongName));
 		set('chartPath', Song.chartPath);
 		set('startedCountdown', false);
-		set('curStage', PlayState.SONG.stage);
+		set('curStage', PlayState.curStage); //(the one there now: a "Change Stage" may have come before the script)
 
 		set('isStoryMode', PlayState.isStoryMode);
 		set('difficulty', PlayState.storyDifficulty);
@@ -1043,6 +1043,7 @@ class FunkinLua {
 				else
 					GameOverSubstate.instance.insert(GameOverSubstate.instance.members.indexOf(GameOverSubstate.instance.boyfriend), mySprite);
 			}
+			if(PlayState.instance != null) PlayState.instance.stageScriptAdded(this, mySprite); //(a stage's: it goes away with its stage)
 		});
 		Lua_helper.add_callback(lua, "setGraphicSize", function(obj:String, x:Float, y:Float = 0, updateHitbox:Bool = true) {
 			if(game.getLuaObject(obj)!=null) {

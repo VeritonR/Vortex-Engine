@@ -193,6 +193,9 @@ class MusicBeatState extends FlxState
 
 	public static function switchState(nextState:FlxState = null) {
 		if(nextState == null) nextState = FlxG.state;
+		// (the Freeplay the player picked in the options: mods' own pause menus and Lua's exitSong() ask for Psych's one)
+		if(nextState != null && Type.getClass(nextState) == states.FreeplayState && states.FreeplayState.vsliceInstead())
+			nextState = new states.FreeplayStateVslice();
 		if(nextState == FlxG.state)
 		{
 			resetState();

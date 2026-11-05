@@ -92,6 +92,7 @@ class FreeplayDJ extends FreeplayAtlas
 	function set_currentState(value:FreeplayDJState):FreeplayDJState return state = (value != null) ? value : Idle;
 
 	var animOffsets:Map<String, Array<Float>> = [];
+	var labelAnims:Array<String> = [];
 	var useAnimatePosition:Bool = false;
 
 	// Frames of the "fistPump" and "loss" animations
@@ -160,7 +161,15 @@ class FreeplayDJ extends FreeplayAtlas
 			if(name.length < 1 || prefix.length < 1) continue;
 
 			var added:Bool = false;
-			if(VSliceConvert.str(animation.animType, '').toLowerCase() == 'framelabel') added = addLabelAnim(name, prefix);
+			// (V-Slice 0.8 takes an animation with no "animType" as a label of the main timeline: Spooky Mix's DJ has labels and symbols
+			// of the same names, and its symbols are each placed by their own size, so the DJ jumped after its intro. Atlases with no
+			// label of that name, like the older ones, have it as a symbol)
+			var animType:String = VSliceConvert.str(animation.animType, '').toLowerCase();
+			if(animType == 'framelabel' || (animType.length < 1 && getLabels().contains(prefix)))
+			{
+				added = addLabelAnim(name, prefix);
+				if(added) labelAnims.push(name);
+			}
 			else if(hasSymbol(prefix))
 			{
 				// symbols stay where the atlas' main timeline would have them, on DJs placed by the atlas itself (`useAnimatePosition`).
@@ -194,6 +203,22 @@ class FreeplayDJ extends FreeplayAtlas
 				continue;
 			}
 			animOffsets.set(name, VSliceConvert.pair(animation.offsets, 0, 0));
+		}
+
+		// Labels of a DJ that isn't placed by its atlas' stage: V-Slice puts the top left of what the whole main timeline shows where the
+		// DJ is (without its "applyStageMatrix" the timeline is as it is, not where the file had it), plus the animations' offsets
+		if(!placedByStage() && labelAnims.length > 0)
+		{
+			labelsOnDocument = false;
+			var box:flixel.math.FlxRect = getWholeBox();
+			@:privateAccess
+			for (name in labelAnims)
+			{
+				var added = anim.animsMap.get(name);
+				if(added == null || added.instance == null || added.instance.matrix == null) continue;
+				added.instance.matrix.identity();
+				added.instance.matrix.translate(-box.x, -box.y);
+			}
 		}
 
 		var fistPump:Dynamic = data.fistPump;

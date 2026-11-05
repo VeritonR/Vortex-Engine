@@ -50,6 +50,11 @@ class VSliceScripts
 	 */
 	public static var active(default, null):Bool = false;
 
+	/**
+	 * The song isn't a V-Slice one: only the modules of the V-Slice mods made for every song are running (see `load()`).
+	 */
+	public static var modulesOnly(default, null):Bool = false;
+
 	static var game:states.PlayState = null;
 	static var facade:funkin.play.PlayState = null;
 
@@ -89,7 +94,8 @@ class VSliceScripts
 		funkin.modding.module.ModuleHandler, funkin.modding.module.ScriptedModule,
 		funkin.play.Countdown, funkin.play.CountdownStep, funkin.play.PlayStatePlaylist,
 		funkin.play.scoring.Scoring, funkin.play.scoring.Scoring.ScoringRank, funkin.modding.PolymodErrorHandler,
-		funkin.data.stage.StageRegistry, funkin.modding.events.ScriptEventDispatcher, funkin.ui.AtlasText, funkin.ui.TextMenuItem,
+		funkin.data.stage.StageRegistry, funkin.modding.events.ScriptEventDispatcher, funkin.ui.AtlasText, funkin.ui.TextMenuList, funkin.ui.TextMenuList.TextMenuItem, funkin.ui.TextMenuList.TextTypedMenuItem,
+		funkin.ui.MenuList.MenuTypedList, funkin.ui.MenuList.MenuTypedItem,
 		funkin.util.assets.FlxAnimationUtil, funkin.data.song.SongDataUtils, funkin.data.dialogue.ConversationRegistry,
 		funkin.ui.transition.stickers.StickerPack, funkin.data.stickers.StickerRegistry, funkin.data.song.SongData.SongTimeChange,
 		funkin.ui.AtlasMenuItem, funkin.ui.AtlasMenuItem.MenuListItem, funkin.util.FileUtil, funkin.ui.debug.DebugMenuSubState,
@@ -293,6 +299,13 @@ class VSliceScripts
 		HxcRuntime.customImports.set('flixel.effects.FlxFlicker', funkin.effects.ScriptFlicker); //(flixel's own crashes the way the base game uses it)
 		HxcRuntime.customImports.set('flixel.ui.FlxBar', funkin.ui.ScriptBar); //(flixel's own can't follow a variable of a script)
 		HxcRuntime.customImports.set('openfl.display.BlendMode', hxc.ScriptBlendMode); //(an abstract: its values)
+		// (V-Slice's Character Select is a substate over the menus, here it's a state of its own: modules that only listen on it ask for it)
+		HxcRuntime.customImports.set('funkin.ui.charSelect.CharSelectSubState', states.CharacterSelectState);
+		// (V-Slice's song data has a "raw" class under each of its abstracts: here they're one class)
+		HxcRuntime.customImports.set('funkin.data.song.SongNoteDataRaw', funkin.data.song.SongData.SongNoteData);
+		HxcRuntime.customImports.set('funkin.data.song.SongData.SongNoteDataRaw', funkin.data.song.SongData.SongNoteData);
+		HxcRuntime.customImports.set('funkin.data.song.SongEventDataRaw', funkin.data.song.SongData.SongEventData);
+		HxcRuntime.customImports.set('funkin.data.song.SongData.SongEventDataRaw', funkin.data.song.SongData.SongEventData);
 
 		// V-Slice's classes to make script classes through: `ScriptedFlxSprite.init('MyClass', ...)`
 		HxcRuntime.customImports.set('funkin.modding.base.ScriptedFlxBasic', funkin.modding.base.ScriptedClasses.ScriptedFlxBasic);
@@ -700,8 +713,9 @@ class VSliceScripts
 				callEvent(character, new ScriptEvent(ScriptEventType.CREATE));
 		facade.currentStage.setupCharacters();
 
-		// (on V-Slice the strumlines are made between the stage and the song, the song's script is told with them there)
-		game.makeStrumsEarly();
+		// (on V-Slice the strumlines are made between the stage and the song, the song's script is told with them there. Not on a
+		// song that isn't V-Slice's: Psych makes them with the countdown, and its scripts count on that)
+		if(!modulesOnly) game.makeStrumsEarly();
 
 		var created:ScriptEvent = new ScriptEvent(ScriptEventType.CREATE);
 		callEvent(songScript, created);
@@ -768,7 +782,13 @@ class VSliceScripts
 		game = states.PlayState.instance;
 		#if MODS_ALLOWED
 		var mod:String = Mods.currentModDirectory;
-		if(game == null || !PolymodCompat.isPolymod(mod)) return;
+		// A song that isn't a V-Slice one (the base game's in Psych's format, a Psych mod's) gets the modules of the V-Slice mods
+		// made for every song (a scoring system, a HUD...), as on V-Slice, where they run on all of them. Only those: nothing of the
+		// base game's V-Slice scripts or of V-Slice's way of doing the song (note styles, note kinds, the strumlines made early)
+		var vsliceSong:Bool = PolymodCompat.isPolymod(mod);
+		var everySong:Array<String> = (game != null) ? PolymodCompat.utilityMods() : [];
+		if(game == null || (!vsliceSong && everySong.length < 1)) return;
+		modulesOnly = !vsliceSong;
 
 		setupRuntime();
 		HxcRuntime.clear();
@@ -776,7 +796,7 @@ class VSliceScripts
 		resetLog(LOG_PATH);
 
 		var songData:Dynamic = (states.PlayState.SONG != null) ? states.PlayState.SONG.vslice : null;
-		logHeader = 'Mod: ' + PolymodCompat.getDisplayName(mod) + '\n'
+		logHeader = 'Mod: ' + (modulesOnly ? ((mod != null && mod.length > 0) ? mod : 'none') + ' (not a V-Slice song: only the modules of ' + everySong.join(', ') + ')' : PolymodCompat.getDisplayName(mod)) + '\n'
 			+ 'Song: ' + ((states.PlayState.SONG != null) ? states.PlayState.SONG.song : '?')
 			+ ' (difficulty: ' + Difficulty.getString(null, false) + ', variation: ' + ((songData != null && songData.variation != null) ? songData.variation : 'default') + ')\n'
 			+ 'Stage: ' + states.PlayState.curStage + '\n'
@@ -788,18 +808,21 @@ class VSliceScripts
 		// A V-Slice mod is made on top of the base game, and uses its stages, characters, note kinds and events: their scripts are
 		// loaded for the mod's songs too (the V-Slice content that comes with the engine), and the mod's own take the place of the ones
 		// that have the same name. A mod with no scripts at all still has V-Slice's own song events to be run by this.
-		songMod = mod;
-		if(mod != PolymodCompat.BASE_MOD) HxcRuntime.loadFolder(Paths.mods(PolymodCompat.BASE_MOD + '/scripts'));
+		songMod = modulesOnly ? null : mod;
+		if(!modulesOnly && mod != PolymodCompat.BASE_MOD) HxcRuntime.loadFolder(Paths.mods(PolymodCompat.BASE_MOD + '/scripts'));
 		// (and the mods made to change every song, see `PolymodCompat.utilityMods()`)
-		for (other in PolymodCompat.utilityMods())
+		for (other in everySong)
 		{
 			if(other == mod) continue;
 			StepLog.add('Also loading the scripts of "$other", made for every song');
 			HxcRuntime.loadFolder(Paths.mods('$other/scripts'));
 		}
-		HxcRuntime.quietReplace = true;
-		HxcRuntime.loadFolder(Paths.mods('$mod/scripts'));
-		HxcRuntime.quietReplace = false;
+		if(!modulesOnly)
+		{
+			HxcRuntime.quietReplace = true;
+			HxcRuntime.loadFolder(Paths.mods('$mod/scripts'));
+			HxcRuntime.quietReplace = false;
+		}
 
 		facade = new funkin.play.PlayState(game);
 		funkin.play.PlayState.instance = facade;
@@ -843,7 +866,7 @@ class VSliceScripts
 			recallModule(module);
 			modules.push(module);
 		}
-		modules.sort((a, b) -> cast(a.base, Module).priority - cast(b.base, Module).priority);
+		modules.sort(moduleOrder);
 		CreditsDataHandler.collect(mod, credits);
 
 		// (the base game's own are the boxes the engine already makes the way those scripts would: nothing to tell about them)
@@ -879,6 +902,7 @@ class VSliceScripts
 		findCharacterScripts(); //(before the stage is built: stage scripts make characters of their own there, which get their scripts too)
 		loadStageScript();
 		loadCharacterScripts();
+		if(modulesOnly) return; //(the notes keep the song's own look and kinds)
 		applyNoteKinds();
 
 		// the look of the song's note style, for each side (its notes are all made by now, the receptors may not be yet)
@@ -1108,6 +1132,49 @@ class VSliceScripts
 
 		stageScript = script;
 		if(script != null) StepLog.add(script.cls.name + ': the stage now');
+	}
+
+	/**
+	 * The chart's "Change Stage" on a song with V-Slice scripts: the stage is changed the way their scripts change it (setting
+	 * `currentStage`), and the old one's script is told it's gone (`kill()`). A V-Slice stage (`build`) is built by its own script
+	 * (`buildStage()`: its sprites, the characters' spots, the camera); another one is PlayState's to build, and is only put there
+	 * for the scripts. Returns if it was built here. Then `stageBuilt()`, once the characters are in their places.
+	 */
+	public static function swapStage(id:String, build:Bool):Bool
+	{
+		if(!active || modulesOnly || facade == null) return false;
+
+		var old:Stage = facade.currentStage;
+		if(old != null)
+		{
+			try callScripted(old, 'kill', []) catch(e:Dynamic) trace('[HXC] The stage "${old.id}" could not be taken away: $e');
+		}
+
+		var next:Stage = build ? makeStageScript(id) : null;
+		if(next == null) next = new Stage(id);
+		if(!build) next.madeForSong = true; //(its sprites are PlayState's, found by their names like the song's own)
+		facade.currentStage = next; //(and the events go to its script from now on, see stageChanged())
+		if(build)
+		{
+			try callScripted(next, 'buildStage', [])
+			catch(e:Dynamic) trace('[HXC] The stage "$id" could not be built: $e');
+		}
+		StepLog.add('The stage is now "$id"');
+		return build;
+	}
+
+	/**
+	 * After `swapStage()`: the new stage's script is told it was made, and gets the characters (`addCharacter()`).
+	 */
+	public static function stageBuilt():Void
+	{
+		if(!active || modulesOnly || facade == null || facade.currentStage == null) return;
+		try
+		{
+			callEvent(stageScript, new ScriptEvent(ScriptEventType.CREATE));
+			facade.currentStage.setupCharacters();
+		}
+		catch(e:Dynamic) trace('[HXC] The stage "${facade.currentStage.id}" could not be set up: $e');
 	}
 
 	/**
@@ -1405,6 +1472,7 @@ class VSliceScripts
 		rememberModules();
 		modulesOfMenu = false;
 		active = false;
+		modulesOnly = false;
 		modules = [];
 		songEvents = [];
 		chartSongEvents = [];
@@ -1486,6 +1554,15 @@ class VSliceScripts
 			if(!offStageCharacters.contains(character)) callEvent(character, event);
 	}
 
+	// V-Slice's order of the modules: by their priority, the ones with the same one by their id
+	static function moduleOrder(a:HxcInstance, b:HxcInstance):Int
+	{
+		var first:Module = cast a.base;
+		var second:Module = cast b.base;
+		if(first.priority != second.priority) return first.priority - second.priority;
+		return Reflect.compare(first.moduleId, second.moduleId);
+	}
+
 	public static function dispatchToModules(event:ScriptEvent):Void
 	{
 		for (module in modules)
@@ -1517,11 +1594,15 @@ class VSliceScripts
 
 		if(stepEvents.contains(event.type)) StepLog.add(target.cls.name + ': ' + event.type);
 
-		// on the menus each module finds the files of its own mod
+		// on the menus each module finds the files of its own mod. On a song, the scripts of a mod that isn't the song's (one made for
+		// every song) find their mod's files after the song's mod's
 		#if MODS_ALLOWED
 		var owner:String = (menuState != null) ? moduleMods.get(target) : null;
 		var oldMod:String = Mods.currentModDirectory;
 		if(owner != null) Mods.currentModDirectory = owner;
+		var helper:String = (menuState == null) ? otherModOf(target) : null;
+		var oldHelper:String = Paths.scriptModDirectory;
+		if(helper != null) Paths.scriptModDirectory = helper;
 		#end
 
 		target.call('onScriptEvent', [event]);
@@ -1533,6 +1614,7 @@ class VSliceScripts
 
 		#if MODS_ALLOWED
 		if(owner != null) Mods.currentModDirectory = oldMod;
+		if(helper != null) Paths.scriptModDirectory = oldHelper;
 		#end
 	}
 
@@ -1641,10 +1723,64 @@ class VSliceScripts
 			case 'goodNoteHit', 'opponentNoteHit':
 				onNoteHitPost(Std.downcast(args[0], Note));
 
-			case 'noteMissPress':
-				dispatch(new GhostMissNoteScriptEvent(args[0], false, -game.pressMissDamage, -10));
 		}
 		return false;
+	}
+
+	/**
+	 * What V-Slice scripts made of the last press with nothing to hit (see `onGhostMiss()`): its health and score, and if its sound
+	 * and the miss animation are played. Null when there were none, or they didn't hear of it.
+	 */
+	static var ghostMissResult:{health:Float, score:Float, sound:Bool, anim:Bool} = null;
+
+	public static function takeGhostMissResult():{health:Float, score:Float, sound:Bool, anim:Bool}
+	{
+		var result = ghostMissResult;
+		ghostMissResult = null;
+		return result;
+	}
+
+	/**
+	 * A press of a note key with nothing to hit in its direction, before it counts. V-Slice tells its scripts of every one
+	 * (`onNoteGhostMiss`), and they can call it off (true: no penalty, no sound, no animation) or change what it costs.
+	 */
+	public static function onGhostMiss(direction:Int, healthChange:Float, scoreChange:Float):Bool
+	{
+		ghostMissResult = null;
+		if(!active || game == null) return false;
+
+		var possible:Bool = false; //(if there was a note to hit in another direction)
+		for (note in game.notes.members)
+			if(note != null && note.playable && note.canBeHit && !note.wasGoodHit && !note.tooLate && !note.isSustainNote)
+			{
+				possible = true;
+				break;
+			}
+
+		var event:GhostMissNoteScriptEvent = new GhostMissNoteScriptEvent(direction, possible, healthChange, scoreChange);
+		playerEvent(() -> dispatch(event));
+		if(event.eventCanceled) return true;
+
+		ghostMissResult = {health: event.healthChange, score: event.scoreChange, sound: event.playSound, anim: event.playAnim};
+		return false;
+	}
+
+	// An event about the player's own notes: the health scripts change in it is the player's, Play as Opponent or not (as in
+	// Lua's noteMiss, see funkin.play.PlayState.health)
+	static function playerEvent(send:Void->Void):Void
+	{
+		var before:Bool = game.healthForPlayer;
+		game.healthForPlayer = true;
+		try
+		{
+			send();
+		}
+		catch(e:Dynamic)
+		{
+			game.healthForPlayer = before;
+			throw e;
+		}
+		game.healthForPlayer = before;
 	}
 
 	static function cancelable(event:ScriptEvent):Bool
@@ -1672,6 +1808,11 @@ class VSliceScripts
 	// ------------------------------------------------------------------------------------------
 
 	// Before PlayState does anything about a note being hit. Scripts can change what the hit is worth, or cancel it
+	/**
+	 * The note a script can't take away right now (`Strumline.killNote()`): one the one playing is hitting, see `onNoteHitPre()`.
+	 */
+	public static var protectedNote(default, null):Note = null;
+
 	static function onNoteHitPre(callback:String, note:Note):Bool
 	{
 		if(note == null) return false;
@@ -1697,7 +1838,7 @@ class VSliceScripts
 		}
 
 		// (with "Play as Opponent" the one playing is hitting the opponent's notes)
-		var byPlayer:Bool = note.playable;
+		var byPlayer:Bool = note.playable && !game.cpuControlled; //(Bot Play's hits are told like V-Slice's: no score)
 		var sprite:NoteSprite = NoteSprite.get(note);
 
 		var event:HitNoteScriptEvent;
@@ -1730,8 +1871,20 @@ class VSliceScripts
 			if(base != null) base.sang = false;
 		}
 
-		dispatch(event);
-		if(event.eventCanceled)
+		// With Play as Opponent the one playing hits the notes V-Slice always gives to the computer, and scripts call off the computer's
+		// hits to have them sung another way (by another character: Schwiftying's "gfsing" notes, which it also takes away). For the one
+		// playing, those are still hits (rating, health, the receptor's confirm, the long note to hold): only the singing is the script's
+		var playedForComputer:Bool = note.playable && game.playAsOpponent && !note.mustPress; //(Bot Play's too: it plays that side)
+		if(playedForComputer) protectedNote = note;
+		if(note.playable) playerEvent(() -> dispatch(event));
+		else dispatch(event);
+		protectedNote = null;
+		if(event.eventCanceled && playedForComputer)
+		{
+			note.noAnimation = true;
+			for (piece in note.tail) piece.noAnimation = true;
+		}
+		else if(event.eventCanceled)
 		{
 			note.extraData.set('vsliceCancelled', true);
 			return true;
@@ -1801,7 +1954,9 @@ class VSliceScripts
 			if(head.wasGoodHit && !head.extraData.exists('vsliceDropped')) //(a hold whose first note was missed was never held)
 			{
 				head.extraData.set('vsliceDropped', true);
-				dispatch(new HoldNoteScriptEvent(ScriptEventType.NOTE_HOLD_DROP, NoteSprite.get(head), -note.missHealth, 0, true, game.combo));
+				var drop:HoldNoteScriptEvent = new HoldNoteScriptEvent(ScriptEventType.NOTE_HOLD_DROP, NoteSprite.get(head), -note.missHealth, 0, true, game.combo);
+				if(head.playable) playerEvent(() -> dispatch(drop));
+				else dispatch(drop);
 			}
 			return false;
 		}
@@ -1813,7 +1968,8 @@ class VSliceScripts
 		}
 
 		var event:NoteScriptEvent = new NoteScriptEvent(ScriptEventType.NOTE_MISS, NoteSprite.get(note), -note.missHealth, game.combo, true);
-		dispatch(event);
+		if(note.playable) playerEvent(() -> dispatch(event));
+		else dispatch(event);
 		if(event.eventCanceled) return true;
 
 		if(event.healthChange != -note.missHealth) note.missHealth = -event.healthChange;
@@ -2359,7 +2515,7 @@ class VSliceScripts
 			CreditsDataHandler.collect(mod, credits);
 		}
 		Mods.currentModDirectory = oldMod;
-		modules.sort((a, b) -> cast(a.base, Module).priority - cast(b.base, Module).priority);
+		modules.sort(moduleOrder);
 		modulesOfMenu = true;
 
 		if(everyMod) applyScriptedPlayers();
@@ -2711,6 +2867,14 @@ class VSliceScripts
 		#else
 		return null;
 		#end
+	}
+
+	// The mod of a script loaded for a song that isn't its mod's nor the base game's (see `Paths.scriptModDirectory`)
+	static function otherModOf(script:HxcInstance):String
+	{
+		if(script == null || script.cls == null) return null;
+		var owner:String = getScriptMod(script.cls);
+		return (owner == null || owner == songMod || owner == PolymodCompat.BASE_MOD) ? null : owner;
 	}
 
 	// Runs something with the mod of a script as the current one, so the files it asks for are found

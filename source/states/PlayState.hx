@@ -236,8 +236,14 @@ class PlayState extends MusicBeatState
 	inline function get_otherCharacter():Character return playAsOpponent ? boyfriend : dad;
 
 	// The receptor a note goes to, by the side of the song it's on
-	inline function strumOf(note:Note):StrumNote
-		return (note.mustPress ? playerStrums : opponentStrums).members[Std.int(Math.abs(note.noteData))];
+	function strumOf(note:Note):StrumNote
+	{
+		var column:Int = Std.int(Math.abs(note.noteData));
+		// (an extra character with receptors of its own: see makeExtraStrums())
+		if(note.strumOwner != null && note.strumOwner.strums != null && column < note.strumOwner.strums.length)
+			return note.strumOwner.strums[column];
+		return (note.mustPress ? playerStrums : opponentStrums).members[column];
+	}
 
 	// The voice track of whoever is being played, which is the one that goes quiet on a miss
 	function playableVoice():FlxSound
@@ -411,7 +417,7 @@ public var cameraSpeed:Float = 1;
 
 	public function scriptHealthFlipped():Bool
 		return playAsOpponent && !healthForPlayer && generatedMusic && !startingSong;
-	var healthForPlayer:Bool = false;
+	public var healthForPlayer:Bool = false;
 	var stageCamZoom:Float = 1.05; //(the stage's, for "Set Camera Zoom" with no zoom)
 
 	// how big to stretch the pixel art assets
@@ -598,6 +604,9 @@ public var cameraSpeed:Float = 1;
 		#end
 
 		GameOverSubstate.resetVariables();
+		gameOverDefaults = {characterName: GameOverSubstate.characterName, deathSoundName: GameOverSubstate.deathSoundName,
+			loopSoundName: GameOverSubstate.loopSoundName, endSoundName: GameOverSubstate.endSoundName, deathDelay: GameOverSubstate.deathDelay};
+		levelAtStart = Paths.currentLevel;
 		songName = Paths.formatToSongPath(SONG.song);
 		if(SONG.stage == null || SONG.stage.length < 1)
 			SONG.stage = StageData.vanillaSongStage(Paths.formatToSongPath(Song.loadedSongName));
@@ -650,6 +659,7 @@ public var cameraSpeed:Float = 1;
 			boyfriendGroup.scrollFactor.set(places.bf.scroll[0], places.bf.scroll[1]);
 			dadGroup.scrollFactor.set(places.dad.scroll[0], places.dad.scroll[1]);
 		}
+		recordingStage = true;
 		if(!isVSliceStage)
 		switch (curStage)
 		{
@@ -665,6 +675,8 @@ public var cameraSpeed:Float = 1;
 			case 'phillyStreets': new PhillyStreets(); 	//Weekend 1 - Darnell, Lit Up, 2Hot
 			case 'phillyBlazin': new PhillyBlazin();	//Weekend 1 - Blazin
 		}
+		recordingStage = false;
+		stageClasses = stages.copy();
 		if(isPixelStage) introSoundsSuffix = '-pixel';
 
 		#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
@@ -673,7 +685,7 @@ public var cameraSpeed:Float = 1;
 		add(luaDebugGroup);
 		#end
 
-		if (!stageData.hide_girlfriend)
+		if (!stageData.hide_girlfriend && SONG.hideGirlfriend != true)
 		{
 			if(SONG.gfVersion == null || SONG.gfVersion.length < 1) SONG.gfVersion = 'gf'; //Fix for the Chart Editor
 			gf = new Character(0, 0, SONG.gfVersion);
@@ -706,6 +718,7 @@ public var cameraSpeed:Float = 1;
 
 		createExtraCharacters();
 		
+		recordingStage = true;
 		if(stageData.objects != null && stageData.objects.length > 0)
 		{
 			var list:Map<String, FlxSprite> = StageData.addObjectsToState(stageData.objects, !stageData.hide_girlfriend ? gfGroup : null, dadGroup, boyfriendGroup, this);
@@ -721,6 +734,7 @@ public var cameraSpeed:Float = 1;
 			add(dadGroup);
 			add(boyfriendGroup);
 		}
+		recordingStage = false;
 		
 		#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
 		// "SCRIPTS FOLDER" SCRIPTS
@@ -756,8 +770,7 @@ public var cameraSpeed:Float = 1;
 		
 		#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
 		// STAGE SCRIPTS
-		#if LUA_ALLOWED startLuasNamed('stages/' + curStage + '.lua'); #end
-		#if HSCRIPT_ALLOWED startHScriptsNamed('stages/' + curStage + '.hx'); #end
+		startStageScripts(curStage);
 
 		// CHARACTER SCRIPTS
 		if(gf != null) startCharacterScripts(gf.curCharacter);
@@ -986,7 +999,9 @@ public var cameraSpeed:Float = 1;
 
 		resetRPC();
 
+		recordingStage = true;
 		stagesFunc(function(stage:BaseStage) stage.createPost());
+		recordingStage = false;
 		callOnScripts('onCreatePost');
 		
 		var splash:NoteSplash = new NoteSplash();
@@ -1649,6 +1664,7 @@ public var cameraSpeed:Float = 1;
 			{
 				generateStaticArrows(0);
 				generateStaticArrows(1);
+				makeExtraStrums(false);
 			}
 
 			rememberPlayableStrums();
@@ -2194,7 +2210,7 @@ public var cameraSpeed:Float = 1;
 				swagNote.sustainLength = holdLength;
 				swagNote.noteType = noteType;
 				// (the 5th value: who sings it, on Vortex charts with extra characters, or the parameters of a V-Slice note)
-				if(noteSingers != null) swagNote.singers = noteSingers;
+				if(noteSingers != null) { swagNote.singers = noteSingers; applySingerNames(swagNote); }
 				else if(songNotes.length > 4 && Std.isOfType(songNotes[4], String)) {}
 				else if(songNotes.length > 4 && songNotes[4] != null) swagNote.extraData.set('vsliceParams', songNotes[4]); //see funkin.play.notes.NoteSprite
 
@@ -2217,6 +2233,7 @@ public var cameraSpeed:Float = 1;
 						sustainNote.flipY = downScrollOf(sustainNote.mustPress);
 						sustainNote.gfNote = swagNote.gfNote;
 						sustainNote.singers = swagNote.singers;
+						applySingerNames(sustainNote);
 						sustainNote.noteType = swagNote.noteType;
 						sustainNote.scrollFactor.set();
 						if (swagNote.multSpeed != 1) sustainNote.multSpeed = swagNote.multSpeed;
@@ -2320,6 +2337,9 @@ public var cameraSpeed:Float = 1;
 
 			case 'Play Sound':
 				Paths.sound(event.value1); //Precache sound
+
+			case 'Change Stage' if(!modOwnsEvent(event.event)):
+				precacheStage(event.value1);
 		}
 		stagesFunc(function(stage:BaseStage) stage.eventPushedUnique(event));
 	}
@@ -2369,12 +2389,21 @@ public var cameraSpeed:Float = 1;
 
 		generateStaticArrows(0, true);
 		generateStaticArrows(1, true);
+		makeExtraStrums(true);
 		strumsMadeEarly = true;
 	}
 
 	// The receptors made by `makeStrumsEarly()` showing up, the way they do when they're made with the countdown
 	function showStaticArrows():Void
 	{
+		for (extra in extraCharacters)
+			if(extra.strums != null)
+				for (i => strum in extra.strums)
+				{
+					var target:Float = extra.strumVisible ? strumAlphaFor(extra.side == 'player' ? 1 : 0) : 0;
+					if(!isStoryMode && !skipArrowStartTween) FlxTween.tween(strum, {alpha: target}, 1, {ease: FlxEase.circOut, startDelay: 0.5 + (0.2 * i)});
+					else strum.alpha = target;
+				}
 		for (player in 0...2)
 		{
 			var group:FlxTypedGroup<StrumNote> = (player == 1) ? playerStrums : opponentStrums;
@@ -2456,6 +2485,7 @@ public var cameraSpeed:Float = 1;
 			if(ClientPrefs.data.middleScroll && playAsOpponent) babyArrow.x += played ? FlxG.width / 2 : -FlxG.width / 2;
 		}
 		StrumNote.vsliceHitbox = null;
+		layoutStrums(player);
 
 		// the look of the note style of the side, on the songs of V-Slice mods
 		#if HSCRIPT_ALLOWED
@@ -2867,7 +2897,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		if (camZooming)
 		{
 			FlxG.camera.zoom = FlxMath.lerp(defaultCamZoom, FlxG.camera.zoom, Math.exp(-elapsed * 3.125 * camZoomingDecay * playbackRate));
-			camHUD.zoom = FlxMath.lerp(1, camHUD.zoom, Math.exp(-elapsed * 3.125 * camZoomingDecay * playbackRate));
+			camHUD.zoom = FlxMath.lerp(defaultHUDZoom, camHUD.zoom, Math.exp(-elapsed * 3.125 * camZoomingDecay * playbackRate));
 		}
 
 		FlxG.watch.addQuick("secShit", curSection);
@@ -2891,6 +2921,11 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			while (unspawnNotes.length > 0 && unspawnNotes[0].strumTime - Conductor.songPosition < time)
 			{
 				var dunceNote:Note = unspawnNotes[0];
+				if(dunceNote == null || !dunceNote.exists || !dunceNote.alive)
+				{
+					unspawnNotes.shift(); //(killed by a script before it came in)
+					continue;
+				}
 				notes.insert(0, dunceNote);
 				dunceNote.spawned = true;
 
@@ -2930,12 +2965,20 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 						while(i < notes.length)
 						{
 							var daNote:Note = notes.members[i];
-							if(daNote == null) continue;
+							if(daNote == null)
+							{
+								i++;
+								continue;
+							}
+							// (a note a script killed, like V-Slice scripts do to the ones they want gone: it goes away with no hit and no
+							// miss, as on V-Slice. Left there, it was looked at again and again and the game froze)
+							if(!daNote.exists || !daNote.alive)
+							{
+								invalidateNote(daNote);
+								continue;
+							}
 
-							var strumGroup:FlxTypedGroup<StrumNote> = playerStrums;
-							if(!daNote.mustPress) strumGroup = opponentStrums;
-
-							var strum:StrumNote = strumGroup.members[daNote.noteData];
+							var strum:StrumNote = strumOf(daNote);
 							if(strum == null)
 							{
 								// a note for a receptor that isn't there (taken out by a script, or a direction the chart shouldn't have)
@@ -3552,10 +3595,16 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 					case 'gf' | 'girlfriend':
 						char = gf;
 					default:
-						if(flValue2 == null) flValue2 = 0;
-						switch(Math.round(flValue2)) {
-							case 1: char = boyfriend;
-							case 2: char = gf;
+						// (Vortex: an extra character by its tag)
+						var extra:ExtraCharacter = getExtraCharacter(value2);
+						if(extra != null && extra.char != null) char = extra.char;
+						else
+						{
+							if(flValue2 == null) flValue2 = 0;
+							switch(Math.round(flValue2)) {
+								case 1: char = boyfriend;
+								case 2: char = gf;
+							}
 						}
 				}
 
@@ -3756,7 +3805,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 	// ------------------------------------------------------------------------------------------
 
 	public static final VORTEX_EVENTS:Array<String> = ['Flash Camera', 'Fade Screen', 'Set Camera Zoom', 'Fade HUD', 'Cinematic Bars',
-		'Lyrics', 'Camera Target', 'Camera Bop', 'Character Trail', 'Notes Fade', 'Camera Angle'];
+		'Lyrics', 'Camera Target', 'Camera Bop', 'Character Trail', 'Notes Fade', 'Camera Angle', 'Change Stage'];
 
 	// A mod with an event of its own with the same name keeps its own: these aren't done for it too
 	var eventOwnedByMod:Map<String, Bool> = [];
@@ -3863,10 +3912,26 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 			case 'Set Camera Zoom':
 				// Value 1: zoom (blank: the stage's). Value 2: duration, ease (blank: at once)
-				var zoom:Float = eventNumber(parts1, 0, stageCamZoom);
+				// ("*1.2": the stage's zoom times that, as Codename Engine's "stage" mode)
+				var zoom:Float = (parts1[0].startsWith('*') || parts1[0].startsWith('x'))
+					? stageCamZoom * Std.parseFloat(parts1[0].substr(1))
+					: eventNumber(parts1, 0, stageCamZoom);
+				if(Math.isNaN(zoom)) zoom = stageCamZoom;
 				var duration:Float = eventNumber(parts2, 0, 0);
-				eventTween('camZoom', this, {defaultCamZoom: zoom}, duration, eventEase(parts2, 1));
-				eventTween('camZoomNow', FlxG.camera, {zoom: zoom}, duration, eventEase(parts2, 1));
+				// (", hud" after the ease: the HUD's zoom, which then stays instead of going back to 1)
+				if(parts2.length > 2 && parts2[2].toLowerCase() == 'hud')
+				{
+					if(parts1[0].length < 1) zoom = 1;
+					else if(parts1[0].startsWith('*') || parts1[0].startsWith('x')) zoom = Std.parseFloat(parts1[0].substr(1));
+					if(Math.isNaN(zoom)) zoom = 1;
+					eventTween('hudZoom', this, {defaultHUDZoom: zoom}, duration, eventEase(parts2, 1));
+					eventTween('hudZoomNow', camHUD, {zoom: zoom}, duration, eventEase(parts2, 1));
+				}
+				else
+				{
+					eventTween('camZoom', this, {defaultCamZoom: zoom}, duration, eventEase(parts2, 1));
+					eventTween('camZoomNow', FlxG.camera, {zoom: zoom}, duration, eventEase(parts2, 1));
+				}
 
 			case 'Fade HUD':
 				// Value 1: alpha (0 to 1). Value 2: duration, ease
@@ -3915,9 +3980,18 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 				lyricsText.visible = text.trim().length > 0;
 
 			case 'Camera Target':
-				// Value 1: dad, bf, gf or the tag of an extra character (blank: back to following the sections)
+				// Value 1: dad, bf, gf or the tag of an extra character (blank: back to following the sections), or a spot: "x, y"
+				// ("+x, +y": from where it's looking). Value 2: how it gets there: seconds (blank: the camera's own easing, "snap": at
+				// once), ease, and an offset x, y (like the Camera Movement event of Codename Engine)
 				var target:String = (value1 != null) ? value1.toLowerCase().trim() : '';
-				switch(target)
+				var spotX:Float = (parts1.length > 1) ? Std.parseFloat(parts1[0].replace('+', '')) : Math.NaN;
+				var spotY:Float = (parts1.length > 1) ? Std.parseFloat(parts1[1].replace('+', '')) : Math.NaN;
+				if(!Math.isNaN(spotX) && !Math.isNaN(spotY))
+				{
+					var relative:Bool = parts1[0].startsWith('+');
+					camFollow.setPosition(relative ? camFollow.x + spotX : spotX, relative ? camFollow.y + spotY : spotY);
+				}
+				else switch(target)
 				{
 					case '':
 						isCameraOnForcedPos = false;
@@ -3938,6 +4012,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 						center.put();
 				}
 				isCameraOnForcedPos = true;
+				camFollow.x += eventNumber(parts2, 2, 0);
+				camFollow.y += eventNumber(parts2, 3, 0);
+				moveCameraTo(parts2);
 
 			case 'Camera Bop':
 				// Value 1: beats between bops (blank: each section, 0: none). Value 2: how strong (1 is normal)
@@ -4003,8 +4080,432 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 				// Value 1: game or hud. Value 2: angle, duration, ease
 				var cam:FlxCamera = eventCamera(value1);
 				eventTween('camAngle' + (cam == camHUD ? 'H' : (cam == camOther ? 'O' : 'G')), cam, {angle: eventNumber(parts2, 0, 0)}, eventNumber(parts2, 1, 0), eventEase(parts2, 2));
+
+			case 'Change Stage':
+				// Value 1: the stage. Value 2: keep, snap, keepzoom
+				changeStage(value1, value2);
 		}
 		return true;
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// "Change Stage": another stage in the middle of the song
+	// ------------------------------------------------------------------------------------------
+
+	// What the stage made, to take it away when another one comes: its sprites, the classes of the stages the game makes, its scripts
+	var stageObjects:Array<FlxBasic> = [];
+	var stageClasses:Array<BaseStage> = [];
+	#if LUA_ALLOWED var stageLuas:Array<FunkinLua> = []; #end
+	#if HSCRIPT_ALLOWED var stageHScripts:Array<HScript> = []; #end
+	var recordingStage:Bool = false;
+	// (where what's added goes while a stage is built in the middle of the song: among the characters, like at the start)
+	var stageAddCursor:Int = -1;
+	var stageFiles:Map<String, StageFile> = [];
+	var gameOverDefaults:Dynamic = null;
+	var levelAtStart:String = null;
+
+	override public function add(basic:FlxBasic):FlxBasic
+	{
+		if(basic != null && stageAddCursor >= 0 && !members.contains(basic))
+		{
+			noteStageObject(basic);
+			return super.insert(stageAddCursor++, basic);
+		}
+		noteStageObject(basic);
+		return super.add(basic);
+	}
+
+	override public function insert(position:Int, basic:FlxBasic):FlxBasic
+	{
+		if(basic != null && stageAddCursor >= 0 && position <= stageAddCursor && !members.contains(basic)) stageAddCursor++;
+		noteStageObject(basic);
+		return super.insert(position, basic);
+	}
+
+	function noteStageObject(basic:FlxBasic):Void
+	{
+		if(!recordingStage || basic == null || stageObjects.contains(basic)) return;
+		if(basic == boyfriendGroup || basic == dadGroup || basic == gfGroup || basic == uiGroup || basic == comboGroup || basic == noteGroup) return;
+		#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
+		if(basic == luaDebugGroup) return;
+		#end
+		stageObjects.push(basic);
+	}
+
+	/**
+	 * Something a stage's Lua script added later than its `onCreate()`: it goes away with its stage.
+	 */
+	public function stageScriptAdded(script:Dynamic, basic:FlxBasic):Void
+	{
+		#if LUA_ALLOWED
+		if(basic != null && stageLuas.contains(script) && !stageObjects.contains(basic)) stageObjects.push(basic);
+		#end
+	}
+
+	// The stage's own scripts ("stages/<name>.lua" and ".hx"), kept apart from the others
+	function startStageScripts(name:String):Void
+	{
+		#if LUA_ALLOWED
+		var luasBefore:Array<FunkinLua> = luaArray.copy();
+		#end
+		#if HSCRIPT_ALLOWED
+		var hscriptsBefore:Array<HScript> = hscriptArray.copy();
+		#end
+		recordingStage = true;
+		#if LUA_ALLOWED startLuasNamed('stages/' + name + '.lua'); #end
+		#if HSCRIPT_ALLOWED startHScriptsNamed('stages/' + name + '.hx'); #end
+		recordingStage = false;
+		#if LUA_ALLOWED
+		for (script in luaArray) if(!luasBefore.contains(script)) stageLuas.push(script);
+		#end
+		#if HSCRIPT_ALLOWED
+		for (script in hscriptArray) if(!hscriptsBefore.contains(script)) stageHScripts.push(script);
+		#end
+	}
+
+	// A stage the chart changes to: its file and its images are loaded with the song (from its own library), not when it comes
+	function precacheStage(value:String):Void
+	{
+		var name:String = StageData.stageIdOf(value);
+		if(name.length < 1 || stageFiles.exists(name)) return;
+		if(!StageData.stageExists(name))
+		{
+			addTextToDebug('Change Stage: there is no stage called "$name"', FlxColor.RED);
+			return;
+		}
+
+		var file:StageFile = StageData.getStageFile(name);
+		stageFiles.set(name, file);
+		var level:String = Paths.currentLevel;
+		Paths.setCurrentLevel((file.directory != null && file.directory.length > 0) ? file.directory : 'shared');
+		for (image in StageData.stageImages(file)) Paths.image(image);
+		Paths.setCurrentLevel(level);
+	}
+
+	/**
+	 * Changes the stage in the middle of the song (the "Change Stage" event): the old stage's sprites and scripts go away, the new one
+	 * is built where the characters are, and they go to its places. The chart still starts on its own stage (a restart is back there).
+	 * Flags, separated by commas: "keep" (the characters stay where they are), "snap" (the camera is there at once), "keepzoom" (the
+	 * camera's zoom stays). Scripts get `onChangeStage(new, old)` before (`Function_Stop` calls it off) and `onChangeStagePost(new, old)`.
+	 * Returns false if the stage didn't change.
+	 */
+	public function changeStage(value:String, ?flags:String):Bool
+	{
+		var name:String = StageData.stageIdOf(value);
+		var options:Array<String> = [for (part in eventParts(flags)) part.toLowerCase()];
+		if(name.length < 1 || (name == curStage && !options.contains('reload'))) return false;
+		if(!StageData.stageExists(name))
+		{
+			addTextToDebug('Change Stage: there is no stage called "$name"', FlxColor.RED);
+			return false;
+		}
+
+		var oldStage:String = curStage;
+		if(callOnScripts('onChangeStage', [name, oldStage]) == LuaUtils.Function_Stop) return false;
+		backend.StepLog.add('Changing the stage from "$oldStage" to "$name"');
+
+		var file:StageFile = stageFiles.exists(name) ? stageFiles.get(name) : StageData.getStageFile(name);
+		var keep:Bool = options.contains('keep');
+		var keepZoom:Bool = options.contains('keepzoom');
+		var wasVSlice:Bool = isVSliceStage;
+		var gfVersion:String = SONG.gfVersion;
+
+		removeStage();
+
+		Paths.setCurrentLevel((file.directory != null && file.directory.length > 0) ? file.directory : 'shared');
+		curStage = name;
+		isVSliceStage = (file.vslice != null);
+		applyStagePlaces(file, keepZoom);
+		var kept:Array<Array<Float>> = [[boyfriendGroup.x, boyfriendGroup.y], [dadGroup.x, dadGroup.y], [gfGroup.x, gfGroup.y]];
+
+		// the new one's sprites, among the characters (V-Slice songs: built the way their scripts build another stage)
+		var builtByScripts:Bool = false;
+		recordingStage = true;
+		#if HSCRIPT_ALLOWED
+		builtByScripts = backend.VSliceScripts.swapStage(name, isVSliceStage);
+		#end
+		var newClasses:Array<BaseStage> = [];
+		if(!builtByScripts)
+		{
+			var place:Int = -1;
+			for (group in [gfGroup, dadGroup, boyfriendGroup])
+			{
+				var index:Int = members.indexOf(group);
+				if(index > -1 && (place < 0 || index < place)) place = index;
+			}
+			for (group in [gfGroup, dadGroup, boyfriendGroup]) remove(group, true);
+			if(place < 0) place = (comboGroup != null && members.contains(comboGroup)) ? members.indexOf(comboGroup) : members.length;
+
+			stageAddCursor = place;
+			var classesBefore:Array<BaseStage> = stages.copy();
+			if(!isVSliceStage) makeStageClass(name);
+			for (stage in stages) if(!classesBefore.contains(stage)) newClasses.push(stage);
+
+			var hideGirlfriend:Bool = (file.hide_girlfriend == true);
+			if(file.objects != null && file.objects.length > 0)
+			{
+				var list:Map<String, FlxSprite> = StageData.addObjectsToState(file.objects, hideGirlfriend ? null : gfGroup, dadGroup, boyfriendGroup, this);
+				for (key => sprite in list)
+					if(!StageData.reservedNames.contains(key))
+						variables.set(key, sprite);
+				if(isVSliceStage) setupVSliceProps(file.objects, list);
+			}
+			else
+			{
+				if(!hideGirlfriend) add(gfGroup);
+				add(dadGroup);
+				add(boyfriendGroup);
+			}
+			if(!members.contains(gfGroup)) add(gfGroup); //(hidden, but still where its character is kept)
+			stageAddCursor = -1;
+		}
+		stageClasses = stageClasses.concat(newClasses);
+		recordingStage = false;
+		if(gf != null) gfGroup.visible = (file.hide_girlfriend != true && SONG.hideGirlfriend != true);
+
+		// the characters go to its places
+		if(keep)
+		{
+			boyfriendGroup.setPosition(kept[0][0], kept[0][1]);
+			dadGroup.setPosition(kept[1][0], kept[1][1]);
+			gfGroup.setPosition(kept[2][0], kept[2][1]);
+		}
+		else
+		{
+			if(!builtByScripts) placeCharacterGroups(file); //(the V-Slice stage's script put the groups on its spots)
+			if(builtByScripts || wasVSlice || isVSliceStage) placeCharactersAgain(wasVSlice);
+			if(dad != null && dad.curCharacter.startsWith('gf') && SONG.vslice == null)
+			{
+				dad.setPosition(GF_X, GF_Y);
+				dad.scrollFactor.set(0.95, 0.95);
+			}
+		}
+		#if HSCRIPT_ALLOWED
+		backend.VSliceScripts.stageBuilt();
+		#end
+		for (char => trail in characterTrails)
+		{
+			var group:FlxSpriteGroup = groupOfCharacter(char);
+			if(group == null || !members.contains(trail)) continue;
+			remove(trail, true);
+			insert(members.indexOf(group), trail);
+		}
+
+		// its scripts
+		startStageScripts(name);
+		#if LUA_ALLOWED
+		for (script in stageLuas)
+		{
+			script.set('curStage', name);
+			script.set('startedCountdown', startedCountdown);
+		}
+		#end
+		recordingStage = true;
+		// (the events still to come, for the new stage's classes, like when the chart was loaded: once per event, and once per name)
+		var pushed:Array<String> = [];
+		for (event in eventNotes)
+		{
+			for (stage in newClasses)
+			{
+				stage.eventPushedUnique(event);
+				if(!pushed.contains(event.event)) stage.eventPushed(event);
+			}
+			if(!pushed.contains(event.event)) pushed.push(event.event);
+		}
+		for (stage in newClasses)
+		{
+			stage.curBeat = curBeat;
+			stage.curStep = curStep;
+			stage.curSection = curSection;
+			stage.createPost();
+		}
+		#if LUA_ALLOWED
+		for (script in stageLuas) script.call('onCreatePost', []);
+		#end
+		#if HSCRIPT_ALLOWED
+		for (script in stageHScripts) if(script.exists('onCreatePost')) script.call('onCreatePost');
+		#end
+		recordingStage = false;
+		SONG.gfVersion = gfVersion; //(a stage the game makes can set it: not for the chart, nor for a restart)
+
+		// the camera
+		#if HSCRIPT_ALLOWED
+		var facade:funkin.play.PlayState = funkin.play.PlayState.instance;
+		if(facade != null && backend.VSliceScripts.active && !keepZoom) facade.stageZoom = defaultCamZoom;
+		#end
+		if(!isCameraOnForcedPos) moveCameraSection();
+		if(options.contains('snap') || options.contains('instant'))
+		{
+			if(!keepZoom) FlxG.camera.zoom = defaultCamZoom;
+			FlxG.camera.snapToTarget();
+		}
+
+		setOnScripts('curStage', curStage);
+		setOnScripts('defaultBoyfriendX', BF_X);
+		setOnScripts('defaultBoyfriendY', BF_Y);
+		setOnScripts('defaultOpponentX', DAD_X);
+		setOnScripts('defaultOpponentY', DAD_Y);
+		setOnScripts('defaultGirlfriendX', GF_X);
+		setOnScripts('defaultGirlfriendY', GF_Y);
+		callOnScripts('onChangeStagePost', [curStage, oldStage]);
+		return true;
+	}
+
+	// The stage's places for the characters and the camera (its zoom, with "keepzoom" the zoom stays)
+	function applyStagePlaces(file:StageFile, keepZoom:Bool):Void
+	{
+		if(!keepZoom)
+		{
+			for (id in ['camZoom', 'camZoomNow'])
+			{
+				var running:FlxTween = eventTweens.get(id);
+				if(running != null) running.cancel();
+				eventTweens.remove(id);
+			}
+			defaultCamZoom = stageCamZoom = file.defaultZoom;
+		}
+		BF_X = file.boyfriend[0];
+		BF_Y = file.boyfriend[1];
+		GF_X = file.girlfriend[0];
+		GF_Y = file.girlfriend[1];
+		DAD_X = file.opponent[0];
+		DAD_Y = file.opponent[1];
+		cameraSpeed = (file.camera_speed != null) ? file.camera_speed : 1;
+		boyfriendCameraOffset = (file.camera_boyfriend != null) ? file.camera_boyfriend : [0, 0];
+		opponentCameraOffset = (file.camera_opponent != null) ? file.camera_opponent : [0, 0];
+		girlfriendCameraOffset = (file.camera_girlfriend != null) ? file.camera_girlfriend : [0, 0];
+		vsliceStagePlaces = (file.vslice != null) ? file.vslice.characters : null;
+	}
+
+	// The characters' groups (and everyone in them) where the stage puts them, moving with the camera as much as it says
+	function placeCharacterGroups(file:StageFile):Void
+	{
+		boyfriendGroup.setPosition(BF_X, BF_Y);
+		dadGroup.setPosition(DAD_X, DAD_Y);
+		gfGroup.setPosition(GF_X, GF_Y);
+
+		var bfScroll:Array<Float> = [1, 1];
+		var dadScroll:Array<Float> = [1, 1];
+		var gfScroll:Array<Float> = [0.95, 0.95];
+		if(file.vslice != null && file.vslice.characters != null)
+		{
+			var places:Dynamic = file.vslice.characters;
+			bfScroll = [places.bf.scroll[0], places.bf.scroll[1]];
+			dadScroll = [places.dad.scroll[0], places.dad.scroll[1]];
+			if(file.vslice.gfScroll != null) gfScroll = [file.vslice.gfScroll[0], file.vslice.gfScroll[1]];
+		}
+		if(boyfriendGroup.scrollFactor.x != bfScroll[0] || boyfriendGroup.scrollFactor.y != bfScroll[1]) boyfriendGroup.scrollFactor.set(bfScroll[0], bfScroll[1]);
+		if(dadGroup.scrollFactor.x != dadScroll[0] || dadGroup.scrollFactor.y != dadScroll[1]) dadGroup.scrollFactor.set(dadScroll[0], dadScroll[1]);
+		if(gfGroup.scrollFactor.x != gfScroll[0] || gfGroup.scrollFactor.y != gfScroll[1]) gfGroup.scrollFactor.set(gfScroll[0], gfScroll[1]);
+	}
+
+	// Between stages of two kinds (Psych's places say where a character's corner goes, V-Slice's where its feet go, and can scale it)
+	// the characters are placed again, from their group's spot
+	// (leaving a V-Slice stage, what its script put on the characters goes too: its shader and its color. The new one's gives its own)
+	function placeCharactersAgain(fromVSlice:Bool):Void
+	{
+		var placed:Array<Character> = [];
+		function place(char:Character, group:FlxSpriteGroup, opponent:Bool):Void
+		{
+			if(char == null || placed.contains(char)) return;
+			placed.push(char);
+			char.setScale(char.getBaseScale());
+			char.alpha = 1;
+			char.angle = 0;
+			if(fromVSlice)
+			{
+				char.shader = null;
+				char.color = FlxColor.WHITE;
+			}
+			char.setPosition(group.x, group.y);
+			startCharacterPos(char, opponent);
+		}
+		place(boyfriend, boyfriendGroup, false);
+		place(dad, dadGroup, true);
+		place(gf, gfGroup, false);
+		for (char in boyfriendMap) place(char, boyfriendGroup, false);
+		for (char in dadMap) place(char, dadGroup, true);
+		for (char in gfMap) place(char, gfGroup, false);
+	}
+
+	function groupOfCharacter(char:Character):FlxSpriteGroup
+	{
+		for (group in [boyfriendGroup, dadGroup, gfGroup])
+			if(group.members.contains(char)) return group;
+		return null;
+	}
+
+	// The stages the game makes by itself, by their name
+	function makeStageClass(name:String):Void
+	{
+		switch (name)
+		{
+			case 'stage': new StageWeek1();
+			case 'spooky': new Spooky();
+			case 'philly': new Philly();
+			case 'limo': new Limo();
+			case 'mall': new Mall();
+			case 'mallEvil': new MallEvil();
+			case 'school': new School();
+			case 'schoolEvil': new SchoolEvil();
+			case 'tank': new Tank();
+			case 'phillyStreets': new PhillyStreets();
+			case 'phillyBlazin': new PhillyBlazin();
+		}
+	}
+
+	// Takes the current stage away: its scripts are told (`onDestroy`) and closed, its sprites taken off. They're killed and not
+	// destroyed: the timers of the stages the game makes (the train, the car of the limo) can still touch them once
+	function removeStage():Void
+	{
+		#if LUA_ALLOWED
+		for (script in stageLuas)
+		{
+			if(script.closed) continue;
+			script.call('onDestroy', []);
+			script.stop();
+		}
+		luaArray = [for (script in luaArray) if(!stageLuas.contains(script)) script];
+		stageLuas = [];
+		#end
+		#if HSCRIPT_ALLOWED
+		for (script in stageHScripts)
+		{
+			if(script.exists('onDestroy')) script.call('onDestroy');
+			script.destroy();
+		}
+		hscriptArray = [for (script in hscriptArray) if(!stageHScripts.contains(script)) script];
+		stageHScripts = [];
+		#end
+
+		for (stage in stageClasses)
+		{
+			stages.remove(stage);
+			stage.destroy();
+		}
+		if(stageClasses.length > 0 && gameOverDefaults != null)
+		{
+			// (what those stages set for the game over: Week 6's pixel one)
+			GameOverSubstate.characterName = gameOverDefaults.characterName;
+			GameOverSubstate.deathSoundName = gameOverDefaults.deathSoundName;
+			GameOverSubstate.loopSoundName = gameOverDefaults.loopSoundName;
+			GameOverSubstate.endSoundName = gameOverDefaults.endSoundName;
+			GameOverSubstate.deathDelay = gameOverDefaults.deathDelay;
+		}
+		stageClasses = [];
+
+		var names:Array<String> = [];
+		for (object in stageObjects)
+		{
+			if(object == null) continue;
+			FlxTween.cancelTweensOf(object);
+			for (key => thing in variables) if(thing == object) names.push(key);
+			if(members.contains(object)) remove(object, true);
+			object.kill();
+		}
+		for (key in names) variables.remove(key);
+		vsliceBoppers = [for (bopper in vsliceBoppers) if(!stageObjects.contains(bopper.sprite)) bopper];
+		stageObjects = [];
 	}
 
 	public function moveCameraSection(?sec:Null<Int>):Void {
@@ -4508,6 +5009,59 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		#end
 	}
 
+	/**
+	 * Only the rating of a hit popping up ("sick", "good", "bad", "shit"...), with no note and no score: what V-Slice scripts show
+	 * with `comboPopUps.displayRating()`. Null when there's no picture for it.
+	 */
+	public function popUpRating(name:String):FlxSprite
+	{
+		if(name == null || name.length < 1) name = 'good';
+		var image:String = name;
+		for (rating in ratingsData)
+			if(rating.name == name) image = rating.image;
+
+		var uiFolder:String = "";
+		var antialias:Bool = ClientPrefs.data.antialiasing;
+		if (stageUI != "normal")
+		{
+			uiFolder = uiPrefix + "UI/";
+			antialias = !isPixelStage;
+		}
+		var style:funkin.play.notes.notestyle.NoteStyle = popUpStyle();
+		var look = (style != null) ? style.getPopUpLook('judgement' + name.charAt(0).toUpperCase() + name.substr(1)) : null;
+		var path:String = (look != null) ? look.path : uiFolder + image + uiPostfix;
+		if(look == null && !Paths.fileExists('images/$path.png', IMAGE)) return null;
+
+		var rating:FlxSprite = new FlxSprite().loadGraphic(Paths.image(path));
+		rating.screenCenter();
+		rating.x = FlxG.width * 0.35 - 40 + ClientPrefs.data.comboOffset[0];
+		rating.y -= 60 + ClientPrefs.data.comboOffset[1];
+		rating.acceleration.y = 550 * playbackRate * playbackRate;
+		rating.velocity.y -= FlxG.random.int(140, 175) * playbackRate;
+		rating.velocity.x -= FlxG.random.int(0, 10) * playbackRate;
+		rating.visible = (!ClientPrefs.data.hideHud && showRating);
+		if (!PlayState.isPixelStage) rating.setGraphicSize(Std.int(rating.width * 0.7));
+		else rating.setGraphicSize(Std.int(rating.width * daPixelZoom * 0.85));
+		rating.antialiasing = antialias;
+		if (look != null)
+		{
+			rating.scale.set(look.scale, look.scale);
+			rating.antialiasing = !look.pixel && ClientPrefs.data.antialiasing;
+		}
+		rating.updateHitbox();
+		comboGroup.add(rating);
+
+		FlxTween.tween(rating, {alpha: 0}, 0.2 / playbackRate, {
+			onComplete: function(_)
+			{
+				comboGroup.remove(rating, true);
+				rating.destroy();
+			},
+			startDelay: Conductor.crochet * 0.001 / playbackRate
+		});
+		return rating;
+	}
+
 	private function popUpScore(note:Note = null):Void
 	{
 		var noteDiff:Float = Math.abs(note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset);
@@ -4760,9 +5314,16 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		}
 		else
 		{
+			// V-Slice scripts are told of every press with nothing to hit, before it counts (V-Slice always tells them,
+			// `onNoteGhostMiss`): they can call it off or change what it costs. With Ghost Tapping on it costs nothing
+			var calledOff:Bool = false;
+			#if HSCRIPT_ALLOWED
+			var ghostTap:Bool = ClientPrefs.data.ghostTapping;
+			calledOff = backend.VSliceScripts.onGhostMiss(key, ghostTap ? 0 : -pressMissDamage * healthLoss, ghostTap ? 0 : -10);
+			#end
 			if (ClientPrefs.data.ghostTapping)
 				callOnScripts('onGhostTap', [key]);
-			else
+			else if (!calledOff)
 				noteMissPress(key);
 		}
 
@@ -4779,6 +5340,12 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			spr.playAnim('pressed');
 			spr.resetAnim = 0;
 		}
+		for (extraStrum in playedExtraStrums(key))
+			if(extraStrum.animation.curAnim == null || extraStrum.animation.curAnim.name != 'confirm')
+			{
+				extraStrum.playAnim('pressed');
+				extraStrum.resetAnim = 0;
+			}
 
 		// ---> ADICIONADO AQUI: Envia que a tecla foi pressionada! <---
 		if (backend.NetworkManager.connected) {
@@ -4812,6 +5379,11 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		var ret:Dynamic = callOnScripts('onKeyReleasePre', [key]);
 		if(ret == LuaUtils.Function_Stop) return;
 
+		for (extraStrum in playedExtraStrums(key))
+		{
+			extraStrum.playAnim('static');
+			extraStrum.resetAnim = 0;
+		}
 		var spr:StrumNote = playableStrums.members[key];
 		if(spr != null)
 		{
@@ -4927,20 +5499,30 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 	{
 		if(ClientPrefs.data.ghostTapping) return; //fuck it
 
-		noteMissCommon(direction);
+		// (what V-Slice scripts made of it: its health and score, and if the sound and the animation are played)
+		var asked:Dynamic = null;
+		#if HSCRIPT_ALLOWED
+		asked = backend.VSliceScripts.takeGhostMissResult();
+		#end
+		noteMissCommon(direction, null, asked == null || asked.anim);
+		if(asked != null)
+		{
+			health += asked.health + pressMissDamage * healthLoss;
+			songScore += Std.int(asked.score + 10);
+		}
 
 		if (backend.NetworkManager.connected) {
 			backend.NetworkManager.send("MISSPRESS|" + direction);
 		}
 
-		FlxG.sound.play(Paths.soundRandom('missnote', 1, 3), FlxG.random.float(0.1, 0.2));
+		if(asked == null || asked.sound) FlxG.sound.play(Paths.soundRandom('missnote', 1, 3), FlxG.random.float(0.1, 0.2));
 		stagesFunc(function(stage:BaseStage) stage.noteMissPress(direction));
 		healthForPlayer = true;
 		callOnScripts('noteMissPress', [direction]);
 		healthForPlayer = false;
 	}
 
-	function noteMissCommon(direction:Int, note:Note = null)
+	function noteMissCommon(direction:Int, note:Note = null, playAnims:Bool = true)
 	{
 		// score and data
 		var subtract:Float = pressMissDamage;
@@ -5001,6 +5583,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		RecalculateRating(true);
 
 		// play character anims
+		if(!playAnims) return;
 		var char:Character = playableCharacter;
 		if((note != null && note.gfNote) || (SONG.notes[curSection] != null && SONG.notes[curSection].gfSection)) char = gf;
 
@@ -5040,7 +5623,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 	function opponentNoteHit(note:Note):Void
 	{
-		if (healthDrain > 0)
+		// (a note whose hit a V-Slice script called off comes back every frame until it's gone: what it costs is taken once)
+		var calledOff:Bool = note.extraData.exists('vsliceCancelled');
+		if (healthDrain > 0 && !calledOff)
         {
             var balancedDrain:Float = healthDrain * 0.1;
 
@@ -5055,7 +5640,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
         }
 
         // (only notes that are sung count: the ghost is the pose of the last one, so it has to be the same character's)
-        if (!note.isSustainNote && !note.noAnimation && !note.hitCausesMiss)
+        if (!note.isSustainNote && !note.noAnimation && !note.hitCausesMiss && !calledOff)
         {
             var singer:Character = (note.gfNote || note.noteType == 'GF Sing') ? gf : otherCharacter;
             var timeDiff = Math.abs(note.strumTime - lastOpponentHitTime);
@@ -5120,7 +5705,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
         }
 
         if(playAsOpponent || opponentVocals.length <= 0) vocals.volume = 1;
-        strumPlayAnim(!note.mustPress, Std.int(Math.abs(note.noteData)), Conductor.stepCrochet * 1.25 / 1000 / playbackRate);
+        if(!note.hiddenNote) confirmStrumOf(note, Conductor.stepCrochet * 1.25 / 1000 / playbackRate);
         note.hitByOpponent = true;
         if(grpHoldCovers != null) grpHoldCovers.noteHit(note, strumOf(note), false);
         
@@ -5241,7 +5826,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 				var spr = strumOf(note);
 				if(spr != null) spr.playAnim('confirm', true);
 			}
-			else strumPlayAnim(!note.mustPress, Std.int(Math.abs(note.noteData)), Conductor.stepCrochet * 1.25 / 1000 / playbackRate);
+			else if(!note.hiddenNote) confirmStrumOf(note, Conductor.stepCrochet * 1.25 / 1000 / playbackRate);
 			playableVoice().volume = 1;
 			if(grpHoldCovers != null) grpHoldCovers.noteHit(note, strumOf(note), true);
 
@@ -5332,6 +5917,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 	}
 
 	override function destroy() {
+		if(levelAtStart != null) Paths.setCurrentLevel(levelAtStart); //(a stage changed to in the middle of the song had its own library)
 		backend.ClickBetweenFrames.stop();
 		#if LUA_ALLOWED psychlua.VortexFunctions.restoreWindow(); #end //(what scripts did to the window)
 		Note.opponentPlay = false;
@@ -5541,6 +6127,127 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		return char;
 	}
 
+	/** The zoom the HUD goes back to after its bops (1; "Set Camera Zoom" with ", hud" changes it). */
+	public var defaultHUDZoom:Float = 1;
+
+	var cameraMoveTween:FlxTween = null;
+
+	// How the camera gets to camFollow ("Camera Target"'s value 2): blank, its usual easing; "snap", at once; seconds and an ease, a
+	// tween of its own (the camera stops following meanwhile, and goes on from there)
+	function moveCameraTo(parts:Array<String>):Void
+	{
+		if(cameraMoveTween != null)
+		{
+			cameraMoveTween.cancel();
+			cameraMoveTween = null;
+			freezeCamera = false;
+		}
+		var first:String = (parts.length > 0) ? parts[0].toLowerCase() : '';
+		if(first == 'snap')
+		{
+			FlxG.camera.snapToTarget();
+			return;
+		}
+		var seconds:Float = eventNumber(parts, 0, 0) / playbackRate;
+		if(seconds <= 0) return;
+		freezeCamera = true;
+		var goalX:Float = camFollow.x + camFollow.width / 2 - FlxG.camera.width / 2;
+		var goalY:Float = camFollow.y + camFollow.height / 2 - FlxG.camera.height / 2;
+		cameraMoveTween = FlxTween.tween(FlxG.camera.scroll, {x: goalX, y: goalY}, seconds, {ease: eventEase(parts, 1), onComplete: function(_)
+		{
+			cameraMoveTween = null;
+			freezeCamera = false;
+		}});
+	}
+
+	// The receptors of the extra characters with their own ones that the player's keys press (a column of them)
+	function playedExtraStrums(column:Int):Array<StrumNote>
+	{
+		var found:Array<StrumNote> = [];
+		for (extra in extraCharacters)
+		{
+			if(extra.strums == null || column >= extra.strums.length) continue;
+			var playerSide:Bool = (extra.side == 'player');
+			if(playerSide != playAsOpponent && extra.strums[column] != null) found.push(extra.strums[column]);
+		}
+		return found;
+	}
+
+	/**
+	 * The receptors of the extra characters that have their own (`ownStrum`), like Codename Engine's other strumlines: at their
+	 * "strumX" (the left of the first one; blank: the middle of the screen) and "strumY" (blank: the line of their side).
+	 */
+	function makeExtraStrums(hidden:Bool):Void
+	{
+		for (extra in extraCharacters)
+		{
+			if(!extra.ownStrum || extra.strums != null) continue;
+			var player:Int = (extra.side == 'player') ? 1 : 0;
+			var down:Bool = downScrollOf(player == 1);
+			var width:Float = Note.swagWidth * totalColumns;
+			var left:Float = (extra.strumX != null) ? extra.strumX : (FlxG.width - width) / 2;
+			var top:Float = down ? (FlxG.height - 150) : 50;
+			if(extra.strumY != null) top = down ? FlxG.height - 150 - (extra.strumY - 50) : extra.strumY;
+
+			extra.strums = [];
+			for (i in 0...totalColumns)
+			{
+				var strum:StrumNote = new StrumNote(left, top, i, player);
+				strum.downScroll = down;
+				strum.x = left + Note.swagWidth * i;
+				var target:Float = extra.strumVisible ? strumAlphaFor(player) : 0;
+				if(hidden) strum.alpha = 0;
+				else if(!isStoryMode && !skipArrowStartTween)
+				{
+					strum.alpha = 0;
+					FlxTween.tween(strum, {alpha: target}, 1, {ease: FlxEase.circOut, startDelay: 0.5 + (0.2 * i)});
+				}
+				else strum.alpha = target;
+				strumLineNotes.add(strum);
+				extra.strums.push(strum);
+			}
+		}
+	}
+
+	/**
+	 * Where a side's receptors go, from the chart ("vortexStrumlines": {"player": {"x", "y", "visible"}, "opponent": ...}, as the
+	 * strumlines of Codename Engine have them). Not with Middlescroll: the player's option goes first.
+	 */
+	function layoutStrums(player:Int):Void
+	{
+		if(SONG.vortexStrumlines == null || ClientPrefs.data.middleScroll) return;
+		var layout:Dynamic = Reflect.field(SONG.vortexStrumlines, (player == 1) ? 'player' : 'opponent');
+		if(layout == null) return;
+		var group:FlxTypedGroup<StrumNote> = (player == 1) ? playerStrums : opponentStrums;
+		var down:Bool = downScrollOf(player == 1);
+		for (i => strum in group.members)
+		{
+			if(strum == null) continue;
+			if(layout.x != null && !Math.isNaN(layout.x)) strum.x = layout.x + Note.swagWidth * i;
+			if(layout.y != null && !Math.isNaN(layout.y)) strum.y = down ? FlxG.height - 150 - (layout.y - 50) : layout.y;
+			if(layout.visible == false) strum.visible = false;
+		}
+	}
+
+	// The singers' names that change the note itself: "gf" (the girlfriend sings it, the note keeps its own type) and "hidden"
+	// (nobody sees it: a character singing in the background, Codename Engine's strumlines that aren't visible)
+	function applySingerNames(note:Note):Void
+	{
+		if(note.singers == null) return;
+		if(ExtraCharacter.hasSinger(note.singers, ExtraCharacter.GIRLFRIEND)) note.gfNote = true;
+		for (extra in extraCharacters)
+			if(extra.ownStrum && ExtraCharacter.hasSinger(note.singers, extra.tag))
+			{
+				note.strumOwner = extra;
+				break;
+			}
+		if(ExtraCharacter.hasSinger(note.singers, ExtraCharacter.HIDDEN))
+		{
+			note.hiddenNote = true;
+			note.noteSplashData.disabled = true;
+		}
+	}
+
 	/**
 	 * The extra character with that tag, null if there's none.
 	 */
@@ -5621,7 +6328,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		swagNote.mustPress = mustPress;
 		swagNote.sustainLength = sustainLength;
 		swagNote.noteType = noteType;
-		if(singers != null && singers.length > 0) swagNote.singers = singers;
+		if(singers != null && singers.length > 0) { swagNote.singers = singers; applySingerNames(swagNote); }
 		swagNote.scrollFactor.set();
 		made.push(swagNote);
 
@@ -5634,6 +6341,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			sustainNote.mustPress = mustPress;
 			sustainNote.flipY = downScrollOf(mustPress);
 			sustainNote.singers = swagNote.singers;
+			applySingerNames(sustainNote);
 			sustainNote.noteType = noteType;
 			sustainNote.scrollFactor.set();
 			sustainNote.parent = swagNote;
@@ -6222,6 +6930,15 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			if(charCam != null && charCam != cam && FlxG.cameras.list.indexOf(charCam) > index) return true;
 		}
 		return false;
+	}
+
+	// The receptor a note was sung on lights up (its extra character's own one, or its side's)
+	function confirmStrumOf(note:Note, time:Float):Void
+	{
+		var spr:StrumNote = strumOf(note);
+		if(spr == null) return;
+		spr.playAnim('confirm', true);
+		spr.resetAnim = time;
 	}
 
 	function strumPlayAnim(isDad:Bool, id:Int, time:Float) {

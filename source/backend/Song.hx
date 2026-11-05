@@ -33,6 +33,8 @@ typedef SwagSong =
 
 	@:optional var vslice:Dynamic; //Only on charts converted from a V-Slice (Polymod) mod, see PolymodCompat.getChart()
 	@:optional var vortexCharacters:Array<Dynamic>; //Vortex Engine: the song's extra characters, see objects.ExtraCharacter
+	@:optional var vortexStrumlines:Dynamic; //Vortex Engine: where the receptors of each side are, see states.PlayState.layoutStrums()
+	@:optional var hideGirlfriend:Bool; //Vortex Engine: the song has no girlfriend (Codename Engine charts without her strumline)
 }
 
 typedef SwagSection =
@@ -139,6 +141,8 @@ class Song
 		// A chart that came from a V-Slice song has no Psych chart file: the path above is where one would be, and nothing should ever be saved there.
 		// Its changes go back to the V-Slice files it came from (see PolymodCompat.saveChart())
 		if(_lastFromVSlice) chartPath = null;
+		// (nor over a Codename Engine chart: saving asks where the Psych one goes)
+		if(CodenameChart.lastWasCodename) chartPath = null;
 		StageData.loadDirectory(PlayState.SONG);
 		return PlayState.SONG;
 	}
@@ -175,12 +179,18 @@ class Song
 		#end
 			rawData = Assets.getText(_lastPath);
 
-		return rawData != null ? parseJSON(rawData, jsonInput) : null;
+		return rawData != null ? parseJSON(rawData, jsonInput, 'psych_v1', _lastPath) : null;
 	}
 
-	public static function parseJSON(rawData:String, ?nameForError:String = null, ?convertTo:String = 'psych_v1'):SwagSong
+	/**
+	 * @param path  Where the chart's file is, if it's known: a Codename Engine chart's "meta.json" (its BPM) is looked for next to it
+	 */
+	public static function parseJSON(rawData:String, ?nameForError:String = null, ?convertTo:String = 'psych_v1', ?path:String):SwagSong
 	{
 		var songJson:SwagSong = cast Json.parse(rawData);
+		CodenameChart.lastWasCodename = false;
+		// Codename Engine's charts are turned into Psych's (see backend.CodenameChart)
+		if(CodenameChart.isCodename(songJson)) return CodenameChart.toPsych(songJson, (path != null) ? path : nameForError, nameForError);
 		if(Reflect.hasField(songJson, 'song'))
 		{
 			var subSong:SwagSong = Reflect.field(songJson, 'song');

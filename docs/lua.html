@@ -423,6 +423,39 @@ end</code></pre>
 				<p class="example-note">A textured ring (mods/MyMod/models/ring.obj with images/ringTexture.png) leaning forward and spinning a quarter turn per second, behind the characters.</p>
 				<div class="callout info">The triangles are drawn from the farthest to the closest (there's no depth buffer), so models of up to a few thousand triangles work best. Faces with more than 3 corners are split into triangles. Each model has one texture.</div>
 			</article>
+			<article class="fn" id="setModelMaterialColor">
+				<h3><span class="name">setModelMaterialColor</span><span class="args">(tag:String, material:String, color:String)</span><span class="ret">:Bool</span><a class="anchor" href="#setModelMaterialColor">#</a></h3>
+				<p>The color of one part of a model: the parts its <code>.obj</code> names with <code>usemtl</code> (a tree's trunk and leaves). A model with no texture gets them from the <code>.mtl</code> file its <code>.obj</code> names (<code>mtllib</code>, next to it); without one every part is white, and this colors them.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the model</li>
+					<li><code>material</code> <span class="type">String</span> the material's name, as in the <code>.obj</code></li>
+					<li><code>color</code> <span class="type">String</span> the color, like <code>'6B4226'</code></li>
+				</ul>
+				<p class="returns">Returns <code>false</code> if the model has no material with that name (the error lists the ones it has)</p>
+<pre><code class="language-lua">function onCreatePost()
+    makeLuaModel('tree', 'tree', '', getMidpointX('dad') - 300, getMidpointY('dad') - 80)
+    setProperty('tree.modelScale', getProperty('tree.modelScale') * 2.5)
+    setModelMaterialColor('tree', 'Bark', '6B4226')   -- the trunk brown
+    setModelMaterialColor('tree', 'Tree', '3E9E4F')   -- the leaves green
+    addLuaSprite('tree', false)
+end
+
+function onUpdate(elapsed)
+    setProperty('tree.angleY', getProperty('tree.angleY') + elapsed * 20)
+end</code></pre>
+				<p class="example-note">A low-poly tree with a brown trunk and green leaves next to the opponent, behind the characters, turning slowly.</p>
+			</article>
+			<article class="fn" id="getModelMaterials">
+				<h3><span class="name">getModelMaterials</span><span class="args">(tag:String)</span><span class="ret">:Table</span><a class="anchor" href="#getModelMaterials">#</a></h3>
+				<p>The names of a model's materials, to know what to color.</p>
+				<ul class="params">
+					<li><code>tag</code> <span class="type">String</span> the model</li>
+				</ul>
+<pre><code class="language-lua">for _, name in ipairs(getModelMaterials('tree')) do
+    debugPrint(name)
+end</code></pre>
+				<p class="example-note">Prints "Bark" and "Tree" for the tree above.</p>
+			</article>
 		</section>
 
 		<!-- ======================================================== notes -->
@@ -503,6 +536,19 @@ end</code></pre>
     setProperty(tag .. '.alpha', 0.5)
 end</code></pre>
 				<p class="example-note">Every extra character becomes half see-through, without knowing their tags.</p>
+			</article>
+			<article class="fn" id="changeStage">
+				<h3><span class="name">changeStage</span><span class="args">(name:String, ?flags:String)</span><span class="ret">:Bool</span><a class="anchor" href="#changeStage">#</a></h3>
+				<p>Changes the stage in the middle of the song, like the <strong>Change Stage</strong> event. The old stage's sprites and scripts go away, the new one is built where the characters are, and they go to its places.</p>
+				<ul class="params">
+					<li><code>name</code> <span class="type">String</span> the stage (its file in <code>stages</code>, a V-Slice stage, or one the game makes)</li>
+					<li><code>flags</code> <span class="type">String</span> (optional) separated by commas: <code>keep</code> (the characters stay where they are), <code>snap</code> (the camera is there at once), <code>keepzoom</code> (the zoom stays)</li>
+				</ul>
+				<p class="returns">Returns <code>false</code> if the stage didn't change (it doesn't exist, it's the one already there, or a script called it off)</p>
+<pre><code class="language-lua">function onBeatHit()
+    if curBeat == 64 then changeStage('school', 'snap') end
+end</code></pre>
+				<p class="example-note">On beat 64 the song moves to Week 6's school, with the camera there at once.</p>
 			</article>
 		</section>
 
@@ -658,6 +704,24 @@ end</code></pre>
     end
 end</code></pre>
 				<p class="example-note">A sound plays when the intro dialogue is over, right before the countdown.</p>
+			</article>
+			<article class="fn" id="onChangeStage">
+				<h3><span class="name">onChangeStage</span><span class="args">(newStage:String, oldStage:String)</span><a class="anchor" href="#onChangeStage">#</a></h3>
+				<p>The stage is about to change (the <strong>Change Stage</strong> event, or <code>changeStage</code>). Return <code>Function_Stop</code> to call it off.</p>
+<pre><code class="language-lua">function onChangeStage(newStage, oldStage)
+    if newStage == 'limo' and not getModSetting('limo') then
+        return Function_Stop
+    end
+end</code></pre>
+				<p class="example-note">The limo only comes if the mod's setting says so.</p>
+			</article>
+			<article class="fn" id="onChangeStagePost">
+				<h3><span class="name">onChangeStagePost</span><span class="args">(newStage:String, oldStage:String)</span><a class="anchor" href="#onChangeStagePost">#</a></h3>
+				<p>The stage changed. <code>curStage</code>, <code>defaultBoyfriendX/Y</code>, <code>defaultOpponentX/Y</code> and <code>defaultGirlfriendX/Y</code> already have the new stage's values.</p>
+<pre><code class="language-lua">function onChangeStagePost(newStage, oldStage)
+    cameraFlash('camGame', 'FFFFFF', 0.5)
+end</code></pre>
+				<p class="example-note">A white flash hides the moment the stage changes.</p>
 			</article>
 		</section>
 

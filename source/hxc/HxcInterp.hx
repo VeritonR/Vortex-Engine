@@ -300,10 +300,61 @@ class HxcInterp extends Interp
 		return super.expr(e);
 	}
 
+	// A loop of a script that never ends would freeze the game for good (a "while" that waits for something that never happens).
+	// One that is still going after LOOP_SECONDS is stopped with an error, the way a script's crash is: the game goes on
+	static inline final LOOP_SECONDS:Float = 5;
+	static inline final LOOP_GUARD:String = '__hxcLoopGuard';
+	var loopGuards:Array<Dynamic->Dynamic> = [];
+
+	// The loop's condition, looked at through a check of how long it has been going (every so many times, not to slow it down)
+	function guardedCondition(econd:Expr):Expr
+	{
+		var started:Float = haxe.Timer.stamp();
+		var count:Int = 0;
+		loopGuards.push(function(value:Dynamic):Dynamic
+		{
+			if(++count % 4096 == 0 && haxe.Timer.stamp() - started > LOOP_SECONDS)
+				throw 'A loop was still going after $LOOP_SECONDS seconds ($count times), it was stopped so the game does not freeze';
+			return value;
+		});
+		return makeExpr(ECall(makeExpr(EIdent(LOOP_GUARD), econd), [econd]), econd);
+	}
+
+	override function whileLoop(econd:Expr, e:Expr)
+	{
+		var guarded:Expr = guardedCondition(econd);
+		try
+		{
+			super.whileLoop(guarded, e);
+		}
+		catch(err:Dynamic)
+		{
+			loopGuards.pop();
+			throw err;
+		}
+		loopGuards.pop();
+	}
+
+	override function doWhileLoop(econd:Expr, e:Expr)
+	{
+		var guarded:Expr = guardedCondition(econd);
+		try
+		{
+			super.doWhileLoop(guarded, e);
+		}
+		catch(err:Dynamic)
+		{
+			loopGuards.pop();
+			throw err;
+		}
+		loopGuards.pop();
+	}
+
 	override function resolve(id:String):Dynamic
 	{
 		var local = locals.get(id);
 		if(local != null) return local.r;
+		if(id == LOOP_GUARD && loopGuards.length > 0) return loopGuards[loopGuards.length - 1];
 
 		if(scope.exists(id)) return scope.get(id);
 

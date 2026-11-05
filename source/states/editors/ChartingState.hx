@@ -97,7 +97,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		['Camera Bop', "(Vortex) How often the camera bops.\nValue 1: Beats between bops (blank: each section,\n0: none)\nValue 2: How strong (Default: 1)"],
 		['Character Trail', "(Vortex) Afterimages behind a character.\nValue 1: dad, bf, gf or the tag of an extra character\nValue 2: Color (blank: removes the trail)"],
 		['Notes Fade', "(Vortex) Fades the receptors and their notes.\nValue 1: player, opponent or both\nValue 2: Alpha, Duration, Ease (Default: 0, 0.5, linear)\n\nWith Play as Opponent the played ones stay visible."],
-		['Camera Angle', "(Vortex) Turns a camera.\nValue 1: game, hud or other\nValue 2: Angle, Duration, Ease (Default: 0, 0, linear)"]
+		['Camera Angle', "(Vortex) Turns a camera.\nValue 1: game, hud or other\nValue 2: Angle, Duration, Ease (Default: 0, 0, linear)"],
+		['Change Stage', "(Vortex) Changes the stage in the middle of the song.\nValue 1: The stage's name (its file in \"stages\")\nValue 2 (optional), separated by commas:\nkeep = the characters stay where they are\nsnap = the camera is there at once\nkeepzoom = the camera's zoom stays\n\nIts images are loaded with the song."]
 	];
 	
 	public static var keysArray:Array<FlxKey> = [ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT]; //Used for Vortex Editor
@@ -745,10 +746,36 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		loadChart(song);
 	}
 
+	// If the chart's extra characters aren't the ones the grid has fields for (a chart opened with others: a Codename Engine one's
+	// strumlines): the editor is made again, with a field for each, like Codename's grid
+	function extraFieldsChanged():Bool
+	{
+		var fromVSlice:Bool = (PlayState.SONG == null) #if MODS_ALLOWED || PolymodCompat.isVSliceChart(PlayState.SONG) #end;
+		var wanted:Array<String> = [];
+		if(!fromVSlice && PlayState.SONG.vortexCharacters != null)
+			for (extra in PlayState.SONG.vortexCharacters)
+				if(extra != null && extra.tag != null && wanted.length < MAX_EXTRA_FIELDS) wanted.push(Std.string(extra.tag));
+		var current:Array<String> = [for (extra in extraColumns) Std.string(extra.tag)];
+		return wanted.join('\n') != current.join('\n');
+	}
+
+	/**
+	 * The name "Save" suggests for a Codename Engine chart that was opened (Psych's "<song>-<difficulty>.json": Codename's file is
+	 * only "<difficulty>.json"). Kept while the editor is made again for it.
+	 */
+	static var codenameSaveName:String = null;
+
+	function codenameNameFor(song:String, filePath:String):String
+	{
+		var difficulty:String = haxe.io.Path.withoutExtension(haxe.io.Path.withoutDirectory(filePath)).toLowerCase();
+		var postfix:String = (difficulty.length < 1 || difficulty == 'normal') ? '' : '-' + Paths.formatToSongPath(difficulty);
+		return Paths.formatToSongPath(song) + postfix + '.json';
+	}
+
 	function prepareReload()
 	{
 		// (a chart with another number of arrows: the editor is made again for it)
-		if(backend.ExtraKeys.countOf(PlayState.SONG) != GRID_COLUMNS_PER_PLAYER)
+		if(backend.ExtraKeys.countOf(PlayState.SONG) != GRID_COLUMNS_PER_PLAYER || extraFieldsChanged())
 		{
 			Conductor.songPosition = 0;
 			reopenTab = mainBox.selectedName;
@@ -3254,9 +3281,14 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	var extraYStepper:PsychUINumericStepper;
 	var extraSingsAllCheckBox:PsychUICheckBox;
 	var extraBehindCheckBox:PsychUICheckBox;
+	var extraOwnStrumCheckBox:PsychUICheckBox;
+	var extraStrumVisibleCheckBox:PsychUICheckBox;
+	var extraStrumXStepper:PsychUINumericStepper;
+	var extraStrumYStepper:PsychUINumericStepper;
 	var extraRemoveButton:PsychUIButton;
 	var extraInfoText:FlxText;
 	var extraFields:Array<FlxSprite> = [];
+	var extraStrumFields:Array<FlxSprite> = [];
 
 	function getExtras():Array<Dynamic>
 	{
@@ -3542,8 +3574,40 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			if(extra != null) extra.behind = extraBehindCheckBox.checked;
 		});
 
-		objY += 30;
-		extraInfoText = new FlxText(objX, objY, 280, '', 8);
+		// Its notes on the side's receptors (shared), or on receptors of its own: a strumline of its own, like Codename Engine's
+		objY += 25;
+		extraOwnStrumCheckBox = new PsychUICheckBox(objX, objY, 'Receptors of its own (a strumline of its own)', 250, function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra == null) return;
+			extra.ownStrum = extraOwnStrumCheckBox.checked;
+			// (where they start: the middle of the screen, at the top)
+			if(extra.ownStrum && extra.strumX == null) extra.strumX = extraStrumXStepper.value;
+			if(extra.ownStrum && extra.strumY == null) extra.strumY = extraStrumYStepper.value;
+			refreshExtrasTab();
+		});
+		objY += 40;
+		extraStrumXStepper = new PsychUINumericStepper(objX, objY, 10, 416, -9999, 9999, 0, 80);
+		extraStrumXStepper.onValueChange = function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.strumX = extraStrumXStepper.value;
+		};
+		extraStrumYStepper = new PsychUINumericStepper(objX + 110, objY, 10, 50, -9999, 9999, 0, 80);
+		extraStrumYStepper.onValueChange = function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra != null) extra.strumY = extraStrumYStepper.value;
+		};
+		extraStrumVisibleCheckBox = new PsychUICheckBox(objX + 220, objY, 'Seen', 60, function()
+		{
+			var extra:Dynamic = getCurExtra();
+			if(extra == null) return;
+			if(extraStrumVisibleCheckBox.checked) Reflect.deleteField(extra, 'strumVisible');
+			else extra.strumVisible = false;
+		});
+
+		extraInfoText = new FlxText(objX, extraOwnStrumCheckBox.y + 30, 280, '', 8); //(where the receptors' fields go: only shown without them)
 
 		var labels:Array<FlxText> = [
 			new FlxText(extraSelectDropDown.x, extraSelectDropDown.y - 15, 200, 'Extra character:'),
@@ -3551,7 +3615,9 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			new FlxText(extraSideDropDown.x, extraSideDropDown.y - 15, 120, 'Side:'),
 			new FlxText(extraCharDropDown.x, extraCharDropDown.y - 15, 120, 'Character:'),
 			new FlxText(extraXStepper.x, extraXStepper.y - 15, 100, 'X (from the main):'),
-			new FlxText(extraYStepper.x, extraYStepper.y - 15, 100, 'Y (from the main):')
+			new FlxText(extraYStepper.x, extraYStepper.y - 15, 100, 'Y (from the main):'),
+			new FlxText(extraStrumXStepper.x, extraStrumXStepper.y - 15, 110, 'Receptors X (left):'),
+			new FlxText(extraStrumYStepper.x, extraStrumYStepper.y - 15, 110, 'Receptors Y (top):')
 		];
 		for (label in labels) tab_group.add(label);
 		tab_group.add(addButton);
@@ -3560,6 +3626,10 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		tab_group.add(extraYStepper);
 		tab_group.add(extraSingsAllCheckBox);
 		tab_group.add(extraBehindCheckBox);
+		tab_group.add(extraOwnStrumCheckBox);
+		tab_group.add(extraStrumXStepper);
+		tab_group.add(extraStrumYStepper);
+		tab_group.add(extraStrumVisibleCheckBox);
 		tab_group.add(extraInfoText);
 		tab_group.add(extraTagInputText);
 		tab_group.add(extraCharDropDown);
@@ -3568,7 +3638,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		// (what's hidden while there are none)
 		extraFields = [extraRemoveButton, extraTagInputText, extraSideDropDown, extraCharDropDown, extraXStepper, extraYStepper,
-			extraSingsAllCheckBox, extraBehindCheckBox, labels[1], labels[2], labels[3], labels[4], labels[5]];
+			extraSingsAllCheckBox, extraBehindCheckBox, extraOwnStrumCheckBox, labels[1], labels[2], labels[3], labels[4], labels[5]];
+		extraStrumFields = [extraStrumXStepper, extraStrumYStepper, extraStrumVisibleCheckBox, labels[6], labels[7]];
 	}
 
 	function extraTagExists(tag:String):Bool
@@ -3591,6 +3662,10 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		var extra:Dynamic = fromVSlice ? null : getCurExtra();
 		var has:Bool = (extra != null);
 		for (field in extraFields) field.visible = field.active = has;
+		// (where its receptors are: only with receptors of its own)
+		var ownStrum:Bool = has && extra.ownStrum == true;
+		for (field in extraStrumFields) field.visible = field.active = ownStrum;
+		extraInfoText.visible = !ownStrum;
 		extraSelectDropDown.visible = extraSelectDropDown.active = !fromVSlice;
 
 		if(fromVSlice)
@@ -3607,6 +3682,10 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			extraYStepper.value = (extra.y != null) ? extra.y : 0;
 			extraSingsAllCheckBox.checked = (extra.singsAll == true);
 			extraBehindCheckBox.checked = (extra.behind == true);
+			extraOwnStrumCheckBox.checked = ownStrum;
+			extraStrumXStepper.value = (extra.strumX != null) ? extra.strumX : 416;
+			extraStrumYStepper.value = (extra.strumY != null) ? extra.strumY : 50;
+			extraStrumVisibleCheckBox.checked = (extra.strumVisible != false);
 			extraInfoText.text = 'Who sings each note: Note tab, "Sung by".\nScripts get it by its tag; "Change Character" with\nthe tag changes it. (Vortex Engine only)';
 		}
 	}
@@ -4221,7 +4300,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		var tab_group = tab.menu;
 		var btnX = tab.x - upperBox.x;
 		var btnY = 1;
-		var btnWid = Std.int(tab.width);
+		var btnWid = Std.int(Math.max(tab.width, 170)); //(wider than its tab: "Open Codename Engine Chart..." fits)
 
 		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  New', function()
 		{
@@ -4251,7 +4330,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				try
 				{
 					var filePath:String = fileDialog.path.replace('\\', '/');
-					var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')));
+					var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')), 'psych_v1', filePath);
+					var fromCodename:Bool = backend.CodenameChart.lastWasCodename;
 					if(loadedChart == null || !Reflect.hasField(loadedChart, 'song')) //Check if chart is ACTUALLY a chart and valid
 					{
 						showOutput('Error: File loaded is not a Psych Engine/FNF 0.2.x.x chart.', true);
@@ -4262,11 +4342,58 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					{
 						loadChart(loadedChart);
 						Song.chartPath = fileDialog.path;
+						if(fromCodename) Song.chartPath = null; //(saving asks where: not over the Codename file)
+						codenameSaveName = fromCodename ? codenameNameFor(loadedChart.song, fileDialog.path) : null;
 						reloadNotesDropdowns();
 						prepareReload();
-						showOutput('Opened chart "${Song.chartPath}" successfully!');
+						showOutput(fromCodename ? 'Opened the Codename Engine chart "${fileDialog.path}": saving makes a Psych chart (it asks where)'
+							: 'Opened chart "${Song.chartPath}" successfully!');
 					}
 					
+					if(!ignoreProgressCheckBox.checked) openSubState(new Prompt('Warning: Any unsaved progress\nwill be lost.', func));
+					else func();
+				}
+				catch(e:Exception)
+				{
+					showOutput('Error: ${e.message}', true);
+					trace(e.stack);
+				}
+			});
+		}, btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
+		// A Codename Engine chart ("songs/<song>/charts/<difficulty>.json"), turned into a Psych one with its strumlines as fields of
+		// their own; "Save" then suggests "<song>-<difficulty>.json"
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Open Codename Engine Chart...', function()
+		{
+			if(!fileDialog.completed) return;
+			upperBox.isMinimized = true;
+			upperBox.bg.visible = false;
+
+			fileDialog.open(function()
+			{
+				try
+				{
+					var filePath:String = fileDialog.path.replace('\\', '/');
+					var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')), 'psych_v1', filePath);
+					if(loadedChart == null || !backend.CodenameChart.lastWasCodename)
+					{
+						showOutput('Error: that is not a Codename Engine chart (a Psych one opens with "Open Chart...").', true);
+						return;
+					}
+
+					var func:Void->Void = function()
+					{
+						loadChart(loadedChart);
+						Song.chartPath = null; //(saving asks where: not over the Codename file)
+						codenameSaveName = codenameNameFor(loadedChart.song, filePath);
+						reloadNotesDropdowns();
+						showOutput('Converted the Codename Engine chart to a Psych one: "Save" asks where (as "$codenameSaveName")');
+						prepareReload();
+					}
+
 					if(!ignoreProgressCheckBox.checked) openSubState(new Prompt('Warning: Any unsaved progress\nwill be lost.', func));
 					else func();
 				}
@@ -4384,7 +4511,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					try
 					{
 						var filePath:String = fileDialog.path.replace('\\', '/');
-						var eventsFile:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')));
+						var eventsFile:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')), 'psych_v1', filePath);
 						if(eventsFile == null || Reflect.hasField(eventsFile, 'scrollSpeed') || eventsFile.events == null)
 						{
 							showOutput('Error: File loaded is not a Psych Engine chart/events file.', true);
@@ -4547,7 +4674,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				{
 					try
 					{
-						var reloadedChart:SwagSong = Song.parseJSON(File.getContent(Song.chartPath));
+						var reloadedChart:SwagSong = Song.parseJSON(File.getContent(Song.chartPath), null, 'psych_v1', Song.chartPath);
 						loadChart(reloadedChart);
 						reloadNotesDropdowns();
 						prepareReload();
@@ -4664,7 +4791,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			fileDialog.open('song.json', 'Open a Psych Engine Chart JSON', function()
 			{
 				var filePath:String = fileDialog.path.replace('\\', '/');
-				var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')));
+				var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath.substr(filePath.lastIndexOf('/')), 'psych_v1', filePath);
 				if(loadedChart == null || !Reflect.hasField(loadedChart, 'song')) //Check if chart is ACTUALLY a chart and valid
 				{
 					showOutput('Error: File loaded is not a Psych Engine 0.x.x/FNF 0.2.x.x chart.', true);
@@ -4703,7 +4830,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 										var chartToFind:String = parentFolder + songName + diffPostfix + '.json';
 										if(FileSystem.exists(chartToFind))
 										{
-											var diffChart:SwagSong = Song.parseJSON(File.getContent(chartToFind), songName + diffPostfix);
+											var diffChart:SwagSong = Song.parseJSON(File.getContent(chartToFind), songName + diffPostfix, 'psych_v1', chartToFind);
 											if(diffChart != null)
 											{
 												var subpack:VSlicePackage = VSlice.export(diffChart);
@@ -4723,7 +4850,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 									var chartToFind:String = parentFolder + 'events.json';
 									if(FileSystem.exists(chartToFind))
 									{
-										var eventsChart:SwagSong = Song.parseJSON(File.getContent(chartToFind), 'events');
+										var eventsChart:SwagSong = Song.parseJSON(File.getContent(chartToFind), 'events', 'psych_v1', chartToFind);
 										if(eventsChart != null)
 										{
 											var subpack:VSlicePackage = VSlice.export(eventsChart);
@@ -4915,7 +5042,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					var filePath:String = fileDialog.path.replace('\\', '/');
 					filePath = filePath.substring(filePath.lastIndexOf('/')+1, filePath.lastIndexOf('.'));
 
-					var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath, '');
+					var loadedChart:SwagSong = Song.parseJSON(fileDialog.data, filePath, '', filePath);
 					if(loadedChart == null || !Reflect.hasField(loadedChart, 'song')) //Check if chart is ACTUALLY a chart and valid
 					{
 						showOutput('Error: File loaded is not a Psych Engine 0.x.x/FNF 0.2.x.x chart.', true);
@@ -5566,6 +5693,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		{
 			var chartName:String = Paths.formatToSongPath(PlayState.SONG.song) + '.json';
 			if(Song.chartPath != null) chartName = Song.chartPath.substr(Song.chartPath.lastIndexOf('/')).trim();
+			else if(codenameSaveName != null) chartName = codenameSaveName;
 			fileDialog.save(chartName, chartData,
 				function()
 				{
@@ -5577,6 +5705,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					}
 
 					Song.chartPath = newPath.replace('\\', '/');
+					codenameSaveName = null;
 					reloadNotesDropdowns();
 					showOutput('Chart saved successfully to: $newPath');
 
