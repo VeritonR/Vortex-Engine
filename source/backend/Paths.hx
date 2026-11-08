@@ -448,6 +448,21 @@ class Paths
 		return (OpenFlAssets.exists(getPath(key, type, parentFolder, false)));
 	}
 
+	/**
+	 * Frames of a sheet that have no size (a "0 x 0" frame, what Animate exports for the empty frames at the end of an animation)
+	 * are made empty frames, which draw nothing, the way the newer flixel V-Slice is made with does. Here they were normal frames,
+	 * and the camera drew something else in their place: the water SKYREBORN's Pico throws on Manifest stayed on the screen until
+	 * the song was over.
+	 */
+	public static function emptyZeroFrames(frames:FlxAtlasFrames):FlxAtlasFrames
+	{
+		if(frames == null) return frames;
+		for (frame in frames.frames)
+			if(frame != null && frame.type != flixel.graphics.frames.FlxFrame.FlxFrameType.EMPTY && frame.frame != null && (frame.frame.width <= 0 || frame.frame.height <= 0))
+				frame.type = flixel.graphics.frames.FlxFrame.FlxFrameType.EMPTY;
+		return frames;
+	}
+
 	static public function getAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var useMod = false;
@@ -457,9 +472,9 @@ class Paths
 		if(OpenFlAssets.exists(myXml) #if MODS_ALLOWED || (FileSystem.exists(myXml) && (useMod = true)) #end )
 		{
 			#if MODS_ALLOWED
-			return FlxAtlasFrames.fromSparrow(imageLoaded, (useMod ? File.getContent(myXml) : myXml));
+			return emptyZeroFrames(FlxAtlasFrames.fromSparrow(imageLoaded, (useMod ? File.getContent(myXml) : myXml)));
 			#else
-			return FlxAtlasFrames.fromSparrow(imageLoaded, myXml);
+			return emptyZeroFrames(FlxAtlasFrames.fromSparrow(imageLoaded, myXml));
 			#end
 		}
 		else
@@ -468,9 +483,9 @@ class Paths
 			if(OpenFlAssets.exists(myJson) #if MODS_ALLOWED || (FileSystem.exists(myJson) && (useMod = true)) #end )
 			{
 				#if MODS_ALLOWED
-				return FlxAtlasFrames.fromTexturePackerJson(imageLoaded, (useMod ? File.getContent(myJson) : myJson));
+				return emptyZeroFrames(FlxAtlasFrames.fromTexturePackerJson(imageLoaded, (useMod ? File.getContent(myJson) : myJson)));
 				#else
-				return FlxAtlasFrames.fromTexturePackerJson(imageLoaded, myJson);
+				return emptyZeroFrames(FlxAtlasFrames.fromTexturePackerJson(imageLoaded, myJson));
 				#end
 			}
 		}
@@ -537,9 +552,9 @@ class Paths
 		var xml:String = modsXml(key);
 		if(FileSystem.exists(xml)) xmlExists = true;
 
-		return FlxAtlasFrames.fromSparrow(imageLoaded, (xmlExists ? File.getContent(xml) : getPath(Language.getFileTranslation('images/$key') + '.xml', TEXT, parentFolder)));
+		return emptyZeroFrames(FlxAtlasFrames.fromSparrow(imageLoaded, (xmlExists ? File.getContent(xml) : getPath(Language.getFileTranslation('images/$key') + '.xml', TEXT, parentFolder))));
 		#else
-		return FlxAtlasFrames.fromSparrow(imageLoaded, getPath(Language.getFileTranslation('images/$key') + '.xml', TEXT, parentFolder));
+		return emptyZeroFrames(FlxAtlasFrames.fromSparrow(imageLoaded, getPath(Language.getFileTranslation('images/$key') + '.xml', TEXT, parentFolder)));
 		#end
 	}
 
@@ -558,9 +573,9 @@ class Paths
 		var txt:String = modsTxt(key);
 		if(FileSystem.exists(txt)) txtExists = true;
 
-		return FlxAtlasFrames.fromSpriteSheetPacker(imageLoaded, (txtExists ? File.getContent(txt) : getPath(Language.getFileTranslation('images/$key') + '.txt', TEXT, parentFolder)));
+		return emptyZeroFrames(FlxAtlasFrames.fromSpriteSheetPacker(imageLoaded, (txtExists ? File.getContent(txt) : getPath(Language.getFileTranslation('images/$key') + '.txt', TEXT, parentFolder))));
 		#else
-		return FlxAtlasFrames.fromSpriteSheetPacker(imageLoaded, getPath(Language.getFileTranslation('images/$key') + '.txt', TEXT, parentFolder));
+		return emptyZeroFrames(FlxAtlasFrames.fromSpriteSheetPacker(imageLoaded, getPath(Language.getFileTranslation('images/$key') + '.txt', TEXT, parentFolder)));
 		#end
 	}
 
@@ -579,9 +594,9 @@ class Paths
 		var json:String = modsImagesJson(key);
 		if(FileSystem.exists(json)) jsonExists = true;
 
-		return FlxAtlasFrames.fromTexturePackerJson(imageLoaded, (jsonExists ? File.getContent(json) : getPath(Language.getFileTranslation('images/$key') + '.json', TEXT, parentFolder)));
+		return emptyZeroFrames(FlxAtlasFrames.fromTexturePackerJson(imageLoaded, (jsonExists ? File.getContent(json) : getPath(Language.getFileTranslation('images/$key') + '.json', TEXT, parentFolder))));
 		#else
-		return FlxAtlasFrames.fromTexturePackerJson(imageLoaded, getPath(Language.getFileTranslation('images/$key') + '.json', TEXT, parentFolder));
+		return emptyZeroFrames(FlxAtlasFrames.fromTexturePackerJson(imageLoaded, getPath(Language.getFileTranslation('images/$key') + '.json', TEXT, parentFolder)));
 		#end
 	}
 
@@ -696,6 +711,14 @@ class Paths
 		{
 			var fileToCheck:String = PolymodCompat.findFile(PolymodCompat.BASE_MOD, key);
 			if(fileToCheck != null) return fileToCheck;
+
+			// or the mod's the song took a character from (its images and sounds), when the engine doesn't have it either. Only those:
+			// every other mod's took the place of the engine's own (another mod's ratings), see PolymodCompat.findInBorrowedMods()
+			if(!FileSystem.exists(getSharedPath(key)) && !FileSystem.exists('assets/$key'))
+			{
+				fileToCheck = PolymodCompat.findInBorrowedMods(key);
+				if(fileToCheck != null) return fileToCheck;
+			}
 		}
 		return 'mods/' + key;
 	}

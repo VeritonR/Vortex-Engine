@@ -516,6 +516,12 @@ class Note extends FlxSprite
 		offsetX += (oldWidth - width) / 2;
 	}
 
+	/**
+	 * The shader the note is drawn with when nothing gave it another: the one that colors it, if it's colored by one.
+	 */
+	public function engineShader():flixel.system.FlxAssets.FlxShader
+		return (rgbShader != null && rgbShader.enabled) ? rgbShader.parent.shader : null;
+
 	public static function getNoteSkinPostfix()
 	{
 		var skin:String = '';

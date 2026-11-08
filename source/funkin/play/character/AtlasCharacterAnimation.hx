@@ -43,7 +43,9 @@ class AtlasCharacterAnimation
 
 	public function play(name:String, force:Bool = false, reversed:Bool = false, frame:Int = 0):Void
 	{
-		if(exists(name)) character.playAnim(name, force, reversed, frame);
+		// (the animation as it is: on V-Slice `animation.play()` doesn't go through the character's `playAnimation()`, which scripts
+		// replace. Spooky's wet Sky got wet when its stage played its "drenched" this way to have it loaded early)
+		if(exists(name)) character.playAnimDirect(name, force, reversed, frame);
 	}
 
 	public function pause():Void

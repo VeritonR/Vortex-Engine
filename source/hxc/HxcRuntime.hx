@@ -290,26 +290,44 @@ class HxcRuntime
 	 */
 	public static function loadFolder(folder:String):Int
 	{
-		if(!FileSystem.exists(folder) || !FileSystem.isDirectory(folder)) return 0;
-
 		var count:Int = 0;
+		for (path in findFiles(folder)) count += loadFile(path);
+		return count;
+	}
+
+	/**
+	 * The .hxc files inside a folder and the folders inside of it.
+	 *
+	 * @param skip 	Folders right inside this one to leave out.
+	 */
+	public static function findFiles(folder:String, ?skip:Array<String>, ?found:Array<String>):Array<String>
+	{
+		if(found == null) found = [];
+		if(!FileSystem.exists(folder) || !FileSystem.isDirectory(folder)) return found;
+
 		for (file in FileSystem.readDirectory(folder))
 		{
 			var path:String = haxe.io.Path.addTrailingSlash(folder) + file;
-			if(FileSystem.isDirectory(path)) count += loadFolder(path);
-			else if(file.toLowerCase().endsWith('.hxc'))
-			{
-				try
-				{
-					count += loadSource(File.getContent(path), path);
-				}
-				catch(e:Dynamic)
-				{
-					onError('Could not read "$path": $e');
-				}
-			}
+			if(file.toLowerCase().endsWith('.hxc') && !FileSystem.isDirectory(path)) found.push(path);
+			else if((skip == null || !skip.contains(file)) && FileSystem.isDirectory(path)) findFiles(path, null, found);
 		}
-		return count;
+		return found;
+	}
+
+	/**
+	 * Loads one .hxc file, returns how many classes it had.
+	 */
+	public static function loadFile(path:String):Int
+	{
+		try
+		{
+			return loadSource(File.getContent(path), path);
+		}
+		catch(e:Dynamic)
+		{
+			onError('Could not read "$path": $e');
+		}
+		return 0;
 	}
 	#end
 
@@ -355,6 +373,9 @@ class HxcRuntime
 					if(value != null) module.imports.set(name, value);
 					else if(isNameUsed(code, name)) module.missingImports.push(fullPath);
 					else module.unusedImports.push(fullPath); //lots of scripts import things they never touch, those can't break anything
+
+				case DPackage(path):
+					module.pack = (path != null && path.length > 0) ? path.join('.') : null;
 
 				case DClass(classDecl):
 					var cls:HxcClass = new HxcClass(classDecl, module);
@@ -711,6 +732,7 @@ class HxcRuntime
 class HxcModule
 {
 	public var path:String;
+	public var pack:String = null; //(its `package`, null without one)
 	public var imports:Map<String, Dynamic> = [];
 	public var missingImports:Array<String> = [];
 	public var unusedImports:Array<String> = []; //missing as well, but the script never uses them
@@ -731,6 +753,13 @@ class HxcClass
 	public var name:String;
 	public var module:HxcModule;
 	public var decl:ClassDecl;
+
+	/**
+	 * The name with the package of its file, the way Polymod knows it.
+	 */
+	public var fullName(get, never):String;
+	function get_fullName():String
+		return (module != null && module.pack != null) ? module.pack + '.' + name : name;
 
 	/**
 	 * Name of the class it extends, null if it doesn't extend anything.

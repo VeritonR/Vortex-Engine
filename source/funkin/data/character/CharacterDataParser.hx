@@ -27,9 +27,7 @@ class CharacterDataParser
 	public static function fetchCharacterData(charId:String):Dynamic
 	{
 		#if MODS_ALLOWED
-		var data:Dynamic = backend.PolymodCompat.getCharacterFile(charId, false);
-		if(data == null) data = backend.PolymodCompat.getBaseCharacterFile(charId, false);
-		return data;
+		return backend.PolymodCompat.getSongCharacterFile(charId, false, Paths.getPath('characters/$charId.json', TEXT));
 		#else
 		return null;
 		#end

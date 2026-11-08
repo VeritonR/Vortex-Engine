@@ -85,7 +85,24 @@ class AtlasSprite extends FlxAnimate
 	 * with this the sprite's position is that file's own corner, and the art is drawn as far from it as it was there.
 	 * Without it (the default) the position is the top left corner of the art itself.
 	 */
-	public var applyStageMatrix(default, null):Bool = false;
+	public var applyStageMatrix(default, set):Bool = false;
+	// (scripts turn it on after making the atlas, like V-Slice's do: Spooky Mix's lamp and its light, each placed by its file)
+	function set_applyStageMatrix(value:Bool):Bool
+	{
+		if(applyStageMatrix == value) return value;
+		applyStageMatrix = value;
+		if(!loaded || anim.stageInstance == null || anim.stageInstance.matrix == null) return value;
+
+		@:privateAccess
+		for (added in anim.animsMap)
+		{
+			if(added == null || added.instance == null || added.instance.matrix == null) continue;
+			if(value) added.instance.matrix.copyFrom(anim.stageInstance.matrix);
+			else added.instance.matrix.identity();
+		}
+		placeByBounds();
+		return value;
+	}
 
 	/**
 	 * Layer, for whoever sorts it among other things.
@@ -181,6 +198,20 @@ class AtlasSprite extends FlxAnimate
 		anim.addBySymbolIndices(MAIN, mainName, [for (i in 0...mainLength) i], 0, false);
 		useStageMatrix(MAIN);
 
+		placeByBounds();
+
+		// Before anything is played it shows the first frame of its timeline, still, like V-Slice's atlases do (A-Bot's eyes are
+		// only played when the camera moves: they weren't there until then). Nothing counts as being played yet
+		anim.play(MAIN, true, false, 0);
+		anim.pause();
+
+		player.reset();
+		return this;
+	}
+
+	// Where the sprite's position is on the art: the file's corner (placed by its stage) or the top left of what it shows
+	function placeByBounds():Void
+	{
 		computeBounds();
 		if(applyStageMatrix)
 		{
@@ -199,14 +230,6 @@ class AtlasSprite extends FlxAnimate
 		// flipped, the art is mirrored inside of the box
 		flipWidth = boundsX * 2 + boundsWidth;
 		flipHeight = boundsY * 2 + boundsHeight;
-
-		// Before anything is played it shows the first frame of its timeline, still, like V-Slice's atlases do (A-Bot's eyes are
-		// only played when the camera moves: they weren't there until then). Nothing counts as being played yet
-		anim.play(MAIN, true, false, 0);
-		anim.pause();
-
-		player.reset();
-		return this;
 	}
 
 	/**

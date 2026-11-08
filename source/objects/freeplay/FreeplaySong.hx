@@ -66,7 +66,14 @@ class FreeplaySong
 	function get_data():Dynamic
 	{
 		var id:String = Paths.formatToSongPath(name);
-		return {id: id, songName: displayName};
+		// (V-Slice's is the song itself: scripts read a difficulty's stars from it, `data.getDifficulty(id, variation).difficultyRating`)
+		var song:FreeplaySong = this;
+		return {id: id, songName: displayName, getDifficulty: function(?diffId:String, ?variation:String):Dynamic
+		{
+			var difficulty:String = (diffId != null && diffId.length > 0) ? diffId : ((difficultyIds.length > 0) ? difficultyIds[0] : 'normal');
+			return {difficulty: difficulty, variation: (variation != null) ? variation : 'default', songName: song.displayName,
+				difficultyRating: song.rating}; //(the stars of the difficulty Freeplay has on, which is the one scripts ask about)
+		}};
 	}
 
 	/**

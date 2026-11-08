@@ -139,7 +139,54 @@ class PolymodCompat
 	public static function clearCache():Void
 	{
 		dataCache = [];
+		otherModFiles = [];
 		PolymodMerge.clearCache();
+	}
+
+	// What `findInOtherMods()` found for each mod and file ("" for nothing): looked for once, it's asked about over and over
+	static var otherModFiles:Map<String, String> = [];
+
+	/**
+	 * A file of another enabled V-Slice mod, for a V-Slice mod's song that uses something only another mod has (Whitty's songs made
+	 * for Spooky Mix's character, its character file and its images): on V-Slice the files of every enabled mod are there at once.
+	 * Only after the song's own mod and the base game's. Null if no other one has it.
+	 */
+	public static function findInOtherMods(key:String):String
+	{
+		var mod:String = Mods.currentModDirectory;
+		if(!isPolymod(mod) || key == null) return null;
+
+		var cacheKey:String = mod + '|' + key;
+		var cached:String = otherModFiles.get(cacheKey);
+		if(cached != null) return (cached.length > 0) ? cached : null;
+
+		var found:String = null;
+		for (other in Mods.parseList().enabled)
+		{
+			if(other == mod || other == BASE_MOD || !isPolymod(other)) continue;
+			found = findFile(other, key);
+			if(found != null) break;
+		}
+		otherModFiles.set(cacheKey, (found != null) ? found : '');
+		return found;
+	}
+
+	/**
+	 * The other enabled V-Slice mod a character of the current mod's song comes from (see `findInOtherMods()`), null if it's the
+	 * song's own mod's or the base game's.
+	 */
+	public static function characterModElsewhere(char:String):String
+	{
+		var mod:String = Mods.currentModDirectory;
+		if(!isPolymod(mod) || char == null || char.length < 1) return null;
+		var key:String = 'data/characters/$char.json';
+		if(findFile(mod, key) != null || findFile(BASE_MOD, key) != null) return null;
+
+		var path:String = findInOtherMods(key);
+		if(path == null) return null;
+		var owner:String = modOfPath(path);
+		borrowFrom(owner);
+		return owner;
 	}
 
 	public static function isPolymod(mod:String):Bool
@@ -285,6 +332,9 @@ class PolymodCompat
 	 * Weeks made out of the mod's levels (Story Mode) and one for each of its songs (Freeplay),
 	 * so every song can have its own list of difficulties.
 	 */
+	// The base game's levels, in the order V-Slice puts them (`LevelRegistry.listBaseGameEntryIds()`)
+	static final BASE_LEVELS:Array<String> = ['tutorial', 'week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'weekend1', 'sserafim'];
+
 	public static function getWeeks(mod:String):Array<PolymodWeek>
 	{
 		return isPolymod(mod) ? getData(mod).weeks : [];
@@ -369,11 +419,28 @@ class PolymodCompat
 		// Levels, each one is a Story Mode week
 		var songColors:Map<String, Array<Int>> = [];
 		var songLevels:Map<String, String> = [];
+		var levelSongOrder:Array<String> = []; //(the songs in the order of the levels, which is the one of V-Slice's Freeplay)
 
 		var levelsFolder:String = Paths.mods('$mod/data/levels/');
 		if(FileSystem.exists(levelsFolder) && FileSystem.isDirectory(levelsFolder))
 		{
-			for (file in FileSystem.readDirectory(levelsFolder))
+			// in V-Slice's order (`LevelRegistry.listSortedLevelIds()`): the base game's weeks first, then the rest alphabetically
+			var levelFiles:Array<String> = FileSystem.readDirectory(levelsFolder);
+			levelFiles.sort(function(a:String, b:String):Int
+			{
+				var idA:String = a.substr(0, a.length - '.json'.length);
+				var idB:String = b.substr(0, b.length - '.json'.length);
+				if(idA == idB) return 0;
+				var baseA:Int = BASE_LEVELS.indexOf(idA);
+				var baseB:Int = BASE_LEVELS.indexOf(idB);
+				if(baseA > -1 && baseB > -1) return baseA - baseB;
+				if(baseA > -1) return -1;
+				if(baseB > -1) return 1;
+				idA = idA.toUpperCase();
+				idB = idB.toUpperCase();
+				return (idA == idB) ? 0 : ((idA > idB) ? 1 : -1);
+			});
+			for (file in levelFiles)
 			{
 				if(!file.toLowerCase().endsWith('.json')) continue;
 
@@ -391,6 +458,7 @@ class PolymodCompat
 					if(song == null) continue; //base game songs or ones from other mods
 
 					songs.push(song);
+					if(!levelSongOrder.contains(key)) levelSongOrder.push(key);
 					if(!songColors.exists(key)) songColors.set(key, color);
 					if(!songLevels.exists(key)) songLevels.set(key, levelId);
 				}
@@ -419,7 +487,12 @@ class PolymodCompat
 		// and the songs with nothing for that player aren't there. The standard one has no Character Select: every song shows up on it,
 		// with the difficulties of all of its variations (the picked character's chart is the one played when a difficulty has more than one)
 		var everyVariation:Bool = (ClientPrefs.data.freeplayStyle != 'V-Slice');
+		// The songs come in the order of the levels they're on, like on V-Slice (the songs of a week used to be spread over the whole
+		// list, in the order of their folders). The ones no level has, which V-Slice doesn't show, go after those
 		for (key in songOrder)
+			if(!levelSongOrder.contains(key))
+				levelSongOrder.push(key);
+		for (key in levelSongOrder)
 		{
 			var song:VSliceSong = data.songs.get(key);
 
@@ -884,6 +957,78 @@ class PolymodCompat
 
 		var path:String = findFile(BASE_MOD, 'data/characters/$char.json');
 		return (path != null) ? VSliceConvert.convertCharacter(parseFile(path), char, isPlayer) : null;
+	}
+
+	/**
+	 * A character only another enabled V-Slice mod has (see `findInOtherMods()`), null if none does.
+	 */
+	public static function getOtherModCharacterFile(char:String, isPlayer:Bool):Dynamic
+	{
+		var path:String = findInOtherMods('data/characters/$char.json');
+		if(path == null) return null;
+		borrowFrom(modOfPath(path));
+		return VSliceConvert.convertCharacter(parseFile(path), char, isPlayer);
+	}
+
+	// The other mods the current mod's song took a character from: their images and sounds are found too (`findInBorrowedMods()`),
+	// the other mods' aren't (the ratings of one ended up on the songs of every other one)
+	static var borrowedMods:Array<String> = [];
+	static var borrowedFor:String = null;
+
+	static function borrowFrom(owner:String):Void
+	{
+		if(owner == null) return;
+		if(borrowedFor != Mods.currentModDirectory)
+		{
+			borrowedFor = Mods.currentModDirectory;
+			borrowedMods = [];
+		}
+		if(!borrowedMods.contains(owner)) borrowedMods.push(owner);
+	}
+
+	/**
+	 * A file of one of the mods the current mod's song took a character from (see `getOtherModCharacterFile()`). Null otherwise.
+	 */
+	public static function findInBorrowedMods(key:String):String
+	{
+		if(borrowedFor != Mods.currentModDirectory || borrowedMods.length < 1 || key == null) return null;
+		for (owner in borrowedMods)
+		{
+			var found:String = findFile(owner, key);
+			if(found != null) return found;
+		}
+		return null;
+	}
+
+	// The mod a path inside the mods folder belongs to
+	static function modOfPath(path:String):String
+	{
+		var root:String = Paths.mods().replace('\\', '/');
+		var rest:String = path.replace('\\', '/');
+		if(!rest.startsWith(root)) return null;
+		rest = rest.substr(root.length);
+		var end:Int = rest.indexOf('/');
+		return (end > 0) ? rest.substr(0, end) : null;
+	}
+
+	/**
+	 * The V-Slice file of a character of the current mod's song, in V-Slice's order: the mod's own; then the base game's, which the
+	 * mod is made on top of (its scripts and the base game's are made for those: Nene's A-Bot is placed by the V-Slice Nene), before
+	 * the engine's own Psych version; and another enabled mod's when nothing else has it. A Psych file of the character in the mods
+	 * folder (`psychPath`, a mod's own) goes before the base game's. Null when the character is a Psych one.
+	 */
+	public static function getSongCharacterFile(char:String, isPlayer:Bool, psychPath:String):Dynamic
+	{
+		var file:Dynamic = getCharacterFile(char, isPlayer);
+		if(file != null) return file;
+		if(!isPolymod(Mods.currentModDirectory) || char == null || char.length < 1) return null;
+
+		var psychExists:Bool = (psychPath != null && FileSystem.exists(psychPath));
+		if(psychExists && !psychPath.replace('\\', '/').startsWith('assets/')) return null;
+
+		file = getBaseCharacterFile(char, isPlayer);
+		if(file != null) return file;
+		return psychExists ? null : getOtherModCharacterFile(char, isPlayer);
 	}
 
 	// ------------------------------------------------------------------------------------------

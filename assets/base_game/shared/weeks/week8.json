@@ -1,0 +1,19 @@
+{
+  "storyName": "Coming Soon",
+  "hideFreeplay": true,
+  "weekBackground": "stage",
+  "weekBefore": "week7",
+  "storyInfo": [
+    "Trailer",
+    "Week 8"
+  ],
+  "difficulties": "Hard",
+  "hideStoryMode": false,
+  "weekName": "Coming Soon",
+  "freeplayColor": [146, 113, 253],
+  "songs": [
+    ["???", "gf", [146, 113, 253]]
+  ],
+  "weekCharacters": ["", "bf", "gf"],
+  "startUnlocked": true
+}

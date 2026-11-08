@@ -1352,6 +1352,38 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 		return true;
 	}
 
+	/**
+	 * Draws what the atlas shows right now on a bitmap's texture (for `stamp()`, which on V-Slice can take an atlas): `prepare` is
+	 * given the size of what it shows and returns the bitmap to draw on, from the top left of that. False if nothing was drawn.
+	 */
+	public function renderCurrent(prepare:Int->Int->BitmapData):Bool
+	{
+		if(anim == null || anim.curInstance == null || anim.curInstance.symbol == null) return false;
+		if(_wholeCamera == null) _wholeCamera = new FlxCamera(0, 0, 0, 0, 1);
+
+		@:privateAccess _wholeCamera.clearDrawStack();
+		_wholeCamera.canvas.graphics.clear();
+		_wholeMatrix.identity();
+		_drawingWhole = true;
+		super.parseElement(anim.curInstance, _wholeMatrix, new ColorTransform(), {instance: anim.curInstance}, [_wholeCamera]);
+		_drawingWhole = false;
+		@:privateAccess _wholeCamera.render();
+
+		var bounds:Rectangle = _wholeCamera.canvas.getBounds(null);
+		var wide:Int = Math.ceil(bounds.width);
+		var tall:Int = Math.ceil(bounds.height);
+		var drawn:Bool = false;
+		if(wide >= 1 && tall >= 1 && wide <= WHOLE_MAX_SIZE && tall <= WHOLE_MAX_SIZE)
+		{
+			var target:BitmapData = prepare(wide, tall);
+			if(target != null) drawn = _renderWhole(_wholeCamera.canvas.graphics, target, bounds);
+		}
+
+		@:privateAccess _wholeCamera.clearDrawStack();
+		_wholeCamera.canvas.graphics.clear();
+		return drawn;
+	}
+
 	// What a camera had drawn on it, on a bitmap's texture: the texture only, the bitmap's own pixels are left as they were
 	// (reading them back from the graphics card on every frame is what makes the library's own way of doing this slow)
 	@:access(openfl.display.OpenGLRenderer)

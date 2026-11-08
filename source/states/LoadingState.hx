@@ -1062,8 +1062,7 @@ class LoadingState extends MusicBeatState
 		{
 			var path:String = Paths.getPath('characters/$char.json', TEXT);
 			#if MODS_ALLOWED
-			var character:Dynamic = PolymodCompat.getCharacterFile(char, false);
-			if(character == null && !FileSystem.exists(path)) character = PolymodCompat.getBaseCharacterFile(char, false);
+			var character:Dynamic = PolymodCompat.getSongCharacterFile(char, false, path);
 			if(character == null) character = Json.parse(File.getContent(path));
 			#else
 			var character:Dynamic = Json.parse(Assets.getText(path));
@@ -1101,8 +1100,7 @@ class LoadingState extends MusicBeatState
 			var path:String = Paths.getPath('characters/$char.json', TEXT);
 			#if MODS_ALLOWED
 			// characters of V-Slice mods have their file somewhere else, without this their images were left for the song itself to load
-			var character:Dynamic = PolymodCompat.getCharacterFile(char, false);
-			if(character == null && !FileSystem.exists(path)) character = PolymodCompat.getBaseCharacterFile(char, false);
+			var character:Dynamic = PolymodCompat.getSongCharacterFile(char, false, path);
 			if(character == null) character = Json.parse(File.getContent(path));
 			#else
 			var character:Dynamic = Json.parse(Assets.getText(path));

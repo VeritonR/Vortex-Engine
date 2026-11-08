@@ -300,6 +300,43 @@ class StoryMenuState extends MusicBeatState
 	{
 		if (!weekIsLocked(loadedWeeks[curWeek].fileName))
 		{
+			if (loadedWeeks[curWeek].fileName == 'week8') 
+			{
+				selectedWeek = true;
+				FlxG.sound.music.stop();
+
+				#if VIDEOS_ALLOWED
+				var filepath:String = Paths.video('week8_trailer');
+				
+				var blackScreen:FlxSprite = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, FlxColor.BLACK);
+				add(blackScreen);
+				
+				var video = new hxvlc.flixel.FlxVideoSprite();
+				video.antialiasing = ClientPrefs.data.antialiasing;
+				add(video); 
+				
+				video.bitmap.onFormatSetup.add(function()
+				{
+					video.setGraphicSize(FlxG.width, FlxG.height);
+					video.updateHitbox();
+					video.screenCenter();
+				});
+				
+				video.bitmap.onEndReached.add(function()
+				{
+					video.destroy();
+					MusicBeatState.switchState(new states.StoryMenuState());
+				});
+				
+				video.load(filepath);
+				video.play();
+				#else
+				MusicBeatState.switchState(new states.StoryMenuState());
+				#end
+				
+				return;
+			}
+
 			// We can't use Dynamic Array .copy() because that crashes HTML5, here's a workaround.
 			var songArray:Array<String> = [];
 			var leWeek:Array<Dynamic> = loadedWeeks[curWeek].songs;

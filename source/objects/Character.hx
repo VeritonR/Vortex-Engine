@@ -121,7 +121,7 @@ class Character extends FlxSprite
 		if(character == null || character.trim().length < 1) return false;
 		#if MODS_ALLOWED
 		if(FileSystem.exists(Paths.getPath('characters/$character.json', TEXT))) return true;
-		return PolymodCompat.getCharacterFile(character, false) != null || PolymodCompat.getBaseCharacterFile(character, false) != null;
+		return PolymodCompat.getSongCharacterFile(character, false, null) != null;
 		#else
 		return Assets.exists(Paths.getPath('characters/$character.json', TEXT));
 		#end
@@ -139,10 +139,8 @@ class Character extends FlxSprite
 		// Characters of a Polymod mod come in the V-Slice format, they get converted to the same data a Psych .json has
 		var vsliceFile:Dynamic = null;
 		#if MODS_ALLOWED
-		vsliceFile = PolymodCompat.getCharacterFile(character, isPlayer);
-
-		// one the mod and the engine don't have, from V-Slice's base game
-		if(vsliceFile == null && !FileSystem.exists(path)) vsliceFile = PolymodCompat.getBaseCharacterFile(character, isPlayer);
+		// (the mod's, V-Slice's base game's or another mod's, see PolymodCompat.getSongCharacterFile())
+		vsliceFile = PolymodCompat.getSongCharacterFile(character, isPlayer, path);
 		#end
 		isVSlice = (vsliceFile != null);
 
@@ -390,7 +388,8 @@ class Character extends FlxSprite
 		if (getAnimationName().startsWith('sing')) holdTimer += elapsed;
 		else if(isPlayer) holdTimer = 0;
 
-		if (!isPlayer && holdTimer >= Conductor.stepCrochet * (0.0011 #if FLX_PITCH / (FlxG.sound.music != null ? FlxG.sound.music.pitch : 1) #end) * singDuration)
+		// (only after singing, like on V-Slice: a character whose sing time is 0, SKYREBORN's Nene of Manifest, danced again on every frame)
+		if (!isPlayer && holdTimer > 0 && holdTimer >= Conductor.stepCrochet * (0.0011 #if FLX_PITCH / (FlxG.sound.music != null ? FlxG.sound.music.pitch : 1) #end) * singDuration)
 		{
 			dance();
 			holdTimer = 0;
@@ -570,6 +569,8 @@ class Character extends FlxSprite
 		var index:Int = Std.isOfType(dir, Int) ? dir : names.indexOf('sing' + Std.string(dir).toUpperCase());
 		if(index < 0 || index >= names.length) return;
 
+		if(singByScript(index, miss, suffix)) return;
+
 		// (V-Slice gives the suffix without its dash: "singLEFT-(suffix)")
 		if(suffix == null) suffix = '';
 		if(suffix.length > 0 && !suffix.startsWith('-')) suffix = '-' + suffix;
@@ -579,6 +580,25 @@ class Character extends FlxSprite
 
 		playAnim(name, true);
 		holdTimer = 0;
+	}
+
+	/**
+	 * Has the character's V-Slice script sing to a direction with its own `playSingAnimation()`, if it has one: V-Slice's
+	 * characters sing every note through that function, and scripts replace it to pick another animation (Vs Impostor's
+	 * Lights Down sings the black and white poses only after the lights go out). False if there's no such script.
+	 */
+	public function singByScript(dir:Int, miss:Bool = false, ?suffix:String = ''):Bool
+	{
+		#if HSCRIPT_ALLOWED
+		if(scriptOverrides == null || !scriptOverrides.contains('playSingAnimation')) return false;
+
+		// (the scripts get the suffix the way V-Slice gives it, without its dash)
+		if(suffix == null) suffix = '';
+		if(suffix.startsWith('-')) suffix = suffix.substr(1);
+		return backend.VSliceScripts.callOverride(this, 'playSingAnimation', [dir, miss, suffix]);
+		#else
+		return false;
+		#end
 	}
 
 	public function isSinging():Bool
@@ -1004,13 +1024,25 @@ class Character extends FlxSprite
 		return animation == null;
 	}
 
+	/**
+	 * Plays an animation without going through a script's own `playAnimation()` (what V-Slice's `animation.play()` does).
+	 */
+	public function playAnimDirect(AnimName:String, Force:Bool = false, Reversed:Bool = false, Frame:Int = 0):Void
+	{
+		var before:Bool = _directAnimation;
+		_directAnimation = true;
+		playAnim(AnimName, Force, Reversed, Frame);
+		_directAnimation = before;
+	}
+	var _directAnimation:Bool = false;
+
 	public function playAnim(AnimName:String, Force:Bool = false, Reversed:Bool = false, Frame:Int = 0):Void
 	{
 		if(cantAnimate()) return;
 		#if HSCRIPT_ALLOWED
 		// On V-Slice everything a character plays goes through `playAnimation()`, which scripts replace to change, follow or stop it.
 		// Its own version ends up back here (see backend.VSliceScripts.callOverride())
-		if(scriptOverrides != null && scriptOverrides.contains('playAnimation'))
+		if(!_directAnimation && scriptOverrides != null && scriptOverrides.contains('playAnimation'))
 		{
 			_engineAnimation = true;
 			_engineFrame = Frame;

@@ -118,7 +118,7 @@ class VSliceScripts
 		funkin.play.components.PopUpStuff, funkin.play.cutscene.CutsceneType,
 		funkin.play.cutscene.dialogue.DialogueBox, funkin.play.cutscene.dialogue.DialogueBox.FunkinTypeText,
 		funkin.ui.credits.CreditsDataHandler, funkin.util.AnsiUtil, funkin.util.FlxTweenUtil, funkin.util.HapticUtil, funkin.util.ReflectUtil,
-		funkin.util.TimerUtil.Sequence, funkin.util.TimerUtil.SongSequence, shaders.DropShadowShader, thx.semver.Version,
+		funkin.util.TimerUtil.Sequence, funkin.util.TimerUtil.SongSequence, shaders.DropShadowShader, thx.semver.Version, thx.Objects, funkin.util.GRhythmUtil,
 		funkin.effects.FunkTrail, funkin.effects.RetroCameraFade, funkin.mobile.input.ControlsHandler,
 		funkin.data.freeplay.player.PlayerRegistry, funkin.data.freeplay.player.PlayerData, funkin.data.freeplay.player.PlayerData.PlayerFreeplayDJData,
 		funkin.audio.visualize.ABotVis, funkin.data.song.SongRegistry, shaders.SserafimShader,
@@ -268,8 +268,46 @@ class VSliceScripts
 	{
 		path = path.replace('\\', '/');
 		var position:Int = path.indexOf('/scripts/');
-		return (position > -1) ? path.substr(position + 1) : path;
+		if(position > -1) return path.substr(position + 1);
+
+		#if MODS_ALLOWED
+		// (the ones outside of "scripts", from the mod's folder on)
+		var root:String = Paths.mods().replace('\\', '/');
+		if(path.startsWith(root))
+		{
+			var end:Int = path.indexOf('/', root.length);
+			if(end > -1) return path.substr(end + 1);
+		}
+		#end
+		return path;
 	}
+
+	/**
+	 * Loads the scripts of a mod, returns how many classes it has. On V-Slice every .hxc file of a mod is a script wherever it is
+	 * (Polymod reads them all): most mods have them in "scripts", some keep a song's next to its chart (Vs Impostor's Lights Down
+	 * has the ones of its characters in "data/songs/lights-down").
+	 */
+	static function loadModScripts(mod:String):Int
+	{
+		#if MODS_ALLOWED
+		var count:Int = HxcRuntime.loadFolder(Paths.mods('$mod/scripts'));
+
+		// (looking for them goes through every file of the mod: done once)
+		var loose:Array<String> = looseScripts.get(mod);
+		if(loose == null)
+		{
+			loose = HxcRuntime.findFiles(Paths.mods(mod), ['scripts']);
+			looseScripts.set(mod, loose);
+		}
+		for (path in loose) count += HxcRuntime.loadFile(path);
+		return count;
+		#else
+		return 0;
+		#end
+	}
+
+	// The .hxc files of each mod that aren't in its "scripts" folder, see loadModScripts()
+	static var looseScripts:Map<String, Array<String>> = [];
 
 	// ------------------------------------------------------------------------------------------
 	// Loading
@@ -301,6 +339,9 @@ class VSliceScripts
 		HxcRuntime.customImports.set('openfl.display.BlendMode', hxc.ScriptBlendMode); //(an abstract: its values)
 		// (V-Slice's Character Select is a substate over the menus, here it's a state of its own: modules that only listen on it ask for it)
 		HxcRuntime.customImports.set('funkin.ui.charSelect.CharSelectSubState', states.CharacterSelectState);
+		// (the song capsules of V-Slice's Freeplay: here they're the engine's own, made the same way)
+		HxcRuntime.customImports.set('funkin.ui.freeplay.SongMenuItem', objects.freeplay.FreeplayCapsule);
+		HxcRuntime.customImports.set('funkin.ui.freeplay.CapsuleNumber', objects.freeplay.FreeplayCapsule.CapsuleNumber);
 		// (V-Slice's song data has a "raw" class under each of its abstracts: here they're one class)
 		HxcRuntime.customImports.set('funkin.data.song.SongNoteDataRaw', funkin.data.song.SongData.SongNoteData);
 		HxcRuntime.customImports.set('funkin.data.song.SongData.SongNoteDataRaw', funkin.data.song.SongData.SongNoteData);
@@ -394,6 +435,11 @@ class VSliceScripts
 
 		HxcRuntime.resolveMissing = function(object:Dynamic, name:String):Dynamic
 		{
+			// On V-Slice, Freeplay and Character Select are substates over the menus, and scripts find them at `FlxG.state.subState`.
+			// Here they're states of their own: with nothing open over them, their `subState` is themselves
+			if(name == 'subState' && (Std.isOfType(object, states.FreeplayStateVslice) || Std.isOfType(object, states.CharacterSelectState)))
+				return object;
+
 			// On V-Slice the values a shader takes are variables of the shader itself ("shader.thing.value"), here they're inside of its "data"
 			if(Std.isOfType(object, openfl.display.Shader))
 			{
@@ -600,6 +646,52 @@ class VSliceScripts
 			return (char.isAnimateAtlas && char.atlas != null) ? new funkin.play.character.AtlasCharacterAnimation(char) : null);
 		HxcRuntime.memberGetters.set('animation', atlasAnimation);
 
+		// V-Slice's characters have their data (`_data`): scripts look at its "renderType" to know if one is a texture atlas
+		var characterData:Map<String, Dynamic> = [];
+		characterData.set('objects.Character', function(char:objects.Character):Dynamic
+			return {id: char.curCharacter, name: char.curCharacter, renderType: char.isAnimateAtlas ? 'animateatlas' : (char.isVSlice ? 'multisparrow' : 'sparrow'),
+				healthColorArray: char.healthColorArray, healthIcon: {id: char.healthIcon}, scale: char.jsonScale, flipX: char.originalFlipX,
+				singTime: char.singDuration, danceEvery: char.danceEveryNumBeats});
+		HxcRuntime.memberGetters.set('_data', characterData);
+
+		// V-Slice's `animOffsets` are the offsets of the animation being played ([x, y]), which it draws the character moved by,
+		// on top of its `offset`: "(animOffsets - globalOffsets) * scale". Here that's already part of `offset` (Psych's way), so
+		// scripts get the ones that leave nothing on top (Vs Impostor's double note trails of sprite characters, on Victory)
+		var characterAnimOffsets:Map<String, Dynamic> = [];
+		characterAnimOffsets.set('objects.Character', function(char:objects.Character):Dynamic
+		{
+			var global:Array<Float> = char.globalOffsets;
+			return (global != null && global.length >= 2) ? [global[0], global[1]] : [0.0, 0.0];
+		});
+		HxcRuntime.memberGetters.set('animOffsets', characterAnimOffsets);
+
+		// `sprite.stamp(character)` with a texture atlas character: what it shows right now, like on V-Slice (Vs Impostor's trails of
+		// double notes). The sprite is made the size of it
+		var stampAtlas:Map<String, Dynamic> = [];
+		stampAtlas.set('flixel.FlxSprite', Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
+		{
+			var target:FlxSprite = args[0];
+			var brush:Dynamic = args[1];
+			var x:Int = (args[2] != null) ? Std.int(args[2]) : 0;
+			var y:Int = (args[3] != null) ? Std.int(args[3]) : 0;
+			var char:objects.Character = Std.downcast(brush, objects.Character);
+			#if flxanimate
+			if(char != null && char.isAnimateAtlas && char.atlas != null)
+			{
+				char.atlas.renderCurrent(function(wide:Int, tall:Int):openfl.display.BitmapData
+				{
+					target.makeGraphic(wide + x, tall + y, 0x00000000, true);
+					return target.graphic.bitmap;
+				});
+				return target;
+			}
+			#end
+			if(brush == null || !Std.isOfType(brush, FlxSprite)) return target;
+			target.stamp(brush, x, y);
+			return target;
+		}));
+		HxcRuntime.memberReplacements.set('stamp', stampAtlas);
+
 		// V-Slice's texture atlas library can draw a sprite inside of an atlas' frames, the one used here can't
 		HxcRuntime.customImports.set('animate.internal.elements.FlxSpriteElement', funkin.graphics.SpriteElement);
 
@@ -769,9 +861,46 @@ class VSliceScripts
 	{
 		var own:Array<HxcClass> = [];
 		var others:Array<HxcClass> = [];
-		for (cls in list)
+		for (cls in polymodOrder(list))
 			((getScriptMod(cls) == songMod) ? own : others).push(cls);
 		return own.concat(others);
+	}
+
+	/**
+	 * Script classes in the order V-Slice goes with when two have the same id (two character scripts for the same character,
+	 * Vs Impostor's Blue on "Ow": the one that has him react to Red's notes is the one V-Slice ends up with).
+	 * Polymod lists the classes it has (`listScriptClasses()`) by going through its map of them, by their full names, in the order of
+	 * hxcpp's hash table, and V-Slice's registries keep the last one for each id. The engine is built with hxcpp too, so a map of the
+	 * same names goes in the same order: this is it backwards, for the code here that keeps the first one it finds.
+	 */
+	static function polymodOrder(list:Array<HxcClass>):Array<HxcClass>
+	{
+		if(list.length < 2) return list;
+
+		// every class, like Polymod has them, put in the order the files are read
+		var all:Array<HxcClass> = [for (cls in HxcRuntime.classes) cls];
+		all.sort(function(a, b)
+		{
+			var pathA:String = (a.module != null) ? a.module.path : '';
+			var pathB:String = (b.module != null) ? b.module.path : '';
+			if(pathA != pathB) return (pathA < pathB) ? -1 : 1;
+			return (a.module != null) ? a.module.classes.indexOf(a) - a.module.classes.indexOf(b) : 0;
+		});
+		var map:haxe.ds.StringMap<Bool> = new haxe.ds.StringMap<Bool>();
+		for (cls in all) map.set(cls.fullName, true);
+
+		var position:Map<String, Int> = [];
+		var index:Int = 0;
+		for (name in map.keys()) position.set(name, index++);
+
+		var sorted:Array<HxcClass> = list.copy();
+		sorted.sort(function(a, b)
+		{
+			var posA:Int = position.exists(a.fullName) ? position.get(a.fullName) : -1;
+			var posB:Int = position.exists(b.fullName) ? position.get(b.fullName) : -1;
+			return posB - posA;
+		});
+		return sorted;
 	}
 
 	static function load():Void
@@ -815,13 +944,27 @@ class VSliceScripts
 		{
 			if(other == mod) continue;
 			StepLog.add('Also loading the scripts of "$other", made for every song');
-			HxcRuntime.loadFolder(Paths.mods('$other/scripts'));
+			loadModScripts(other);
 		}
 		if(!modulesOnly)
 		{
 			HxcRuntime.quietReplace = true;
-			HxcRuntime.loadFolder(Paths.mods('$mod/scripts'));
+			loadModScripts(mod);
 			HxcRuntime.quietReplace = false;
+
+			// the scripts of the characters the song takes from another mod (Whitty's songs for Spooky Mix's character): on V-Slice
+			// every mod's are there. Only their characters' ones, not the rest of that mod
+			var song:backend.Song.SwagSong = states.PlayState.SONG;
+			var used:Array<String> = (song != null) ? [song.player1, song.player2, song.gfVersion].concat(backend.StageData.laterCharacters(song)) : [];
+			var owners:Array<String> = [];
+			for (char in used)
+			{
+				var owner:String = PolymodCompat.characterModElsewhere(char);
+				if(owner == null || owners.contains(owner)) continue;
+				owners.push(owner);
+				StepLog.add('Also loading the character scripts of "$owner", for "$char"');
+				HxcRuntime.loadFolder(Paths.mods('$owner/scripts/characters'));
+			}
 		}
 
 		facade = new funkin.play.PlayState(game);
@@ -1277,7 +1420,7 @@ class VSliceScripts
 	}
 
 	// Functions of Psych's characters that go to the script's version, when it has one
-	static final CHARACTER_OVERRIDES:Array<String> = ['update', 'dance', 'playAnimation', 'set_alpha', 'set_visible', 'set_x', 'set_y', 'set_angle', 'set_color'];
+	static final CHARACTER_OVERRIDES:Array<String> = ['update', 'dance', 'playAnimation', 'playSingAnimation', 'set_alpha', 'set_visible', 'set_x', 'set_y', 'set_angle', 'set_color'];
 
 	// V-Slice's characters are told about each frame of their animations and when they end
 	static function watchAnimations(char:Character, script:HxcInstance):Void
@@ -2496,7 +2639,7 @@ class VSliceScripts
 			// the last mod's one is the one that's used just the same)
 			Mods.currentModDirectory = mod;
 			HxcRuntime.quietReplace = true;
-			var loaded:Int = HxcRuntime.loadFolder(Paths.mods('$mod/scripts'));
+			var loaded:Int = loadModScripts(mod);
 			HxcRuntime.quietReplace = false;
 			if(loaded < 1) continue;
 

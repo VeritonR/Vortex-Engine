@@ -15,6 +15,16 @@ import hxc.HxcRuntime;
  */
 class HxcInterp extends Interp
 {
+	/**
+	 * An error the game threw while a script was running ("Null Object Reference"...), with the line of the script it happened on:
+	 * those don't say where they come from. The script's own errors already have it.
+	 */
+	public function withLine(error:Dynamic):Dynamic
+	{
+		if(Std.isOfType(error, crowplexus.hscript.Expr.Error) || curExpr == null) return error;
+		return Std.string(error) + ' (line ' + curExpr.line + ')';
+	}
+
 	public var cls(default, null):HxcClass;
 	public var instance(default, null):HxcInstance;
 
@@ -139,7 +149,7 @@ class HxcInterp extends Interp
 			{
 				// (what the function threw by itself, or got from the game, is for the script that called it to catch)
 				if(fromScript && !Std.isOfType(error, Error)) throw error;
-				HxcRuntime.reportError(me.cls.name, name, error);
+				HxcRuntime.reportError(me.cls.name, name, me.withLine(error));
 			}
 			return null;
 		});
@@ -447,7 +457,7 @@ class HxcInterp extends Interp
 			}
 			catch(error:Dynamic)
 			{
-				HxcRuntime.reportError(me.cls.name, '(function)', error);
+				HxcRuntime.reportError(me.cls.name, '(function)', me.withLine(error));
 			}
 			return null;
 		});

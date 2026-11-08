@@ -120,8 +120,10 @@ class NoteSprite
 	public var isHoldNote(get, never):Bool;
 	function get_isHoldNote():Bool return note.sustainLength > 0;
 
-	public var hasMissed(get, never):Bool;
+	// (scripts that hit notes themselves set these three: see funkin.util.GRhythmUtil.processWindow())
+	public var hasMissed(get, set):Bool;
 	function get_hasMissed():Bool return note.missed || note.tooLate;
+	function set_hasMissed(value:Bool):Bool return note.tooLate = value;
 
 	// Scripts that deal with a note themselves (cancelling its hit) set this so the game leaves it alone from then on
 	public var hasBeenHit(get, set):Bool;
@@ -133,11 +135,14 @@ class NoteSprite
 		return value;
 	}
 
-	public var mayHit(get, never):Bool;
+	public var mayHit(get, set):Bool;
 	function get_mayHit():Bool return note.canBeHit;
+	function set_mayHit(value:Bool):Bool return note.canBeHit = value;
 
-	public var tooEarly(get, never):Bool;
+	// (the note works it out again each frame, from its time)
+	public var tooEarly(get, set):Bool;
 	function get_tooEarly():Bool return !note.canBeHit && !note.tooLate && !note.wasGoodHit;
+	function set_tooEarly(value:Bool):Bool return value;
 
 	public var lowPriority(get, set):Bool;
 	function get_lowPriority():Bool return note.lowPriority;
@@ -175,7 +180,12 @@ class NoteSprite
 
 	public var shader(get, set):FlxShader;
 	function get_shader():FlxShader return note.shader;
-	function set_shader(value:FlxShader):FlxShader return note.shader = value;
+	function set_shader(value:FlxShader):FlxShader
+	{
+		// (taking it off gives the note back its own, the one that colors it: see SustainTrail's)
+		note.shader = (value != null) ? value : note.engineShader();
+		return value;
+	}
 
 	public var cameras(get, set):Array<FlxCamera>;
 	function get_cameras():Array<FlxCamera> return note.cameras;

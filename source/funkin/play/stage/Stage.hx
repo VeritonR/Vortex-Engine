@@ -218,6 +218,13 @@ class Stage extends funkin.modding.ScriptedBase
 	public function fetchAssetPaths():Array<String> return [];
 
 	/**
+	 * V-Slice's map of the stage's sprites by their name (`currentStage.namedProps.exists('thing')`): here they're the song's
+	 * variables, the same ones `getNamedProp()` finds.
+	 */
+	public var namedProps(get, never):NamedProps;
+	function get_namedProps():NamedProps return new NamedProps(this);
+
+	/**
 	 * A sprite of the stage file by its name.
 	 */
 	public function getNamedProp(name:String):Dynamic
@@ -226,7 +233,29 @@ class Stage extends funkin.modding.ScriptedBase
 
 		var prop:Dynamic = game.variables.get(name);
 		if(prop == null) prop = game.getLuaObject(name);
+		#if HSCRIPT_ALLOWED
+		// what a script named on another stage isn't this one's, like on V-Slice, where each stage has its own names
+		if(prop != null && !Std.isOfType(prop, String))
+		{
+			var owner:Dynamic = HxcRuntime.getExtra(prop, NAMED_ON);
+			if(owner != null && owner != this) return null;
+		}
+		#end
 		return prop;
+	}
+
+	// The stage a script gave something its name on (`namedProps.set()`, `addProp()`). The names are kept with the song's
+	// (`variables`), which every stage of the song shares: on V-Slice they're the stage's own. Vs Impostor's stage changer
+	// destroyed what the new stage had for "bfGhost", which was its double note trails' one from the first stage
+	@:allow(funkin.play.stage.NamedProps)
+	static inline final NAMED_ON:String = '__namedOnStage';
+
+	function claimName(prop:Dynamic):Void
+	{
+		#if HSCRIPT_ALLOWED
+		if(prop != null && !Std.isOfType(prop, String) && !Std.isOfType(prop, Float) && !Std.isOfType(prop, Bool))
+			HxcRuntime.setExtra(prop, NAMED_ON, this);
+		#end
 	}
 
 	/**
@@ -254,6 +283,10 @@ class Stage extends funkin.modding.ScriptedBase
 			addCharacter(character, types[index]);
 			#end
 		}
+
+		// then everything is put in the order of its layer, like V-Slice does once it has the characters: stage scripts give what they
+		// add its layer after adding it (Vs Impostor's falling buildings on Ejected were in front of the characters)
+		refresh();
 	}
 
 	/**
@@ -605,7 +638,18 @@ class Stage extends funkin.modding.ScriptedBase
 			var index:Int = game.members.indexOf(entry.object);
 			if(index > -1 && (position < 0 || index < position)) position = index;
 		}
-		layers.push({object: object, zIndex: layer});
+		// (an object added twice is on the list once: twice, sorting the layers took the place of something else, Vs Impostor's stage
+		// changer adds its pet twice and the opponent went off the screen)
+		var listed:Bool = false;
+		for (entry in layers)
+			if(entry.object == object)
+			{
+				entry.zIndex = layer;
+				listed = true;
+				break;
+			}
+		if(!listed) layers.push({object: object, zIndex: layer});
+		if(game.members.contains(object)) return object;
 
 		if(position > -1) game.insert(position, object);
 		else game.add(object);
@@ -708,10 +752,12 @@ class Stage extends funkin.modding.ScriptedBase
 		}
 
 		var sorted:Array<{object:FlxBasic, zIndex:Float, index:Int}> = [];
+		var seen:Array<FlxBasic> = [];
 		for (entry in layers)
 		{
 			var index:Int = game.members.indexOf(entry.object);
-			if(index < 0) continue;
+			if(index < 0 || seen.contains(entry.object)) continue; //(each one once: twice, it took two places and pushed something out)
+			seen.push(entry.object);
 
 			entry.zIndex = currentLayer(entry.object, entry.zIndex);
 			sorted.push({object: entry.object, zIndex: entry.zIndex, index: index});
@@ -742,6 +788,7 @@ class Stage extends funkin.modding.ScriptedBase
 		if(name != null && game != null)
 		{
 			game.variables.set(name, prop);
+			claimName(prop);
 			#if HSCRIPT_ALLOWED
 			HxcRuntime.setExtra(prop, 'name', name);
 			#end
@@ -818,6 +865,57 @@ class ScriptedStage extends Stage {}
 /**
  * The sprites of a stage, for scripts: `for (sprite in stage.group)`, `length`, `members` and `remove()`.
  */
+/**
+ * The stage's sprites by their name, as a map for scripts (see `Stage.namedProps`).
+ */
+@:keep
+class NamedProps
+{
+	var stage:Stage;
+
+	public function new(stage:Stage) this.stage = stage;
+
+	public function exists(name:String):Bool return stage.getNamedProp(name) != null;
+	public function get(name:String):Dynamic return stage.getNamedProp(name);
+
+	public function set(name:String, prop:Dynamic):Void
+	{
+		@:privateAccess
+		if(stage.game != null)
+		{
+			stage.game.variables.set(name, prop);
+			stage.claimName(prop);
+		}
+	}
+
+	public function remove(name:String):Bool
+	{
+		@:privateAccess
+		return exists(name) && stage.game.variables.remove(name);
+	}
+
+	public function keys():Iterator<String>
+	{
+		@:privateAccess
+		var names:Array<String> = stage.propNames();
+		@:privateAccess
+		if(stage.game != null)
+			for (name => value in stage.game.variables)
+				if(Std.isOfType(value, flixel.FlxBasic) && !names.contains(name)) names.push(name);
+		return names.iterator();
+	}
+
+	public function iterator():Iterator<Dynamic>
+	{
+		return [for (name in keys()) if(get(name) != null) get(name)].iterator();
+	}
+
+	public function keyValueIterator():KeyValueIterator<String, Dynamic>
+	{
+		return [for (name in keys()) if(get(name) != null) {key: name, value: get(name)}].iterator();
+	}
+}
+
 @:keep
 class StagePropList
 {

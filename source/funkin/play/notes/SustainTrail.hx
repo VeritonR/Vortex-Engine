@@ -66,18 +66,22 @@ class SustainTrail
 	/**
 	 * How much of the hold is left: all of it until its note is hit, then less and less while it's held.
 	 */
-	public var sustainLength(get, never):Float;
+	public var sustainLength(get, set):Float;
 	function get_sustainLength():Float
 	{
 		if(!hitNote) return parentNote.sustainLength;
 		return Math.max(0, parentNote.strumTime + parentNote.sustainLength - backend.Conductor.songPosition);
 	}
+	// (scripts that hold notes themselves shorten it as the song goes, which it already is here: its pieces go as they're passed)
+	function set_sustainLength(value:Float):Float return value;
 
 	public var hitNote(get, never):Bool;
 	function get_hitNote():Bool return parentNote.mustPress ? parentNote.wasGoodHit : parentNote.hitByOpponent;
 
-	public var missedNote(get, never):Bool;
-	function get_missedNote():Bool return parentNote.missed || parentNote.tooLate;
+	public var missedNote(get, set):Bool;
+	function get_missedNote():Bool return missedByScript || parentNote.missed || parentNote.tooLate;
+	function set_missedNote(value:Bool):Bool return missedByScript = value;
+	var missedByScript:Bool = false;
 
 	public var handledMiss:Bool = false;
 
@@ -165,7 +169,9 @@ class SustainTrail
 	}
 	function set_shader(value:FlxShader):FlxShader
 	{
-		for (piece in pieces()) piece.shader = value;
+		// (taking it off gives the pieces back their own: V-Slice's long notes are drawn already colored, these are colored by a shader.
+		// Vs Impostor's Monotone Attack takes it off every long note that isn't one of the third singer's)
+		for (piece in pieces()) piece.shader = (value != null) ? value : piece.engineShader();
 		return value;
 	}
 

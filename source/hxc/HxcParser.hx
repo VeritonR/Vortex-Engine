@@ -3,6 +3,7 @@ package hxc;
 #if HSCRIPT_ALLOWED
 import crowplexus.hscript.Expr;
 import crowplexus.hscript.Parser;
+import crowplexus.hscript.Tools;
 
 /**
  * Parser for V-Slice script files (.hxc), which are whole Haxe modules instead of loose statements.
@@ -17,12 +18,24 @@ class HxcParser extends Parser
 	 */
 	public var moduleExprs:Array<Expr> = [];
 
+	/**
+	 * What `#if` sees in scripts: what V-Slice's own release build for computers has (`project.hxp`), so a script takes the same
+	 * branch it takes there. Not the ones for libraries the engine doesn't have (Newgrounds, HaxeUI) nor its debug builds'.
+	 */
+	public static final DEFINES:Array<String> = ['sys', 'cpp', 'desktop', #if windows 'windows', #end #if mac 'mac', #end #if linux 'linux', #end
+		#if hxvlc 'hxvlc', #end
+		'FEATURE_FUNKVIS', 'FEATURE_LOG_TRACE', 'FEATURE_NAUGHTYNESS', 'FEATURE_OPEN_URL', 'FEATURE_PARTIAL_SOUNDS', 'FEATURE_POLYMOD_MODS',
+		'FEATURE_VIDEO_PLAYBACK', 'FEATURE_VIDEO_SUBTITLES', 'FEATURE_DISCORD_RPC', 'FEATURE_LOST_FOCUS_VOLUME', 'FEATURE_DEBUG_MENU',
+		'FEATURE_CHART_EDITOR', 'FEATURE_STAGE_EDITOR', 'FEATURE_ANIMATION_EDITOR', 'FEATURE_LAG_ADJUSTMENT', 'FEATURE_SCREENSHOTS',
+		'FEATURE_FILE_DROP', 'FEATURE_DEBUG_DISPLAY'];
+
 	public function new()
 	{
 		super();
 		allowTypes = true;
 		allowJSON = true;
 		allowMetadata = true;
+		for (flag in DEFINES) preprocesorValues.set(flag, true);
 	}
 
 	// `for (key => value in map)`, Haxe 4's loop over keys and values, which the library doesn't read: made into the loop it stands for,
@@ -201,6 +214,27 @@ class HxcParser extends Parser
 	}
 
 	public static inline var IS_FUNCTION:String = '__hxc_is';
+
+	// A unary operator before an "is" goes on its value, the way Haxe reads it: `!state is Thing` is `(!state) is Thing`, always false.
+	// Spooky Mix's menu writes that and counts on it being false; read as `!(state is Thing)` it went on with no substate there
+	override function makeUnop(op:String, e:Expr):Expr
+	{
+		if(e != null)
+		{
+			switch(Tools.expr(e))
+			{
+				case ECall(call, args) if(args.length == 2):
+					switch(Tools.expr(call))
+					{
+						case EIdent(IS_FUNCTION):
+							return mk(ECall(call, [makeUnop(op, args[0]), args[1]]), pmin(e), pmax(e));
+						default:
+					}
+				default:
+			}
+		}
+		return super.makeUnop(op, e);
+	}
 
 	// ------------------------------------------------------------------------------------------
 	// String interpolation

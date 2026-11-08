@@ -5598,8 +5598,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			var postfix:String = '';
 			if(note != null) postfix = note.animSuffix;
 
-			var animToPlay:String = singAnimations[Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(direction))))] + 'miss' + postfix;
-			char.playAnim(animToPlay, true);
+			var dirIndex:Int = Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(direction))));
+			var animToPlay:String = singAnimations[dirIndex] + 'miss' + postfix;
+			if(!char.singByScript(dirIndex, true, postfix)) char.playAnim(animToPlay, true);
 
 			if(char != gf && lastCombo > 5 && gf != null && gf.hasAnimation('sad'))
 			{
@@ -5699,7 +5700,8 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
                     if(!char.canRestartForHold()) canPlay = false;
                 }
 
-                if(canPlay) char.playAnim(animToPlay, true);
+                if(canPlay && !char.singByScript(Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(note.noteData)))), false, note.animSuffix))
+                    char.playAnim(animToPlay, true);
                 char.holdTimer = 0;
             }
         }
@@ -5806,7 +5808,8 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 						if(!char.canRestartForHold()) canPlay = false;
 					}
 	
-					if(canPlay) char.playAnim(animToPlay, true);
+					if(canPlay && !char.singByScript(Std.int(Math.abs(Math.min(singAnimations.length-1, backend.ExtraKeys.animShape(note.noteData)))), false, note.animSuffix))
+						char.playAnim(animToPlay, true);
 					char.holdTimer = 0;
 
 					if(note.noteType == 'Hey!')
