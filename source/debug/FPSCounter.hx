@@ -43,9 +43,27 @@ class FPSCounter extends TextField
 
 	var deltaTimeout:Float = 0.0;
 
+	// How long the game's own work takes on each frame (milliseconds, smoothed): its logic and sending what's drawn to the
+	// graphics card. A frame that takes much longer than both is waiting for the graphics card
+	var updateTime:Float = 0;
+	var drawTime:Float = 0;
+	var startedAt:Float = 0;
+	var watching:Bool = false;
+
+	function watch():Void
+	{
+		if(watching || FlxG.signals == null) return;
+		watching = true;
+		FlxG.signals.preUpdate.add(() -> startedAt = haxe.Timer.stamp());
+		FlxG.signals.postUpdate.add(() -> updateTime = updateTime * 0.9 + (haxe.Timer.stamp() - startedAt) * 100);
+		FlxG.signals.preDraw.add(() -> startedAt = haxe.Timer.stamp());
+		FlxG.signals.postDraw.add(() -> drawTime = drawTime * 0.9 + (haxe.Timer.stamp() - startedAt) * 100);
+	}
+
 	// Event Handlers
 	private override function __enterFrame(deltaTime:Float):Void
 	{
+		watch();
 		final now:Float = haxe.Timer.stamp() * 1000;
 		times.push(now);
 		while (times[0] < now - 1000) times.shift();
@@ -62,7 +80,14 @@ class FPSCounter extends TextField
 
 	public dynamic function updateText():Void { // so people can override it in hscript
 		text = 'FPS: ${currentFPS}'
-		+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}';
+		+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}'
+		+ '\nLogic: ${Math.round(updateTime * 10) / 10} ms / Drawing: ${Math.round(drawTime * 10) / 10} ms';
+
+		// (readable on a phone's screen, where the window has many more pixels than the game)
+		if(stage != null) scaleX = scaleY = Math.max(1, stage.stageHeight / 720);
+		#if mobile
+		x = 104 * scaleX; //(right of the menus' back button, see backend.TouchMenus)
+		#end
 
 		textColor = 0xFFFFFFFF;
 		if (currentFPS < FlxG.drawFramerate * 0.5)

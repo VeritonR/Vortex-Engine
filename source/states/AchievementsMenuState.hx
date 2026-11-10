@@ -26,7 +26,7 @@ class AchievementsMenuState extends MusicBeatState
 		Paths.clearUnusedMemory();
 
 		#if DISCORD_ALLOWED
-		DiscordClient.changePresence("Achievements Menu", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_achievements', 'Looking at the Achievements'), Language.getPhrase('discord_achievements_count', '{1} of {2} unlocked', [Achievements.achievementsUnlocked.length, Lambda.count(Achievements.achievements)]), 'results');
 		#end
 
 		// prepare achievement list

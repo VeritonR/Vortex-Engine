@@ -196,6 +196,11 @@ class Stage extends funkin.modding.ScriptedBase
 		// after taking it off makes it again), that a script is putting in its place
 		if(game != null && !madeForSong) buildOtherStage();
 
+		// (the sprites of the file get their layers right away, like V-Slice's props have their zIndex from when they're made: Vs
+		// Impostor's airship makes copies of its clouds with the zIndex of the clouds, read right after this. Without it they had none,
+		// and went on top of everything)
+		if(layers == null && game != null) loadLayers();
+
 		#if HSCRIPT_ALLOWED
 		var script = HxcRuntime.getInstance(this);
 		if(script == null || game == null || !script.hasMethod('addProp')) return;
@@ -501,6 +506,24 @@ class Stage extends funkin.modding.ScriptedBase
 		if(game == null) return [];
 		return [for (member in allMembers()) if(member != null && onGameCamera(member)) member];
 	}
+
+	/**
+	 * V-Slice's stage is a group the song updates on every frame, and stage scripts override this to do something each frame
+	 * (Sonic.exe's Fatality closes its error popups when they're clicked). What's on the stage is updated by the song itself.
+	 */
+	public function update(elapsed:Float):Void {}
+
+	// V-Slice's stage is a group: its scripts go through what's on it (Sonic.exe's stage lights darken everything but the characters)
+	public function forEach(func:Dynamic->Void, recurse:Bool = false):Void
+		for (member in members) if(member != null) func(member);
+	public function forEachAlive(func:Dynamic->Void, recurse:Bool = false):Void
+		for (member in members) if(member != null && member.exists && member.alive) func(member);
+	public function forEachExists(func:Dynamic->Void, recurse:Bool = false):Void
+		for (member in members) if(member != null && member.exists) func(member);
+	public function forEachDead(func:Dynamic->Void, recurse:Bool = false):Void
+		for (member in members) if(member != null && !member.alive) func(member);
+	public function forEachOfType(type:Dynamic, func:Dynamic->Void, recurse:Bool = false):Void
+		for (member in members) if(member != null && Std.isOfType(member, type)) func(member);
 
 	function onGameCamera(member:FlxBasic):Bool
 	{
@@ -830,8 +853,36 @@ class Stage extends funkin.modding.ScriptedBase
 			if(character != null) character.resetCharacter(true);
 	}
 
-	public function pause():Void {}
-	public function resume():Void {}
+	/**
+	 * Stops the animations of everything on the stage, the characters too, like V-Slice's (mods do it around their cutscenes).
+	 */
+	public function pause():Void forEachAnimated(true);
+
+	public function resume():Void forEachAnimated(false);
+
+	function forEachAnimated(stop:Bool):Void
+	{
+		if(layers == null) return;
+
+		var pending:Array<FlxBasic> = [for (entry in layers) entry.object];
+		while(pending.length > 0)
+		{
+			var object:FlxBasic = pending.shift();
+			if(object == null || !object.alive) continue;
+
+			if(Std.isOfType(object, flixel.group.FlxSpriteGroup.FlxTypedSpriteGroup))
+				for (member in (cast object:flixel.group.FlxSpriteGroup).members) pending.push(member);
+			else if(Std.isOfType(object, flixel.group.FlxGroup.FlxTypedGroup))
+				for (member in (cast object:flixel.group.FlxGroup).members) pending.push(member);
+			else if(Std.isOfType(object, FlxSprite))
+			{
+				var sprite:FlxSprite = cast object;
+				if(sprite.animation == null) continue;
+				if(stop) sprite.animation.pause();
+				else sprite.animation.resume();
+			}
+		}
+	}
 
 	// On V-Slice the stage is a group of sprites, killed when the song is left: scripts replace these to clean up after themselves
 	/**

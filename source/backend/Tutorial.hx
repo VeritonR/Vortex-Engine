@@ -132,7 +132,7 @@ class Tutorial extends Sprite
 			var png:String = Paths.getSharedPath('images/characters/BOYFRIEND.png');
 			var xml:String = Paths.getSharedPath('images/characters/BOYFRIEND.xml');
 			#if sys
-			var bitmap:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(png);
+			var bitmap:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(backend.MobileStorage.forLime(png));
 			var text:String = sys.io.File.getContent(xml);
 			#else
 			var bitmap:openfl.display.BitmapData = openfl.utils.Assets.getBitmapData(png, false);

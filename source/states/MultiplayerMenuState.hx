@@ -111,6 +111,11 @@ class MultiplayerMenuState extends MusicBeatState
         // what the player had before the match (see NetworkManager.applyMatchSettings())
         NetworkManager.restoreSettings();
 
+        #if DISCORD_ALLOWED
+        if(NetworkManager.connected) DiscordClient.setParty(2, 2);
+        DiscordClient.changePresence(Language.getPhrase('discord_online_lobby', 'In the Online Lobby'), null, 'online');
+        #end
+
         if(!NetworkManager.connected && !NetworkManager.busy && NetworkManager.statusString == "Disconnected")
             NetworkManager.statusString = Language.getPhrase('online_status_disconnected', "Disconnected");
 

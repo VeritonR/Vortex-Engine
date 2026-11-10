@@ -20,9 +20,8 @@ class Preferences
 	public static var naughtyness(get, never):Bool;
 	static function get_naughtyness():Bool return ClientPrefs.data.naughtyness;
 
-	// The engine has no subtitles: scripts that ask before setting theirs up are told so
 	public static var subtitles(get, never):Bool;
-	static function get_subtitles():Bool return false;
+	static function get_subtitles():Bool return ClientPrefs.data.subtitles;
 
 	// How the arrows are laid out on a phone's screen
 	public static var controlsScheme(get, never):String;

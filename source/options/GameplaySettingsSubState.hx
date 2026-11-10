@@ -26,6 +26,26 @@ class GameplaySettingsSubState extends BaseOptionsMenu
 			BOOL);
 		addOption(option);
 
+		var option:Option = new Option('Touch Controls',
+			"How songs are played by touching the screen (phones, touch screens, or the mouse):
+Arrows: touch your arrows. Hitbox: one lane of the screen per arrow.
+Buttons: a button per arrow on each side. A pause button is in the corner.",
+			'touchControls',
+			STRING,
+			backend.TouchControls.MODES);
+		addOption(option);
+
+		var option:Option = new Option('Touch Controls Opacity',
+			'How visible the touch controls are.',
+			'touchOpacity',
+			PERCENT);
+		option.scrollSpeed = 1.6;
+		option.minValue = 0;
+		option.maxValue = 1;
+		option.changeValue = 0.1;
+		option.decimals = 1;
+		addOption(option);
+
 		var option:Option = new Option('Ghost Tapping',
 			"If checked, you won't get misses from pressing keys\nwhile there are no notes able to be hit.",
 			'ghostTapping',

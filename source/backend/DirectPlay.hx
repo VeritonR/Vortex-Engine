@@ -28,6 +28,8 @@ import sys.io.File;
  * --shots=5,12.5       Seconds after the song is opened at which a picture of the game is saved, as "directplay_(number).png"...
  * --shotdir=FOLDER     ...in this folder, the game's own if left out.
  * --quit=SECONDS       Closes the game that long after the song is opened.
+ * --touch            The mouse counts as a finger on the menus too (dragging moves through them, a click picks), like on a phone.
+ * --window=WIDTHxHEIGHT  The size of the window for this run ("--window=2560x1080" is an ultrawide screen).
  * --pref=NAME=VALUE    One of the game's options as this run should have it ("--pref=songCredits=false", more separated by commas).
  * --menu=options       Opens the options menu instead of a song (--select=NUMBER picks which of its entries is selected, from 0).
  * --menu=main          Opens another menu instead: "main", "story", "credits", "charselect", "charselecteditor" (and "freeplay", "boot", "options").
@@ -66,7 +68,22 @@ class DirectPlay
 		if(options != null) return;
 
 		options = [];
-		for (arg in Sys.args())
+		var args:Array<String> = Sys.args();
+		#if mobile
+		// (a phone can't be given these when the game is opened: they're read from "directplay.txt" in the game's folder, one per
+		// line, which is then renamed so the next time the game opens normally)
+		try
+		{
+			if(sys.FileSystem.exists('directplay.txt'))
+			{
+				args = args.concat([for (line in ~/[\r\n]+/g.split(sys.io.File.getContent('directplay.txt'))) StringTools.trim(line)]);
+				if(sys.FileSystem.exists('directplay.used.txt')) sys.FileSystem.deleteFile('directplay.used.txt');
+				sys.FileSystem.rename('directplay.txt', 'directplay.used.txt');
+			}
+		}
+		catch(e:Dynamic) {}
+		#end
+		for (arg in args)
 		{
 			if(!arg.startsWith('--')) continue;
 
@@ -200,6 +217,13 @@ class DirectPlay
 			if(FlxG.sound.music == null) FlxG.sound.playMusic(Paths.music('freakyMenu'), 0);
 			if(options.exists('player')) PlayableCharacters.select(options.get('player'));
 			FlxG.signals.postStateSwitch.add(function() FlxG.autoPause = false); //(the menus set it back to the option when they're made)
+
+			// ("--song" with "--mod": the menu opens stopped on that song, as if someone scrolled to it)
+			if(options.exists('song'))
+			{
+				@:privateAccess states.FreeplayStateVslice.rememberedSong = (options.exists('mod') ? options.get('mod') : '') + ':' + Paths.formatToSongPath(options.get('song'));
+				if(options.exists('difficulty')) @:privateAccess states.FreeplayStateVslice.rememberedDifficulty = Paths.formatToSongPath(options.get('difficulty'));
+			}
 
 			if(ClientPrefs.data.freeplayStyle == 'V-Slice') MusicBeatState.switchState(new states.FreeplayStateVslice());
 			else MusicBeatState.switchState(new states.FreeplayState());
@@ -675,6 +699,16 @@ class DirectPlay
 		// (atlas symbols with a blend mode drawn the library's way, on a bitmap first: to compare with the engine's own way)
 		if(options.exists('libraryblend')) flxanimate.PsychFlxAnimate.directBlendModes = false;
 		#end
+		// (the mouse as a finger on the menus too, to try them the way a phone uses them)
+		if(options.exists('touch')) TouchControls.mouseIsTouch = true;
+		// (a window of another shape: "--window=2560x1080" for an ultrawide screen)
+		if(options.exists('window'))
+		{
+			var size:Array<String> = options.get('window').toLowerCase().split('x');
+			var width:Null<Int> = Std.parseInt(size[0]);
+			var height:Null<Int> = (size.length > 1) ? Std.parseInt(size[1]) : null;
+			if(width != null && height != null && width > 0 && height > 0 && FlxG.stage != null) FlxG.stage.window.resize(width, height);
+		}
 		if(!options.exists('pref')) return;
 
 		for (pair in options.get('pref').split(','))
@@ -696,6 +730,11 @@ class DirectPlay
 			else if(Std.isOfType(current, Int)) value = Std.parseInt(text);
 			else if(Std.isOfType(current, Float)) value = Std.parseFloat(text);
 			Reflect.setField(ClientPrefs.data, name, value);
+
+			// (shown or hidden right away, like when it's changed on the options)
+			if(name == 'showFPS' && Main.fpsVar != null) Main.fpsVar.visible = ClientPrefs.data.showFPS;
+			// (the phone's resolution too)
+			if(name == 'renderResolution') MobileGraphics.apply();
 
 			// (the game goes at that speed right away, like when it's changed on the options)
 			if(name == 'framerate')
@@ -917,7 +956,10 @@ class DirectPlay
 		var game:PlayState = PlayState.instance;
 		if(game == null || game.boyfriend == null) return;
 
-		var line:String = Std.string(Math.round(elapsed * 100) / 100) + 's song ' + Math.round(Conductor.songPosition) + ':';
+		var line:String = Std.string(Math.round(elapsed * 100) / 100) + 's song ' + Math.round(Conductor.songPosition) + ':'
+			+ ' music ' + ((FlxG.sound.music != null) ? Std.string(Math.round(FlxG.sound.music.time)) : '-')
+			+ ' heard ' + ((PlayState.instance != null) ? Std.string(Math.round(PlayState.instance.musicTime())) : '-')
+			+ ' clock ' + Math.round(haxe.Timer.stamp() * 1000) + ' |';
 		if(logLines.length < 1 && game.vocals != null && game.opponentVocals != null)
 			line += ' | voices: player ' + Math.round(game.vocals.length) + ' ms, opponent ' + Math.round(game.opponentVocals.length) + ' ms';
 		// what plays and what the player sees: the vocal tracks (P = player's, O = opponent's), the HUD, and how many of the receptors

@@ -1473,7 +1473,7 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 
 		var bitmap:BitmapData = null;
 		#if sys
-		if(FileSystem.exists(path)) bitmap = BitmapData.fromFile(path);
+		if(FileSystem.exists(path)) bitmap = BitmapData.fromFile(backend.MobileStorage.forLime(path));
 		else
 		#end
 		if(OpenFlAssets.exists(path, IMAGE)) bitmap = OpenFlAssets.getBitmapData(path);

@@ -181,17 +181,18 @@ class Paths
 		}
 		#end
 
+		// (MobileStorage.realPath(): on phones the files are found whatever their capital letters, like on Windows)
 		if (parentfolder != null)
-			return getFolderPath(file, parentfolder);
+			return MobileStorage.realPath(getFolderPath(file, parentfolder));
 
 		if (currentLevel != null && currentLevel != 'shared')
 		{
-			var levelPath = getFolderPath(file, currentLevel);
+			var levelPath = MobileStorage.realPath(getFolderPath(file, currentLevel));
 			if (OpenFlAssets.exists(levelPath, type))
 				return levelPath;
 		}
 
-		var sharedPath:String = getSharedPath(file);
+		var sharedPath:String = MobileStorage.realPath(getSharedPath(file));
 		#if sys
 		// Not there: one of the game's other libraries may have it (a V-Slice mod's stage that uses the base game's "stageback"
 		// of week 1 without saying which library it's in). Only looked for when it's nowhere else, and only once for each file
@@ -364,7 +365,7 @@ class Paths
 			var file:String = getPath(key, IMAGE, parentFolder, true);
 			#if MODS_ALLOWED
 			if (FileSystem.exists(file))
-				bitmap = BitmapData.fromFile(file);
+				bitmap = BitmapData.fromFile(backend.MobileStorage.forLime(file));
 			else #end if (OpenFlAssets.exists(file, IMAGE))
 				bitmap = OpenFlAssets.getBitmapData(file);
 
@@ -617,7 +618,7 @@ class Paths
 		{
 			#if sys
 			if(FileSystem.exists(file) && SoundLoader.validFile(file)) //(an empty or broken file crashes lime: see SoundLoader)
-				currentTrackedSounds.set(file, Sound.fromFile(file));
+				currentTrackedSounds.set(file, Sound.fromFile(backend.MobileStorage.forLime(file)));
 			#else
 			if(OpenFlAssets.exists(file, SOUND))
 				currentTrackedSounds.set(file, OpenFlAssets.getSound(file));
@@ -675,7 +676,7 @@ class Paths
 	{
 		if(Mods.currentModDirectory != null && Mods.currentModDirectory.length > 0)
 		{
-			var fileToCheck:String = mods(Mods.currentModDirectory + '/' + key);
+			var fileToCheck:String = MobileStorage.realPath(mods(Mods.currentModDirectory + '/' + key)); //(on phones, whatever its capital letters)
 			if(FileSystem.exists(fileToCheck))
 				return fileToCheck;
 
@@ -687,7 +688,7 @@ class Paths
 
 		if(scriptModDirectory != null && scriptModDirectory != Mods.currentModDirectory)
 		{
-			var fileToCheck:String = mods(scriptModDirectory + '/' + key);
+			var fileToCheck:String = MobileStorage.realPath(mods(scriptModDirectory + '/' + key));
 			if(FileSystem.exists(fileToCheck))
 				return fileToCheck;
 
@@ -698,7 +699,7 @@ class Paths
 
 		for(mod in Mods.getGlobalMods())
 		{
-			var fileToCheck:String = mods(mod + '/' + key);
+			var fileToCheck:String = MobileStorage.realPath(mods(mod + '/' + key));
 			if(FileSystem.exists(fileToCheck))
 				return fileToCheck;
 		}

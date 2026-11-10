@@ -739,9 +739,17 @@ class HxcModule
 	public var usings:Array<String> = [];
 	public var classes:Array<HxcClass> = [];
 
+	/**
+	 * The classes there were when the file was loaded (HxcRuntime.classes at that moment). Objects of a script outlive the loading
+	 * of others: a mod's object kept somewhere every mod reaches (V-Slice's ModStore) is still used on another mod's song, where its
+	 * mod's scripts aren't loaded. It still finds the classes of its own mod in here.
+	 */
+	public var world:Map<String, HxcClass>;
+
 	public function new(path:String)
 	{
 		this.path = path;
+		world = HxcRuntime.classes;
 	}
 }
 

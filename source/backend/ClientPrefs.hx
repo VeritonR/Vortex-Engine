@@ -15,6 +15,7 @@ import states.TitleState;
 	public var iconBop:Bool = false;
 	public var scoreCamera:String = 'HUD';
 	public var breakTimer:Bool = false;
+	public var subtitles:Bool = true; //the lines of V-Slice songs' and cutscenes' subtitle files (.srt)
 	public var songCredits:Bool = false; //the card with the song's name, composer and charter when a song starts
 	public var tutorialButton:Bool = true; //the "Tutorial" button on the screens that have one (see backend.Tutorial)
 	public var keystrokes:String = 'Off'; //the keys being pressed shown during songs: 'Off', 'WASD' or 'DFJK' (see objects.Keystrokes)
@@ -40,6 +41,10 @@ import states.TitleState;
 	public var windowMode:String = 'Windowed';
 	public var sharpness:Null<Int> = 0;
 	public var supersampling:String = 'Off'; //the game drawn bigger than the window and shrunk to it, like DSR (see backend.Supersampling)
+	public var wideScreen:Bool = false; //on a window wider (or taller) than 16:9 the stage of a song fills it instead of black bars (see backend.GameScaleMode)
+	public var touchControls:String = #if mobile 'Arrows' #else 'Off' #end; //how songs are played by touching the screen (see backend.TouchControls)
+	public var touchOpacity:Float = 1;
+	public var renderResolution:String = '720p'; //phones: the lines of pixels the game is drawn at (see backend.MobileGraphics)
 	public var camZooms:Bool = true;
 	public var hideHud:Bool = false;
 	public var noteOffset:Int = 0;
@@ -193,6 +198,8 @@ class ClientPrefs {
 	public static function saveSettings() {
 		for (key in Reflect.fields(data))
 			Reflect.setField(FlxG.save.data, key, Reflect.field(data, key));
+		// (a song played with the touch layout turns Downscroll on for itself: the player's own is the one kept)
+		if(TouchControls.realDownScroll != null) FlxG.save.data.downScroll = TouchControls.realDownScroll;
 
 		#if ACHIEVEMENTS_ALLOWED Achievements.save(); #end
 		funkin.save.Save.keepModOptions(); //(the options of V-Slice mods go with the engine's)
@@ -207,7 +214,56 @@ class ClientPrefs {
 		FlxG.log.add("Settings saved!");
 	}
 
+	// ------------------------------------------------------------------------------------------
+	// The Shaders option, off for real
+	// ------------------------------------------------------------------------------------------
+
+	static var watchingShaders:Bool = false;
+
+	/**
+	 * With the Shaders option off, the effects scripts put on the screen are taken off before each frame is drawn: V-Slice's stages
+	 * (the rain of Philly Streets) and mods' scripts don't look at the option, Psych's Lua does. The engine's own (the colors of
+	 * the notes, the Sharpness option) stay.
+	 */
+	public static function watchShaders():Void
+	{
+		if(watchingShaders) return;
+		watchingShaders = true;
+		FlxG.signals.preDraw.add(function()
+		{
+			if(data.shaders) return;
+			for (camera in FlxG.cameras.list)
+				if(camera != null && camera.filters != null && camera.filters.length > 0)
+				{
+					var kept:Array<openfl.filters.BitmapFilter> = [for (filter in camera.filters) if(!isEffect(filter)) filter];
+					if(kept.length != camera.filters.length) camera.filters = (kept.length > 0) ? kept : null;
+				}
+
+			@:privateAccess var gameFilters:Array<openfl.filters.BitmapFilter> = (FlxG.game != null) ? FlxG.game._filters : null;
+			if(gameFilters != null && gameFilters.length > 0)
+			{
+				var kept:Array<openfl.filters.BitmapFilter> = [for (filter in gameFilters) if(!isEffect(filter) || options.GraphicsSettingsSubState.isEngineFilter(filter)) filter];
+				if(kept.length != gameFilters.length) FlxG.game.setFilters((kept.length > 0) ? kept : null);
+			}
+		});
+	}
+
+	// A filter that draws through a shader (the effects): the others (a blur...) are openfl's own
+	static function isEffect(filter:openfl.filters.BitmapFilter):Bool
+		return Std.isOfType(filter, openfl.filters.ShaderFilter);
+
+	/**
+	 * What a script giving a sprite a shader gets with the Shaders option off: no shader, unless it's one of the engine's
+	 * own (the colors of the notes).
+	 */
+	public static function allowedShader(shader:Dynamic):Dynamic
+	{
+		if(shader == null || data.shaders || Std.isOfType(shader, shaders.RGBPalette.RGBPaletteShader)) return shader;
+		return null;
+	}
+
 	public static function loadPrefs() {
+		watchShaders();
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
 
 		for (key in Reflect.fields(data))
@@ -222,7 +278,9 @@ class ClientPrefs {
 
 		if(FlxG.save.data.framerate == null) {
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
-			data.framerate = Std.int(FlxMath.bound(refreshRate, 60, 240));
+			// (60 on phones: their screens go to 120 Hz and more, twice the drawing for a graphics card that has less to give, and the heat
+			// and battery that come with it. It can be raised in the options)
+			data.framerate = #if mobile 60 #else Std.int(FlxMath.bound(refreshRate, 60, 240)) #end;
 		}
 		#end
 

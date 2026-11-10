@@ -38,21 +38,24 @@ class Supersampling
 		if(FlxG.game == null || FlxG.stage == null) return;
 
 		factor = wanted;
-		if(factor <= 1)
-		{
-			stop();
-			return;
-		}
+		if(factor <= 1) stop();
+		listen();
+	}
 
-		if(!listening)
-		{
-			listening = true;
-			FlxG.signals.postDraw.add(render);
-		}
+	/**
+	 * Starts drawing the game the way this does, on the frames that need it: with the option on, or when the Widescreen option
+	 * fills the bars around the game (see GameScaleMode.sidesWanted()).
+	 */
+	public static function listen():Void
+	{
+		if(listening) return;
+		listening = true;
+		FlxG.signals.postDraw.add(render);
 	}
 
 	static function stop():Void
 	{
+		if(buffer == null && (view == null || view.parent == null)) return;
 		if(view != null && view.parent != null) view.parent.removeChild(view);
 		if(buffer != null) buffer.dispose();
 		buffer = null;
@@ -63,7 +66,13 @@ class Supersampling
 	// After the game has made its frame: drawn on the texture, the texture shown in its place
 	static function render():Void
 	{
-		if(factor <= 1) return;
+		var sides:Bool = GameScaleMode.sidesWanted();
+		if(factor <= 1 && !sides)
+		{
+			stop();
+			return;
+		}
+		var factor:Float = Math.max(1, Supersampling.factor);
 
 		var stage = FlxG.stage;
 		var width:Int = Math.ceil(stage.stageWidth * factor);
@@ -82,7 +91,7 @@ class Supersampling
 			{
 				// too big for the graphics card: back to the usual drawing
 				trace('Supersampling: a texture of ${width}x$height could not be made, it is turned off ($e)');
-				factor = 1;
+				Supersampling.factor = 1;
 				stop();
 				return;
 			}
@@ -106,6 +115,7 @@ class Supersampling
 		}
 
 		buffer.fillRect(buffer.rect, 0xFF000000);
+		if(sides) GameScaleMode.drawSidesOn(buffer, factor); //(the Widescreen option's, behind the game)
 		matrix.identity();
 		matrix.scale(FlxG.game.scaleX, FlxG.game.scaleY); //(zoomed in by a tutorial, see backend.Tutorial)
 		matrix.translate(FlxG.game.x, FlxG.game.y);
@@ -113,5 +123,6 @@ class Supersampling
 		FlxG.game.visible = true;
 		buffer.draw(FlxG.game, matrix, null, null, null, true);
 		FlxG.game.visible = false; //(the window shows the texture instead)
+		if(sides) GameScaleMode.takeSidesFrom(buffer, factor);
 	}
 }

@@ -120,7 +120,7 @@ class Assets
 		if(found == null) return null;
 
 		#if sys
-		return BitmapData.fromFile(found);
+		return BitmapData.fromFile(backend.MobileStorage.forLime(found));
 		#else
 		return openfl.utils.Assets.getBitmapData(found, useCache);
 		#end
@@ -134,7 +134,7 @@ class Assets
 		if(found == null) return null;
 
 		#if sys
-		return backend.SoundLoader.validFile(found) ? Sound.fromFile(found) : null;
+		return backend.SoundLoader.validFile(found) ? Sound.fromFile(backend.MobileStorage.forLime(found)) : null;
 		#else
 		return openfl.utils.Assets.getSound(found);
 		#end

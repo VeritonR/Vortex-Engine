@@ -1,0 +1,15 @@
+// What the engine adds to the Android app made by lime, merged into it by Gradle (see src/main/AndroidManifest.xml)
+apply plugin: 'com.android.library'
+
+android
+{
+	namespace 'com.veriton.vortexengine.extras'
+	compileSdkVersion Integer.parseInt(project.ANDROID_BUILD_SDK_VERSION)
+	buildToolsVersion project.ANDROID_BUILD_TOOLS_VERSION
+
+	defaultConfig
+	{
+		minSdkVersion Integer.parseInt(project.ANDROID_BUILD_MIN_SDK_VERSION)
+		targetSdkVersion Integer.parseInt(project.ANDROID_BUILD_TARGET_SDK_VERSION)
+	}
+}

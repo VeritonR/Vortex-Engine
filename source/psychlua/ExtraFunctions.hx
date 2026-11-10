@@ -14,9 +14,19 @@ class ExtraFunctions
 		var lua:State = funk.lua;
 		
 		// Keyboard & Gamepads
-		Lua_helper.add_callback(lua, "keyboardJustPressed", function(name:String) return Reflect.getProperty(FlxG.keys.justPressed, name));
-		Lua_helper.add_callback(lua, "keyboardPressed", function(name:String) return Reflect.getProperty(FlxG.keys.pressed, name));
-		Lua_helper.add_callback(lua, "keyboardReleased", function(name:String) return Reflect.getProperty(FlxG.keys.justReleased, name));
+		// (the keys asked for get a button with the touch controls, see TouchControls.askedKey())
+		Lua_helper.add_callback(lua, "keyboardJustPressed", function(name:String) {
+			backend.TouchControls.askedKey(name);
+			return Reflect.getProperty(FlxG.keys.justPressed, name);
+		});
+		Lua_helper.add_callback(lua, "keyboardPressed", function(name:String) {
+			backend.TouchControls.askedKey(name);
+			return Reflect.getProperty(FlxG.keys.pressed, name);
+		});
+		Lua_helper.add_callback(lua, "keyboardReleased", function(name:String) {
+			backend.TouchControls.askedKey(name);
+			return Reflect.getProperty(FlxG.keys.justReleased, name);
+		});
 
 		Lua_helper.add_callback(lua, "anyGamepadJustPressed", function(name:String) return FlxG.gamepads.anyJustPressed(name));
 		Lua_helper.add_callback(lua, "anyGamepadPressed", function(name:String) FlxG.gamepads.anyPressed(name));
@@ -61,6 +71,9 @@ class ExtraFunctions
 		Lua_helper.add_callback(lua, "keyJustPressed", function(name:String = '') {
 			name = name.toLowerCase().trim();
 			switch(name) {
+				case 'space':
+					backend.TouchControls.askedKey('SPACE');
+					return FlxG.keys.justPressed.SPACE;
 				case 'left': return PlayState.instance.controls.NOTE_LEFT_P;
 				case 'down': return PlayState.instance.controls.NOTE_DOWN_P;
 				case 'up': return PlayState.instance.controls.NOTE_UP_P;
@@ -72,6 +85,9 @@ class ExtraFunctions
 		Lua_helper.add_callback(lua, "keyPressed", function(name:String = '') {
 			name = name.toLowerCase().trim();
 			switch(name) {
+				case 'space':
+					backend.TouchControls.askedKey('SPACE');
+					return FlxG.keys.pressed.SPACE;
 				case 'left': return PlayState.instance.controls.NOTE_LEFT;
 				case 'down': return PlayState.instance.controls.NOTE_DOWN;
 				case 'up': return PlayState.instance.controls.NOTE_UP;
@@ -83,6 +99,9 @@ class ExtraFunctions
 		Lua_helper.add_callback(lua, "keyReleased", function(name:String = '') {
 			name = name.toLowerCase().trim();
 			switch(name) {
+				case 'space':
+					backend.TouchControls.askedKey('SPACE');
+					return FlxG.keys.justReleased.SPACE;
 				case 'left': return PlayState.instance.controls.NOTE_LEFT_R;
 				case 'down': return PlayState.instance.controls.NOTE_DOWN_R;
 				case 'up': return PlayState.instance.controls.NOTE_UP_R;

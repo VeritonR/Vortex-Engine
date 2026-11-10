@@ -611,6 +611,28 @@ class VSliceConvert
 
 		var images:Array<String> = [];
 		var mainImage:String = stripLibrary(str(char.assetPath, ''));
+
+		// V-Slice 0.8's mix and match: a spritesheet character whose animations say they're on texture atlases ("renderType":
+		// "animateatlas" on the animation) is drawn with those (Whitty's Julian Boyfriend: the base game's atlas Boyfriend, the
+		// spritesheet of its file only there to be something). When most of them are, it's made an atlas character, on the first
+		// atlas they name; the spritesheet ones it can't show are left out, like the other way around
+		if(!isAtlas)
+		{
+			var atlasCount:Int = 0;
+			var firstAtlas:String = null;
+			var all:Array<Dynamic> = list(char.animations);
+			for (anim in all)
+				if(str(anim.renderType, '').toLowerCase() == 'animateatlas')
+				{
+					atlasCount++;
+					if(firstAtlas == null && str(anim.assetPath, '').length > 0) firstAtlas = stripLibrary(str(anim.assetPath, ''));
+				}
+			if(firstAtlas != null && atlasCount * 2 >= all.length)
+			{
+				isAtlas = true;
+				mainImage = firstAtlas;
+			}
+		}
 		if(mainImage.length > 0) images.push(mainImage);
 
 		var animations:Array<Dynamic> = [];
@@ -624,6 +646,8 @@ class VSliceConvert
 			// and the character gets an atlas for each (see `Character.getExtraAtlas()`)
 			var extraImage:String = stripLibrary(str(anim.assetPath, ''));
 			var otherAtlas:String = null;
+			// (on an atlas character, a spritesheet animation of the mix and match isn't on the atlas: left out too)
+			if(isAtlas && str(anim.renderType, '').toLowerCase() == 'sparrow' && extraImage.length < 1 && str(char.renderType, '').toLowerCase().indexOf('sparrow') > -1) continue;
 			if(extraImage.length > 0 && extraImage != mainImage)
 			{
 				if(isAtlas)

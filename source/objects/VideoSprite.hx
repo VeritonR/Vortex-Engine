@@ -64,7 +64,7 @@ class VideoSprite extends FlxSpriteGroup {
 		});
 
 		// start video and adjust resolution to screen size
-		videoSprite.load(videoName, shouldLoop ? ['input-repeat=65545'] : null);
+		videoSprite.load(backend.MobileStorage.forLime(videoName), shouldLoop ? ['input-repeat=65545'] : null);
 	}
 
 	var alreadyDestroyed:Bool = false;
@@ -103,6 +103,14 @@ class VideoSprite extends FlxSpriteGroup {
 			
 			destroy();
 		}
+	}
+
+	/**
+	 * Skips the video now, as if the skip key had been held long enough (if it can be skipped).
+	 */
+	public function skipNow():Void
+	{
+		if(canSkip) holdingTime = _timeToSkip;
 	}
 
 	override function update(elapsed:Float)

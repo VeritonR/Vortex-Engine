@@ -41,6 +41,23 @@ class VSliceConversation extends FlxSpriteGroup
 	var box:VSliceDialogueBox = null;
 	var outroTween:FlxTween = null;
 
+	// What V-Slice's conversation lets its scripts see (Whitty's dialogue box plays a sound of its own for each speaker)
+	public var currentSpeaker(get, never):VSliceSpeaker;
+	function get_currentSpeaker():VSliceSpeaker return speaker;
+	public var currentDialogueBox(get, never):VSliceDialogueBox;
+	function get_currentDialogueBox():VSliceDialogueBox return box;
+	public var currentDialogueEntry(get, never):Int;
+	function get_currentDialogueEntry():Int return curEntry;
+	public var currentDialogueLine(get, never):Int;
+	function get_currentDialogueLine():Int return curLine;
+	public var currentDialogueEntryCount(get, never):Int;
+	function get_currentDialogueEntryCount():Int return entries.length;
+	public var currentDialogueLineCount(get, never):Int;
+	function get_currentDialogueLineCount():Int return lines.length;
+	/** The conversation's file (`_data.dialogue[i].speaker`...). */
+	public var _data(get, never):Dynamic;
+	function get__data():Dynamic return data;
+
 	// the ones that were already shown, they come back as the conversation goes from one to another
 	var speakers:Map<String, VSliceSpeaker> = [];
 	var boxes:Map<String, VSliceDialogueBox> = [];
@@ -115,6 +132,8 @@ class VSliceConversation extends FlxSpriteGroup
 		#if HSCRIPT_ALLOWED
 		var event = new funkin.modding.events.ScriptEvent.DialogueScriptEvent(type, this, cancelable);
 		backend.VSliceScripts.dispatch(event);
+		// (and the box's script, a box of a script being one of the dialogue's own: V-Slice tells it too)
+		for (shown in boxes) backend.VSliceScripts.tellObject(shown, event);
 		return event.eventCanceled;
 		#else
 		return false;
@@ -347,10 +366,19 @@ class VSliceConversation extends FlxSpriteGroup
 			var next:VSliceDialogueBox = boxes.get(boxId);
 			if(next == null)
 			{
-				var boxData:Dynamic = loadData('boxes', boxId);
-				if(boxData != null)
+				#if HSCRIPT_ALLOWED
+				// (a box of a script, the one that says it's this box: like on V-Slice, it's that one instead of the file's own)
+				next = backend.VSliceScripts.makeDialogueBoxScript(boxId);
+				if(next != null)
 				{
-					next = new VSliceDialogueBox(boxId, boxData);
+					next.build();
+					backend.VSliceScripts.tellObject(next, new funkin.modding.events.ScriptEvent(funkin.modding.events.ScriptEventType.CREATE));
+				}
+				#end
+				var boxData:Dynamic = (next == null) ? loadData('boxes', boxId) : null;
+				if(next == null && boxData != null) next = new VSliceDialogueBox(boxId, boxData);
+				if(next != null)
+				{
 					next.typingCompleteCallback = onTypingComplete;
 					boxes.set(boxId, next);
 				}
@@ -442,26 +470,81 @@ class VSliceDialogueBox extends FlxSpriteGroup
 	var data:Dynamic;
 	var boxSprite:FlxSprite = null;
 	var textDisplay:FlxTypeText;
-	var animOffsets:Map<String, Array<Float>> = [];
+	var animOffsetMap:Map<String, Array<Float>> = [];
 	var baseX:Float = 0;
 	var baseY:Float = 0;
 
-	public function new(id:String, data:Dynamic)
+	/**
+	 * The box's file, as V-Slice's scripts know it (`_data.text.width`...).
+	 */
+	public var _data(get, never):Dynamic;
+	function get__data():Dynamic return data;
+
+	/**
+	 * V-Slice's names for where the box is: its file's offsets, and the ones of the animation being played.
+	 */
+	public var globalOffsets(get, never):Array<Float>;
+	function get_globalOffsets():Array<Float> return (data != null) ? pair(data.offsets) : [0, 0];
+	public var animOffsets(get, never):Array<Float>;
+	function get_animOffsets():Array<Float>
+	{
+		var current:String = getCurrentAnimation();
+		var offsets:Array<Float> = (current != null) ? animOffsetMap.get(current) : null;
+		return (offsets != null) ? [offsets[0], offsets[1]] : [0, 0];
+	}
+
+	public function new(id:String, data:Dynamic, build:Bool = true)
 	{
 		super();
 		this.id = id;
 		this.data = data;
+		scrollFactor.set();
+		if(build) this.build();
+	}
+
+	/**
+	 * Makes the box out of its file: its picture and its text. A box made by a script is made when it's first shown, its script's
+	 * own `loadSpritesheet()` and `loadText()` doing their part when it has them.
+	 */
+	public function build():Void
+	{
+		if(data == null) return;
 
 		// Everything is placed from the middle of the screen, like on V-Slice
 		var offsets:Array<Float> = pair(data.offsets);
 		baseX = FlxG.width / 2 + offsets[0];
 		baseY = FlxG.height / 2 + offsets[1];
 		setPosition(baseX, baseY);
-		scrollFactor.set();
 
-		loadBox();
-		loadText();
+		if(!byScript('loadSpritesheet')) loadBox();
+		if(!byScript('loadText')) loadText();
 	}
+
+	// A function the box's script has its own version of is done by it (which can still ask for this one, `super.thing()`)
+	inline function byScript(name:String, ?args:Array<Dynamic>):Bool
+		return #if HSCRIPT_ALLOWED backend.VSliceScripts.callOverride(this, name, args) #else false #end;
+
+	override function update(elapsed:Float):Void
+	{
+		// (the sounds of the text, given by a script: anything that isn't a sound would close the game when the next letter is typed)
+		if(textDisplay != null && textDisplay.sounds != null)
+		{
+			var sounds:Array<Dynamic> = textDisplay.sounds;
+			if(Lambda.exists(sounds, (sound) -> !Std.isOfType(sound, flixel.sound.FlxSound)))
+			{
+				var kept:Array<flixel.sound.FlxSound> = [for (sound in sounds) if(Std.isOfType(sound, flixel.sound.FlxSound)) sound];
+				textDisplay.sounds = (kept.length > 0) ? kept : null;
+			}
+		}
+		super.update(elapsed);
+		// (a box of a script is told about every frame, like on V-Slice)
+		#if HSCRIPT_ALLOWED
+		if(hxc.HxcRuntime.getInstance(this) != null) backend.VSliceScripts.tellObject(this, new funkin.modding.events.ScriptEvent.UpdateScriptEvent(elapsed));
+		#end
+	}
+
+	// (V-Slice's name for loadBox(), which scripts call as `super.loadSpritesheet()`)
+	function loadSpritesheet():Void loadBox();
 
 	@:allow(cutscenes.VSliceSpeaker)
 	static function pair(value:Dynamic):Array<Float>
@@ -542,9 +625,14 @@ class VSliceDialogueBox extends FlxSpriteGroup
 		boxSprite.scale.set(size, size);
 		boxSprite.updateHitbox();
 
-		addAnimations(boxSprite, data.animations, animOffsets);
+		addAnimations(boxSprite, data.animations, animOffsetMap);
+		// (V-Slice tells the box when an animation of it ends: a script plays the next one, the box's "idle" after its "enter")
+		boxSprite.animation.finishCallback = function(name:String) byScript('onAnimationFinished', [name]);
 		add(boxSprite);
 	}
+
+	// (nothing by default: what a script does when an animation of the box ends)
+	function onAnimationFinished(name:String):Void {}
 
 	function loadText():Void
 	{
@@ -591,6 +679,7 @@ class VSliceDialogueBox extends FlxSpriteGroup
 
 	public function setText(text:String):Void
 	{
+		if(byScript('setText', [text]) || textDisplay == null) return;
 		textDisplay.prefix = '';
 		textDisplay.resetText(text);
 		textDisplay.start(null, true);
@@ -601,6 +690,7 @@ class VSliceDialogueBox extends FlxSpriteGroup
 	 */
 	public function appendText(text:String):Void
 	{
+		if(byScript('appendText', [text]) || textDisplay == null) return;
 		textDisplay.prefix = textDisplay.text;
 		textDisplay.resetText(text);
 		textDisplay.start();
@@ -608,6 +698,7 @@ class VSliceDialogueBox extends FlxSpriteGroup
 
 	public function clearText():Void
 	{
+		if(textDisplay == null) return;
 		textDisplay.prefix = '';
 		textDisplay.resetText('');
 	}
@@ -617,22 +708,24 @@ class VSliceDialogueBox extends FlxSpriteGroup
 	 */
 	public function skip():Void
 	{
+		if(byScript('skip') || textDisplay == null) return;
 		textDisplay.skip();
 	}
 
 	public function stopTyping():Void
 	{
-		textDisplay.paused = true;
+		if(textDisplay != null) textDisplay.paused = true;
 	}
 
 	public function playAnimation(name:String, restart:Bool = false):Void
 	{
+		if(byScript('playAnimation', [name, restart, false])) return;
 		var found:String = findAnimation(boxSprite, name);
 		if(found == null) return;
 
 		boxSprite.animation.play(found, restart);
 
-		var offsets:Array<Float> = animOffsets.get(found);
+		var offsets:Array<Float> = animOffsetMap.get(found);
 		setPosition(baseX + ((offsets != null) ? offsets[0] : 0), baseY + ((offsets != null) ? offsets[1] : 0));
 	}
 
@@ -655,7 +748,7 @@ class VSliceSpeaker extends FlxSprite
 	public var id(default, null):String;
 
 	var data:Dynamic;
-	var animOffsets:Map<String, Array<Float>> = [];
+	var animOffsetMap:Map<String, Array<Float>> = [];
 	var baseX:Float = 0;
 	var baseY:Float = 0;
 
@@ -689,7 +782,28 @@ class VSliceSpeaker extends FlxSprite
 		scale.set(size, size);
 		updateHitbox();
 
-		VSliceDialogueBox.addAnimations(this, data.animations, animOffsets);
+		VSliceDialogueBox.addAnimations(this, data.animations, animOffsetMap);
+	}
+
+	/**
+	 * V-Slice's names for where the speaker is: its file's offsets, and the ones of the animation being played.
+	 */
+	public var globalOffsets(get, never):Array<Float>;
+	function get_globalOffsets():Array<Float> return (data != null) ? VSliceDialogueBox.pair(data.offsets) : [0, 0];
+	public var animOffsets(get, never):Array<Float>;
+	function get_animOffsets():Array<Float>
+	{
+		var offsets:Array<Float> = (animation.curAnim != null) ? animOffsetMap.get(animation.curAnim.name) : null;
+		return (offsets != null) ? [offsets[0], offsets[1]] : [0, 0];
+	}
+
+	/**
+	 * Puts the speaker where an animation of it goes.
+	 */
+	public function applyAnimationOffsets(name:String):Void
+	{
+		var offsets:Array<Float> = animOffsetMap.get(name);
+		setPosition(baseX + ((offsets != null) ? offsets[0] : 0), baseY + ((offsets != null) ? offsets[1] : 0));
 	}
 
 	/**
@@ -706,7 +820,7 @@ class VSliceSpeaker extends FlxSprite
 
 		animation.play(found, restart);
 
-		var offsets:Array<Float> = animOffsets.get(found);
+		var offsets:Array<Float> = animOffsetMap.get(found);
 		setPosition(baseX + ((offsets != null) ? offsets[0] : 0), baseY + ((offsets != null) ? offsets[1] : 0));
 	}
 }

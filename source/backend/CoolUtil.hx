@@ -131,7 +131,9 @@ class CoolUtil
 	}
 
 	inline public static function openFolder(folder:String, absolute:Bool = false) {
-		#if sys
+		#if mobile
+		trace('Folders can only be opened on computers: $folder'); //(phones have no file explorer to open: it'd run a program that isn't there)
+		#elseif sys
 			if(!absolute) folder =  Sys.getCwd() + '$folder';
 
 			folder = folder.replace('/', '\\');

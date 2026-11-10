@@ -40,6 +40,7 @@ class ReflectionFunctions
 			}
 
 			var split:Array<String> = variable.split('.');
+			if(split.length == 3 && split[0] == 'keys' && classVar == 'flixel.FlxG') backend.TouchControls.askedKey(split[2]);
 			if(split.length > 1) {
 				var obj:Dynamic = LuaUtils.getVarInArray(myClass, split[0], allowMaps);
 				for (i in 1...split.length-1)

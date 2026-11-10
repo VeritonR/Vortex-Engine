@@ -13,7 +13,8 @@ import flixel.addons.transition.FlxTransitionableState;
 
 class MainMenuState extends MusicBeatState
 {
-	public static var psychEngineVersion:String = '1.0.4'; // This is also used for Discord RPC
+	public static var psychEngineVersion:String = '1.0.4';
+	public static var vortexEngineVersion:String = '1.4'; // This is also used for Discord RPC
 	public static var curSelected:Int = 0;
 
 	public static var returningFromOptions:Bool = false;
@@ -52,6 +53,12 @@ class MainMenuState extends MusicBeatState
 
 	var inFreeplayMenu:Bool = false;
 	var freeplayBg:FlxSprite;
+
+	// The size the menu is laid out on: its camera's, the whole window with the Widescreen option (backend.GameScaleMode.widenMenu())
+	var screenWidth(get, never):Float;
+	function get_screenWidth():Float return (FlxG.camera != null) ? FlxG.camera.width : FlxG.width;
+	var screenHeight(get, never):Float;
+	function get_screenHeight():Float return (FlxG.camera != null) ? FlxG.camera.height : FlxG.height;
 	var galleryUnlocked:Bool = true;
 
 	var optionShit:Array<String> = [
@@ -90,10 +97,13 @@ class MainMenuState extends MusicBeatState
 
 		#if DISCORD_ALLOWED
 		// Updating Discord Rich Presence
-		DiscordClient.changePresence("In the Menus", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_main_menu', 'In the Main Menu'), null, 'menu');
 		#end
 
 		persistentUpdate = persistentDraw = true;
+
+		// (the Widescreen option: the menu covers the whole window, its things placed on the camera's size, see screenWidth)
+		var wide:Bool = backend.GameScaleMode.widenMenu(FlxG.camera);
 
 		bg = new FlxSprite();
 		bg.visible = false;
@@ -149,6 +159,16 @@ class MainMenuState extends MusicBeatState
 		parallaxBg2.screenCenter();
 		add(parallaxBg2);
 
+		if(wide)
+		{
+			// (bigger, to cover it all: with some more for the parallax)
+			for (layer in [parallaxBg, parallaxBg1, road, parallaxBg2]) backend.GameScaleMode.cover(layer, FlxG.camera, 0.85, 80);
+			var grown:Float = parallaxBg.scale.x / 0.85;
+			cloudsBg.scale.set(0.75 * grown, 0.75 * grown);
+			phillyCar.scale.set(0.85 * grown, 0.85 * grown);
+			for (layer in [parallaxBg, parallaxBg1, road, parallaxBg2]) layer.x = (screenWidth - layer.width) / 2;
+		}
+
 		menuItems = new MainMenuItemList();
 		add(menuItems);
 
@@ -166,12 +186,12 @@ class MainMenuState extends MusicBeatState
 			item.scale.set(0.7, 0.7);
 			item.updateHitbox();
 
-			var targetX:Float = FlxG.width - item.width - 100;
+			var targetX:Float = screenWidth - item.width - 100;
 
-			itemsBaseX.push(item.width + 1200);
+			itemsBaseX.push(screenWidth + item.width - 80);
 			itemsBaseY.push(currentY);
 
-			FlxTween.num(item.width + 1200, targetX, 0.8, {ease: FlxEase.backOut, startDelay: num * 0.15}, function(val:Float) {
+			FlxTween.num(screenWidth + item.width - 80, targetX, 0.8, {ease: FlxEase.backOut, startDelay: num * 0.15}, function(val:Float) {
 				itemsBaseX[item.ID] = val; 
 			});
 
@@ -180,19 +200,19 @@ class MainMenuState extends MusicBeatState
 			}
 			currentY += item.height + 15;
 		}
-		vortexVer = new FlxText(12, FlxG.height - 74, 0, "Vortex Engine v1.4", 14);
+		vortexVer = new FlxText(12, screenHeight - 74, 0, "Vortex Engine v" + vortexEngineVersion, 14);
 		vortexVer.scrollFactor.set();
 		vortexVer.antialiasing = ClientPrefs.data.antialiasing;
 		vortexVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		add(vortexVer);
 
-		psychVer = new FlxText(12, FlxG.height - 54, 0, "Psych Engine v" + psychEngineVersion, 14);
+		psychVer = new FlxText(12, screenHeight - 54, 0, "Psych Engine v" + psychEngineVersion, 14);
 		psychVer.scrollFactor.set();
 		psychVer.antialiasing = ClientPrefs.data.antialiasing;
 		psychVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		add(psychVer);
 
-		var fnfVer:FlxText = new FlxText(12, FlxG.height - 34, 0, "Friday Night Funkin" , 14);
+		var fnfVer:FlxText = new FlxText(12, screenHeight - 34, 0, "Friday Night Funkin" , 14);
 		fnfVer.scrollFactor.set();
 		fnfVer.antialiasing = ClientPrefs.data.antialiasing;
 		fnfVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
@@ -200,7 +220,7 @@ class MainMenuState extends MusicBeatState
 		leftWatermarkText = fnfVer;
 
 		// Empty until a V-Slice mod writes on it (its name and version, usually)
-		rightWatermarkText = new FlxText(0, FlxG.height - 34, FlxG.width - 12, "", 14);
+		rightWatermarkText = new FlxText(0, screenHeight - 34, screenWidth - 12, "", 14);
 		rightWatermarkText.scrollFactor.set();
 		rightWatermarkText.antialiasing = ClientPrefs.data.antialiasing;
 		rightWatermarkText.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
@@ -213,7 +233,7 @@ class MainMenuState extends MusicBeatState
 		#end
 		changeItem();
 
-		freeplayBg = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, 0xFF000000);
+		freeplayBg = new FlxSprite().makeGraphic(Std.int(screenWidth), Std.int(screenHeight), 0xFF000000);
 		freeplayBg.alpha = 0;
 		freeplayBg.scrollFactor.set(0, 0);
 		freeplayBg.visible = false;
@@ -221,7 +241,7 @@ class MainMenuState extends MusicBeatState
 
 		optionsGear = new FlxSprite(0, 10).loadGraphic(Paths.image('mainmenu/menu_options'));
 		optionsGear.antialiasing = ClientPrefs.data.antialiasing;
-		optionsGear.x = FlxG.width - (optionsGear.width / 2);
+		optionsGear.x = screenWidth - (optionsGear.width / 2);
 		add(optionsGear);
 
 		// the buttons of the top left corner: the achievements and the mods (LEFT picks them with the keyboard)
@@ -272,13 +292,13 @@ class MainMenuState extends MusicBeatState
 
 	function optionsClosed():Void
 	{
-		optionsGear.x = FlxG.width - (optionsGear.width / 2);
+		optionsGear.x = screenWidth - (optionsGear.width / 2);
 		optionsGear.angle = 0;
 		optionsGear.visible = true;
 		isOptionsAnimating = false;
 		selectedSomethin = false;
 		#if DISCORD_ALLOWED
-		DiscordClient.changePresence("In the Menus", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_main_menu', 'In the Main Menu'), null, 'menu');
 		#end
 	}
 
@@ -562,17 +582,17 @@ class MainMenuState extends MusicBeatState
 		#end
 		super.update(elapsed);
 
-		var mouseOffX:Float = (FlxG.mouse.screenX - (FlxG.width / 2));
-		var mouseOffY:Float = (FlxG.mouse.screenY - (FlxG.height / 2));
+		var mouseOffX:Float = (FlxG.mouse.screenX - (screenWidth / 2));
+		var mouseOffY:Float = (FlxG.mouse.screenY - (screenHeight / 2));
 
-		var targetRoadX:Float = ((FlxG.width - road.width) / 2) - (mouseOffX * 0.05);
-		var targetRoadY:Float = ((FlxG.height - road.height) / 2) - (mouseOffY * 0.05);
+		var targetRoadX:Float = ((screenWidth - road.width) / 2) - (mouseOffX * 0.05);
+		var targetRoadY:Float = ((screenHeight - road.height) / 2) - (mouseOffY * 0.05);
 
-		var target1X:Float = ((FlxG.width - parallaxBg1.width) / 2) - (mouseOffX * 0.03);
-		var target1Y:Float = ((FlxG.height - parallaxBg1.height) / 2) - (mouseOffY * 0.03);
+		var target1X:Float = ((screenWidth - parallaxBg1.width) / 2) - (mouseOffX * 0.03);
+		var target1Y:Float = ((screenHeight - parallaxBg1.height) / 2) - (mouseOffY * 0.03);
 
-		var target2X:Float = ((FlxG.width - parallaxBg2.width) / 2) - (mouseOffX * 0.08);
-		var target2Y:Float = ((FlxG.height - parallaxBg2.height) / 2) - (mouseOffY * 0.08);
+		var target2X:Float = ((screenWidth - parallaxBg2.width) / 2) - (mouseOffX * 0.08);
+		var target2Y:Float = ((screenHeight - parallaxBg2.height) / 2) - (mouseOffY * 0.08);
 
 		var speed:Float = flixel.math.FlxMath.bound(elapsed * 6, 0, 1);
 		
@@ -588,7 +608,7 @@ class MainMenuState extends MusicBeatState
 		if (carMoving) {
 			carBaseX += (carSpeed * carDirection) * elapsed;
 
-			var distDoCentro:Float = carBaseX - (FlxG.width / 2);
+			var distDoCentro:Float = carBaseX - (screenWidth / 2);
 			
 			var curvaY:Float = Math.pow(distDoCentro, 2) / 9000; 
 
@@ -596,13 +616,13 @@ class MainMenuState extends MusicBeatState
 			
 			var carBaseY:Float = carroYCentral + curvaY;
 
-			var roadOffX = road.x - ((FlxG.width - road.width) / 2);
-			var roadOffY = road.y - ((FlxG.height - road.height) / 2);
+			var roadOffX = road.x - ((screenWidth - road.width) / 2);
+			var roadOffY = road.y - ((screenHeight - road.height) / 2);
 
 			phillyCar.x = carBaseX + roadOffX;
 			phillyCar.y = carBaseY + roadOffY;
 
-			if ((carDirection == 1 && carBaseX > FlxG.width + 200) || (carDirection == -1 && carBaseX < -phillyCar.width - 200)) {
+			if ((carDirection == 1 && carBaseX > screenWidth + 200) || (carDirection == -1 && carBaseX < -phillyCar.width - 200)) {
 				carMoving = false;
 				phillyCar.visible = false;
 				
@@ -610,8 +630,8 @@ class MainMenuState extends MusicBeatState
 			}
 		}
 		
-		var bg2CenterStartX:Float = (FlxG.width - parallaxBg2.width) / 2;
-		var bg2CenterStartY:Float = (FlxG.height - parallaxBg2.height) / 2;
+		var bg2CenterStartX:Float = (screenWidth - parallaxBg2.width) / 2;
+		var bg2CenterStartY:Float = (screenHeight - parallaxBg2.height) / 2;
 		var bg2OffX:Float = parallaxBg2.x - bg2CenterStartX;
 		var bg2OffY:Float = parallaxBg2.y - bg2CenterStartY;
 
@@ -641,12 +661,12 @@ class MainMenuState extends MusicBeatState
 
 		var margin:Float = 40;
 		var last:FlxSprite = menuItems.members[count - 1];
-		var maxScroll:Float = Math.max(0, itemsBaseY[count - 1] + last.height - (FlxG.height - margin));
+		var maxScroll:Float = Math.max(0, itemsBaseY[count - 1] + last.height - (screenHeight - margin));
 		if(maxScroll <= 0) return 0;
 
 		var selected:FlxSprite = menuItems.members[curSelected];
 		var top:Float = itemsBaseY[curSelected] - margin;
-		var bottom:Float = itemsBaseY[curSelected] + selected.height - (FlxG.height - margin);
+		var bottom:Float = itemsBaseY[curSelected] + selected.height - (screenHeight - margin);
 
 		var target:Float = itemsScroll;
 		if(top < target) target = top;
@@ -660,7 +680,7 @@ class MainMenuState extends MusicBeatState
 	{
 		if(leftWatermarkText == null || vortexVer == null || psychVer == null) return;
 
-		var bottom:Float = FlxG.height - 14;
+		var bottom:Float = screenHeight - 14;
 		if(leftWatermarkText.y + leftWatermarkText.height > bottom) leftWatermarkText.y = bottom - leftWatermarkText.height;
 		psychVer.y = leftWatermarkText.y - 20;
 		vortexVer.y = psychVer.y - 20;
@@ -729,7 +749,7 @@ class MainMenuState extends MusicBeatState
 		if (carDirection == 1) {
 			carBaseX = -phillyCar.width - 200;
 		} else {
-			carBaseX = FlxG.width + 200;
+			carBaseX = screenWidth + 200;
 		}
 	}
 }

@@ -67,7 +67,7 @@ class GalleryState extends MusicBeatState
         super.create();
 
         #if DISCORD_ALLOWED
-        DiscordClient.changePresence("In the Gallery", null);
+        DiscordClient.changePresence(Language.getPhrase('discord_gallery', 'Looking at the Gallery'), null, 'menu');
         #end
 
         bgWhite = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, 0xFF120820);
@@ -360,7 +360,7 @@ class GalleryState extends MusicBeatState
         decodeMutex.release();
         if (pixels != null) bitmap = backend.PngDecoder.toBitmapData(pixels);
         #end
-        if (bitmap == null) bitmap = openfl.display.BitmapData.fromFile(path);
+        if (bitmap == null) bitmap = openfl.display.BitmapData.fromFile(backend.MobileStorage.forLime(path));
         if (bitmap == null) return null;
 
         // (kept while the gallery is open: flixel would destroy a graphic nothing shows, and its picture with it)
@@ -437,6 +437,17 @@ class GalleryState extends MusicBeatState
         if (bytes == null) return;
 
         FlxG.sound.play(Paths.sound('scrollMenu'));
+        #if android
+        // (phones have no window to pick where to save: it goes to the phone's Pictures, where its gallery shows it)
+        try
+        {
+            var pictures:String = haxe.io.Path.addTrailingSlash(extension.androidtools.os.Environment.getExternalStorageDirectory()) + 'Pictures/Vortex Engine/';
+            if (!sys.FileSystem.exists(pictures)) sys.FileSystem.createDirectory(pictures);
+            sys.io.File.saveBytes(pictures + item.name + '.png', bytes);
+        }
+        catch (e:Dynamic) trace('Could not save the copy: $e');
+        return;
+        #end
         file = new openfl.net.FileReference();
         file.addEventListener(openfl.events.Event.SELECT, onSaveEnd);
         file.addEventListener(openfl.events.Event.CANCEL, onSaveEnd);

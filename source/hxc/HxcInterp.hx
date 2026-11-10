@@ -136,6 +136,26 @@ class HxcInterp extends Interp
 		// (a constructor that fails means there's no object: whoever asked for one has to know)
 		if(name == 'new') return Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic return me.run(raw, args, level, func.args));
 
+		// A function that gives nothing back (declared ":Void", or with no "return" of a value) gives null, like in Haxe: the library
+		// gives back the value of its last line, which a script then takes for what it asked for (Whitty's dialogue box set its
+		// sound to the path of the sound's file, and the game closed when it was played)
+		var givesNothing:Bool = returnsVoid(func.ret) || !returnsValue(body);
+		if(givesNothing)
+			return Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
+			{
+				var fromScript:Bool = (running > 0);
+				try
+				{
+					me.run(raw, args, level, func.args);
+				}
+				catch(error:Dynamic)
+				{
+					if(fromScript && !Std.isOfType(error, Error)) throw error;
+					HxcRuntime.reportError(me.cls.name, name, me.withLine(error));
+				}
+				return null;
+			});
+
 		// On Polymod (V-Slice) an error stays inside of the function it happened on: it's reported, the function gives nothing back
 		// and whoever called it goes on. That goes for the engine too, which calls these when they're given to a signal or a timer
 		return Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
@@ -153,6 +173,39 @@ class HxcInterp extends Interp
 			}
 			return null;
 		});
+	}
+
+	static function returnsVoid(type:CType):Bool
+	{
+		if(type == null) return false; //(no type written)
+		return switch(type)
+		{
+			case CTPath(path): path != null && path.name == 'Void' && (path.pack == null || path.pack.length == 0);
+			default: false;
+		}
+	}
+
+	// If a function's body has a "return" of a value (not counting the functions inside of it)
+	static function returnsValue(body:Expr):Bool
+	{
+		var found:Bool = false;
+		function look(e:Expr):Void
+		{
+			if(found || e == null) return;
+			switch(Tools.expr(e))
+			{
+				case EReturn(value):
+					if(value != null) found = true;
+				case EFunction(_, _, _, _):
+					return;
+				default:
+			}
+			if(!found) Tools.iter(e, look);
+		}
+		// (the library's walk through the code doesn't expect everything it can find: when it can't go through it all, the function
+		// is taken as one that gives something back, the way it was before)
+		try look(body) catch(e:Dynamic) return true;
+		return found;
 	}
 
 	// How many functions of scripts are being run, of any object
@@ -473,6 +526,7 @@ class HxcInterp extends Interp
 		var scripted:HxcInstance = HxcRuntime.getInstance(o);
 		if(scripted != null) return scripted.getField(f);
 
+		if(Std.isOfType(o, flixel.input.FlxBaseKeyList)) backend.TouchControls.askedKey(f);
 		var value:Dynamic = HxcRuntime.readMember(o, f);
 		if(value == null) value = HxcRuntime.getExtra(o, f);
 		if(value == null)
@@ -525,6 +579,7 @@ class HxcInterp extends Interp
 	override function set(o:Dynamic, f:String, v:Dynamic):Dynamic
 	{
 		if(o == null) error(EInvalidAccess(f));
+		if(f == 'shader') v = ClientPrefs.allowedShader(v); //(the Shaders option off: no effects from scripts)
 
 		if(Std.isOfType(o, HxcSuper))
 		{
@@ -648,7 +703,15 @@ class HxcScope
 	{
 		var instance:HxcInstance = interp.instance;
 		if(instance != null && (name == 'this' || name == 'super' || instance.hasMember(name))) return true;
-		return extras.exists(name) || findStatic(name) != null || HxcRuntime.classes.exists(name) || HxcRuntime.globals.exists(name);
+		return extras.exists(name) || findStatic(name) != null || HxcRuntime.classes.exists(name) || HxcRuntime.globals.exists(name) || fromOwnWorld(name) != null;
+	}
+
+	// A class of the scripts there were when the running one was loaded, which aren't loaded anymore (see HxcModule.world)
+	function fromOwnWorld(name:String):HxcClass
+	{
+		var cls:HxcClass = interp.cls;
+		if(cls == null || cls.module == null || cls.module.world == null || cls.module.world == HxcRuntime.classes) return null;
+		return cls.module.world.get(name);
 	}
 
 	public function get(name:String):Dynamic
@@ -666,7 +729,8 @@ class HxcScope
 		if(owner != null) return owner.getStatic(name);
 
 		if(HxcRuntime.classes.exists(name)) return HxcRuntime.classes.get(name);
-		return HxcRuntime.globals.get(name);
+		if(HxcRuntime.globals.exists(name)) return HxcRuntime.globals.get(name);
+		return fromOwnWorld(name);
 	}
 
 	public function set(name:String, value:Dynamic):Void

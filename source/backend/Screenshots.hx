@@ -237,7 +237,7 @@ class Screenshots extends Sprite
 
 	static function openFolder():Void
 	{
-		#if sys
+		#if (sys && !mobile)
 		try
 		{
 			if(!sys.FileSystem.exists(FOLDER)) sys.FileSystem.createDirectory(FOLDER);

@@ -5,6 +5,13 @@ package backend;
 
 class PsychCamera extends FlxCamera
 {
+	// (the Widescreen option: see backend.GameScaleMode.coverSides())
+	override function drawFX():Void
+	{
+		super.drawFX();
+		backend.GameScaleMode.coverSides(this);
+	}
+
 	override public function update(elapsed:Float):Void
 	{
 		// follow the target, if there is one

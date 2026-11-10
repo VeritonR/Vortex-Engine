@@ -24,7 +24,7 @@ class NoteOffsetState extends MusicBeatState
 
 	var barPercent:Float = 0;
 	var delayMin:Int = -500;
-	var delayMax:Int = 500;
+	var delayMax:Int = #if mobile 2500 #else 500 #end; //(phones can play sound late: emulators a lot)
 	var timeBar:Bar;
 	var timeTxt:FlxText;
 	var beatText:Alphabet;

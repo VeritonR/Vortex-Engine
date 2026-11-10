@@ -43,7 +43,7 @@ class CustomCursor
 		try
 		{
 			// (a copy of its own: the images of the game are let go of between screens, the cursor stays)
-			var picture:BitmapData = BitmapData.fromFile(path);
+			var picture:BitmapData = BitmapData.fromFile(backend.MobileStorage.forLime(path));
 			if(picture == null) throw 'not an image';
 
 			var scale:Float = 1;

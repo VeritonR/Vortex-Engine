@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Merged into the app's own manifest. Android 10 lets the game use its folder on the phone's storage ("Vortex Engine",
+     see backend.MobileStorage) only with requestLegacyExternalStorage; Android 11 and newer use the "All files access" permission.
+     READ_PHONE_STATE isn't used: Gradle adds it for libraries that don't say which Android they're made for (extension-androidtools). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+	<uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+	<application android:requestLegacyExternalStorage="true" />
+</manifest>

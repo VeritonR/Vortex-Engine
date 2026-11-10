@@ -199,6 +199,7 @@ class VSliceScripts
 
 		logErrors.push(message);
 		writeLog();
+		StepLog.add('Script error: ' + message); //(when it happened, among the steps)
 	}
 
 	/**
@@ -798,6 +799,14 @@ class VSliceScripts
 		// Each thing is told it was made in the order V-Slice makes them: the stage first, then the characters, which the stage
 		// is given one by one (`addCharacter()`, what stage scripts replace to do things to them), and the song last.
 		// Scripts count on it: a stage gives its characters what it made on its own `onCreate()`, and asks them for what they made on theirs
+		// V-Slice's subtitles, made with its HUD (before the scripts are told the song was created: they move them)
+		if(!modulesOnly && funkin.Preferences.subtitles && facade.subtitles == null)
+		{
+			facade.subtitles = new funkin.play.components.Subtitles(0, 139, funkin.Preferences.downscroll ? 'top' : 'bottom');
+			facade.subtitles.cameras = [game.camOther];
+			game.add(facade.subtitles);
+		}
+
 		dispatchToModules(new ScriptEvent(ScriptEventType.CREATE));
 		callEvent(stageScript, new ScriptEvent(ScriptEventType.CREATE));
 		for (character in characterScripts.copy())
@@ -1012,10 +1021,6 @@ class VSliceScripts
 		modules.sort(moduleOrder);
 		CreditsDataHandler.collect(mod, credits);
 
-		// (the base game's own are the boxes the engine already makes the way those scripts would: nothing to tell about them)
-		for (cls in HxcRuntime.listSubclasses(funkin.play.cutscene.dialogue.DialogueBox))
-			if(getScriptMod(cls) != PolymodCompat.BASE_MOD)
-				warn('The dialogue box script "${cls.name}" is not run: the boxes are made by the engine out of their data files', true);
 
 		for (cls in modFirst(HxcRuntime.listSubclasses(SongEvent)))
 		{
@@ -1031,6 +1036,7 @@ class VSliceScripts
 			if(!eventKinds.contains(kind)) eventKinds.push(kind);
 		}
 		eventKinds.sort(Reflect.compare);
+		if(!modulesOnly) borrowEvents([for (kind in eventKinds) if(!songEvents.exists(kind) && !OWN_EVENTS.contains(kind)) kind], mod);
 		for (kind in eventKinds)
 			if(songEvents.exists(kind))
 				chartSongEvents.push(songEvents.get(kind));
@@ -1051,6 +1057,118 @@ class VSliceScripts
 		// the look of the song's note style, for each side (its notes are all made by now, the receptors may not be yet)
 		facade.opponentStrumline.applyNoteStyle();
 		facade.playerStrumline.applyNoteStyle();
+		#end
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Events of other mods
+	// ------------------------------------------------------------------------------------------
+
+	// The script files of each mod, with their text (read once): name of the file => its text
+	static var modScriptTexts:Map<String, Array<{path:String, text:String}>> = [];
+
+	static function scriptTextsOf(mod:String):Array<{path:String, text:String}>
+	{
+		var found:Array<{path:String, text:String}> = modScriptTexts.get(mod);
+		if(found != null) return found;
+		found = [];
+		#if MODS_ALLOWED
+		for (path in HxcRuntime.findFiles(Paths.mods('$mod/scripts')))
+			try found.push({path: path, text: sys.io.File.getContent(path)}) catch(e:Dynamic) {}
+		#end
+		modScriptTexts.set(mod, found);
+		return found;
+	}
+
+	static final CLASS_NAME:EReg = ~/\bclass\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+
+	static function classNamesIn(text:String):Array<String>
+	{
+		var names:Array<String> = [];
+		var position:Int = 0;
+		while(CLASS_NAME.matchSub(text, position))
+		{
+			names.push(CLASS_NAME.matched(1));
+			var where = CLASS_NAME.matchedPos();
+			position = where.pos + where.len;
+		}
+		return names;
+	}
+
+	/**
+	 * V-Slice has the scripts of every mod at once: a chart can use an event that only another mod makes (Sonic.exe's charts use
+	 * the "Lyrics" event that Spooky Mix and MCM have). The events of the song's chart that nothing here does are looked for on the
+	 * other enabled mods, and their files loaded, with the files of the classes of that mod they use. A file with a class that's
+	 * already loaded is left out: it would take the place of the song's mod's own.
+	 */
+	static function borrowEvents(kinds:Array<String>, mod:String):Void
+	{
+		#if MODS_ALLOWED
+		if(kinds.length < 1) return;
+
+		for (other in Mods.parseList().enabled)
+		{
+			if(kinds.length < 1) break;
+			if(other == mod || other == PolymodCompat.BASE_MOD || !PolymodCompat.isPolymod(other)) continue;
+
+			var files:Array<{path:String, text:String}> = scriptTextsOf(other);
+			for (kind in kinds.copy())
+			{
+				var file = Lambda.find(files, (f) -> f.text.indexOf("super('" + kind + "')") > -1 || f.text.indexOf('super("' + kind + '")') > -1);
+				if(file == null) continue;
+
+				// the file, the modules of that mod that do the event (Spooky Mix and MCM's event does nothing: their module "LyricsObject"
+				// shows the lyrics, `onSongEvent()`) and, one after the other, the files of that mod declaring the classes they use
+				var pending:Array<{path:String, text:String}> = [file];
+				for (candidate in files)
+					if(candidate != file && (candidate.text.indexOf('"' + kind + '"') > -1 || candidate.text.indexOf("'" + kind + "'") > -1)
+						&& (candidate.text.indexOf('extends Module') > -1 || candidate.text.indexOf('extends ScriptedModule') > -1))
+						pending.push(candidate);
+				var loaded:Array<String> = [];
+				while(pending.length > 0)
+				{
+					var next = pending.shift();
+					if(loaded.contains(next.path)) continue;
+					loaded.push(next.path);
+					if(Lambda.exists(classNamesIn(next.text), (name) -> HxcRuntime.classes.exists(name))) continue;
+
+					HxcRuntime.loadFile(next.path);
+					for (candidate in files)
+					{
+						if(loaded.contains(candidate.path)) continue;
+						for (name in classNamesIn(candidate.text))
+							if(@:privateAccess HxcRuntime.isNameUsed(next.text, name))
+							{
+								pending.push(candidate);
+								break;
+							}
+					}
+				}
+
+				for (cls in HxcRuntime.listSubclasses(Module))
+				{
+					if(getScriptMod(cls) != other || Lambda.exists(modules, (module) -> module.cls == cls)) continue;
+					var module:HxcInstance = HxcRuntime.instantiate(cls, [cls.name]);
+					if(module == null || module.base == null) continue;
+					modules.push(module);
+					modules.sort(moduleOrder);
+				}
+
+				for (cls in HxcRuntime.listSubclasses(SongEvent))
+				{
+					if(getScriptMod(cls) != other) continue;
+					var event:HxcInstance = HxcRuntime.instantiate(cls, ['UKNOWN']);
+					if(event == null || event.base == null) continue;
+					var id:String = cast(event.base, SongEvent).id;
+					if(!songEvents.exists(id)) songEvents.set(id, event);
+				}
+				if(songEvents.exists(kind))
+				{
+					StepLog.add('The event "$kind" of the chart is made by "$other": its script was loaded');
+					kinds.remove(kind);
+				}
+			}
+		}
 		#end
 	}
 
@@ -1332,6 +1450,31 @@ class VSliceScripts
 			if(script != null && script.base != null && cast(script.base, Stage).id == id) return cast script.base;
 		}
 		return null;
+	}
+
+	/**
+	 * The dialogue box made by a script for that id (a script's box says which one it is on its constructor), not built yet.
+	 * Null if no script has one.
+	 */
+	public static function makeDialogueBoxScript(id:String):funkin.play.cutscene.dialogue.DialogueBox
+	{
+		if(!active) return null;
+		for (cls in modFirst(HxcRuntime.listSubclasses(funkin.play.cutscene.dialogue.DialogueBox)))
+		{
+			var script:HxcInstance = HxcRuntime.instantiate(cls, ['unknown']);
+			if(script != null && script.base != null && cast(script.base, funkin.play.cutscene.dialogue.DialogueBox).id == id)
+				return cast script.base;
+		}
+		return null;
+	}
+
+	/**
+	 * Tells an object's script about something, if it has one.
+	 */
+	public static function tellObject(object:Dynamic, event:ScriptEvent):Void
+	{
+		var script:HxcInstance = HxcRuntime.getInstance(object);
+		if(script != null) callEvent(script, event);
 	}
 
 	/**
@@ -1779,6 +1922,8 @@ class VSliceScripts
 				// opponent, on top of what each of that player's hits already costs: given back, see PlayState.opponentNoteHit())
 				var healthBefore:Float = game.health;
 				dispatch(new UpdateScriptEvent(args[0]));
+				// (V-Slice's stage is a group updated with the song: a stage script's own update() runs every frame)
+				if(stageScript != null && stageScript.hasMethod('update')) stageScript.call('update', [args[0]]);
 				if(game.otherSideHolding() && game.health < healthBefore) game.health = healthBefore;
 				sectionFocusEvents();
 				if(firstUpdate)
@@ -1823,6 +1968,7 @@ class VSliceScripts
 				else dispatch(new CountdownScriptEvent(ScriptEventType.COUNTDOWN_STEP, ['THREE', 'TWO', 'ONE', 'GO'][counter], false));
 
 			case 'onSongStart':
+				if(!modulesOnly && facade != null) facade.assignSongSubtitles();
 				dispatch(new ScriptEvent(ScriptEventType.SONG_START));
 				if(refreshOnSongStart)
 				{

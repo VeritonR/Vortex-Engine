@@ -106,8 +106,72 @@ class Save
 		return false;
 	}
 
-	public function getSongScore(songId:String, difficultyId:String = 'normal', ?variation:String):Dynamic return null;
-	public function getLevelScore(levelId:String, difficultyId:String = 'normal'):Dynamic return null;
-	public function isSongFavorited(id:String):Bool return false;
-	public function isCharacterUnlocked(characterId:String):Bool return true;
+	/**
+	 * The best score of a song on a difficulty, null if it was never played: `{score, tallies, accuracy}`. The engine keeps
+	 * the score and the accuracy, not how many of each rating the play had (the tallies are all 0).
+	 */
+	public function getSongScore(songId:String, difficultyId:String = 'normal', ?variation:String):Dynamic
+	{
+		var key:String = backend.FreeplayData.getScoreKey(backend.Highscore.scoreName(songId, variation), difficultyId);
+		if(!backend.Highscore.songScores.exists(key) || backend.Highscore.songScores.get(key) <= 0) return null;
+
+		var accuracy:Float = backend.Highscore.songRating.exists(key) ? backend.Highscore.songRating.get(key) : 0;
+		return {score: backend.Highscore.songScores.get(key), tallies: emptyTallies(), accuracy: accuracy};
+	}
+
+	/**
+	 * The best score of a week on a difficulty, null if it was never finished (see getSongScore()).
+	 */
+	public function getLevelScore(levelId:String, difficultyId:String = 'normal'):Dynamic
+	{
+		var key:String = backend.FreeplayData.getScoreKey(levelId, difficultyId);
+		if(!backend.Highscore.weekScores.exists(key) || backend.Highscore.weekScores.get(key) <= 0) return null;
+		return {score: backend.Highscore.weekScores.get(key), tallies: emptyTallies()};
+	}
+
+	static function emptyTallies():Dynamic
+		return {sick: 0, good: 0, bad: 0, shit: 0, missed: 0, combo: 0, maxCombo: 0, totalNotesHit: 0, totalNotes: 0};
+
+	/**
+	 * If a song is one of Freeplay's favorites, on any of the mods that have it.
+	 */
+	public function isSongFavorited(id:String):Bool
+	{
+		var name:String = ':' + Paths.formatToSongPath(id);
+		var favorites:Array<String> = FlxG.save.data.freeplayFavorites;
+		if(favorites != null)
+			for (key in favorites)
+				if(key != null && (key.endsWith(name) || key.indexOf(name + '-') > -1)) return true;
+		return false;
+	}
+
+	/**
+	 * If a player can be picked on Character Select.
+	 */
+	public function isCharacterUnlocked(characterId:String):Bool
+	{
+		var player:backend.PlayableCharacters.PlayableCharacter = backend.PlayableCharacters.get(characterId);
+		return player == null || player.unlocked;
+	}
+
+	/**
+	 * The players Character Select has shown already (the new ones get a spotlight there): `charactersSeen.value`.
+	 */
+	public var charactersSeen(get, never):Dynamic;
+	function get_charactersSeen():Dynamic return {value: seenCharacters()};
+
+	public function addCharacterSeen(character:String):Void
+	{
+		var seen:Array<String> = seenCharacters();
+		if(seen.contains(character)) return;
+		seen.push(character);
+		FlxG.save.flush();
+	}
+
+	function seenCharacters():Array<String>
+	{
+		var seen:Array<String> = FlxG.save.data.vsliceCharactersSeen;
+		if(seen == null) FlxG.save.data.vsliceCharactersSeen = seen = ['bf'];
+		return seen;
+	}
 }

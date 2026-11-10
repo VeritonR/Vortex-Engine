@@ -410,7 +410,7 @@ class StickerTransition
 			var sound:Sound = soundCache.get(path);
 			if(sound == null && SoundLoader.validFile(path))
 			{
-				sound = Sound.fromFile(path);
+				sound = Sound.fromFile(backend.MobileStorage.forLime(path));
 				if(sound != null) soundCache.set(path, sound);
 			}
 			if(sound != null) found.push(sound);
@@ -427,7 +427,7 @@ class StickerTransition
 		#if sys
 		try
 		{
-			var bitmap:BitmapData = BitmapData.fromFile(path);
+			var bitmap:BitmapData = BitmapData.fromFile(backend.MobileStorage.forLime(path));
 			if(bitmap == null) return null;
 
 			// not on the game's list of images, which is emptied between states

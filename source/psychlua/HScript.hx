@@ -595,7 +595,14 @@ class CustomInterp extends crowplexus.hscript.Interp
 		super();
 	}
 
+	override function get(o:Dynamic, f:String):Dynamic {
+		if(o != null && Std.isOfType(o, flixel.input.FlxBaseKeyList)) backend.TouchControls.askedKey(f);
+		return super.get(o, f);
+	}
+
 	override function fcall(o:Dynamic, funcToRun:String, args:Array<Dynamic>):Dynamic {
+		if(o != null && args != null && args.length > 0 && Std.isOfType(o, flixel.input.keyboard.FlxKeyboard) && Std.isOfType(args[0], Array))
+			for (key in (args[0]:Array<Dynamic>)) backend.TouchControls.askedKey(key);
 		for (_using in usings) {
 			var v = _using.call(o, funcToRun, args);
 			if (v != null)

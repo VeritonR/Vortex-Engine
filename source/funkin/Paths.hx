@@ -168,6 +168,13 @@ class Paths
 		return backend.Paths.getPath('data/${stripLibrary(key)}.json');
 	}
 
+	// A subtitles file, in "data" unless said otherwise
+	public static function srt(key:String, ?library:String, ?directory:String = 'data/'):String
+	{
+		if(directory == null) directory = 'data/';
+		return backend.Paths.getPath('$directory${stripLibrary(key)}.srt');
+	}
+
 	public static function frag(key:String, ?library:String):String
 	{
 		return backend.Paths.getPath('shaders/${stripLibrary(key)}.frag');

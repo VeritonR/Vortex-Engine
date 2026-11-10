@@ -140,6 +140,7 @@ class FreeplayStateVslice extends MusicBeatState
 	var topLeftCornerText:FlxText;
 	var ostName:FlxText;
 	var charSelectHint:FlxText = null;
+	var touchHint:Bool = false; //(the hint says to touch the DJ)
 	var rankVignette:FlxSprite;
 	var sparks:FlxSprite = null;
 	var sparksADD:FlxSprite = null;
@@ -213,7 +214,7 @@ class FreeplayStateVslice extends MusicBeatState
 		#end
 
 		#if DISCORD_ALLOWED
-		DiscordClient.changePresence("In the FreePlay", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_freeplay_menu', 'Browsing Freeplay'), null, 'freeplay');
 		#end
 
 		enteredFromCharSelect = fromCharSelect;
@@ -534,6 +535,13 @@ class FreeplayStateVslice extends MusicBeatState
 
 		var song:FreeplaySong = currentSong;
 		rememberedSong = (song != null) ? song.favoriteKey : null;
+
+		#if DISCORD_ALLOWED
+		var hoveredName:String = (song != null) ? ((song.displayName != null && song.displayName.length > 0) ? song.displayName : song.name) : Language.getPhrase('discord_random', 'Random');
+		var hoveredMod:String = (song != null) ? DiscordClient.modName(song.folder) : null;
+		DiscordClient.changePresenceSoon(Language.getPhrase('discord_freeplay_menu', 'Browsing Freeplay'), (hoveredMod != null) ? hoveredName + ' · ' + hoveredMod : hoveredName, 'freeplay',
+			Language.getPhrase('discord_playing_as', 'Playing as {1}', [PlayableCharacters.getCurrent().name]));
+		#end
 
 		// Capsules that went too far give their place to the ones getting close
 		var first:Int = Std.int(Math.max(0, curSelected - WINDOW_BEFORE));
@@ -1308,6 +1316,12 @@ class FreeplayStateVslice extends MusicBeatState
 
 		if(charSelectHint != null)
 		{
+			// (on a touch screen there's no TAB: the DJ is touched, like on V-Slice's phones)
+			if(backend.TouchControls.menusTouched() && !touchHint)
+			{
+				touchHint = true;
+				charSelectHint.text = Language.getPhrase('freeplay_char_select_hint_touch', 'Tap the DJ to change characters');
+			}
 			hintTimer += elapsed * 2;
 			charSelectHint.alpha = FlxMath.lerp(0.3, 0.9, (Math.sin(hintTimer) + 1) / 2);
 		}
@@ -1976,6 +1990,33 @@ class FreeplayStateVslice extends MusicBeatState
 	// ------------------------------------------------------------------------------------------
 	// Leaving
 	// ------------------------------------------------------------------------------------------
+
+	/**
+	 * A touch on the screen (see backend.TouchMenus), like V-Slice on phones: the DJ opens Character Select, a song is picked, and
+	 * touched again it's played. True if it was used.
+	 */
+	public function onTouchTap(x:Float, y:Float):Bool
+	{
+		if(uiState != Idle) return false;
+
+		// (V-Slice's DJ hitbox: the bottom left corner)
+		if(x >= 0 && x <= 400 && y >= 320 && y <= FlxG.height)
+		{
+			tryOpenCharSelect();
+			return true;
+		}
+
+		for (capsule in grpCapsules.members)
+		{
+			if(capsule == null || !capsule.exists || !capsule.visible || capsule.songIndex < 0) continue;
+			if(!backend.TouchControls.TouchMenus.under(capsule, x, y)) continue;
+
+			if(capsule.songIndex == curSelected) confirmSong();
+			else changeSelectionByPlayer(capsule.songIndex - curSelected);
+			return true;
+		}
+		return false;
+	}
 
 	function tryOpenCharSelect():Void
 	{

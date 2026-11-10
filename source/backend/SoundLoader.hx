@@ -71,6 +71,30 @@ class SoundLoader
 		}
 	}
 
+	/**
+	 * If a file can be played straight from it: an OGG with only its audio. An OGG video (a picture stream with the sound, which some
+	 * mods have as a song's "Inst.ogg": Hypno's Lullaby's Ingrained) froze the game for good when played from the file, so it's
+	 * loaded whole, the way songs are.
+	 */
+	public static function streamable(file:String):Bool
+	{
+		try
+		{
+			var input = sys.io.File.read(file, true);
+			var bytes:haxe.io.Bytes = haxe.io.Bytes.alloc(64);
+			var read:Int = 0;
+			try read = input.readBytes(bytes, 0, 64) catch(e:Dynamic) {}
+			input.close();
+			if(read < 40 || bytes.getString(0, 4) != 'OggS') return false;
+
+			// the first page of the file is its first stream's header, which has to be the Vorbis one
+			var start:Int = 27 + bytes.get(26);
+			return start + 7 <= read && bytes.get(start) == 1 && bytes.getString(start + 1, 6) == 'vorbis';
+		}
+		catch(e:Dynamic) {}
+		return false;
+	}
+
 	static function warnInvalid(file:String):Void
 		trace('The sound "$file" is empty or is not one that can be played: it was left out');
 
@@ -145,7 +169,7 @@ class SoundLoader
 
 		var id:Int = ++lastId;
 		callbacks.set(id, callback);
-		if(stream) streams.push({id: id, file: file});
+		if(stream && streamable(file)) streams.push({id: id, file: file});
 		else jobs.add({id: id, file: file});
 		return id;
 		#else
@@ -335,7 +359,7 @@ class SoundLoader
 				if(buffer != null) return Sound.fromAudioBuffer(buffer);
 			}
 			#end
-			return Sound.fromFile(file);
+			return Sound.fromFile(backend.MobileStorage.forLime(file));
 		}
 		catch(e:Dynamic)
 		{

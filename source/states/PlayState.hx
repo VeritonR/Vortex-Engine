@@ -455,6 +455,7 @@ public var cameraSpeed:Float = 1;
 
 	// Less laggy controls
 	private var keysArray:Array<String>;
+	var touchNotes:backend.TouchControls.TouchNotes = null; //the touch controls (backend.TouchControls)
 	public var songName:String;
 
 	// Callbacks for stages
@@ -482,6 +483,7 @@ public var cameraSpeed:Float = 1;
 	{
 		backend.StepLog.add('Song: being made, mod "' + Mods.currentModDirectory + '"');
 		HealthIcon.vsliceIcons.clear(); //(the song's V-Slice characters put theirs again, see HealthIcon.vsliceIcons)
+		#if DISCORD_ALLOWED DiscordClient.scriptPresence = false; #end
 		FlxG.signals.preUpdate.add(restoreGuardedHud);
 		scoreCamera = ClientPrefs.data.scoreCamera;
 		iconBop = ClientPrefs.data.iconBop;
@@ -489,6 +491,8 @@ public var cameraSpeed:Float = 1;
 		sustainWiggle = ClientPrefs.data.sustainWiggle;
 		ghostNotes = ClientPrefs.data.ghostNotes;
 		showLaneUnderlay = ClientPrefs.data.laneUnderlay;
+		// (the touch layout, V-Slice's on phones: Downscroll for the song, see backend.TouchControls.touchLayout())
+		if(backend.TouchControls.touchLayout()) backend.TouchControls.forceDownScroll();
 		otherDownScroll = ClientPrefs.data.downScroll;
 		if (backend.NetworkManager.connected && ClientPrefs.data.opponentView)
 		{
@@ -582,6 +586,8 @@ public var cameraSpeed:Float = 1;
 		camOverlay = new FlxCamera();
 		camOverlay.bgColor.alpha = 0;
 		FlxG.cameras.add(camOverlay, false);
+		backend.GameScaleMode.widen(camGame); //(the Widescreen option)
+		if(ClientPrefs.data.touchControls != 'Off') touchNotes = new backend.TouchControls.TouchNotes(this);
 
 		persistentUpdate = true;
 		persistentDraw = true;
@@ -1984,7 +1990,7 @@ public var cameraSpeed:Float = 1;
 
 		#if DISCORD_ALLOWED
 		// Updating Discord Rich Presence (with Time Left)
-		if(autoUpdateRPC) DiscordClient.changePresence(detailsText, SONG.song + " (" + storyDifficultyText + ")", iconP2.getCharacter(), true, songLength);
+		discordPresence('playing', true);
 		#end
 		setOnScripts('songLength', songLength);
 		callOnScripts('onSongStart');
@@ -2486,6 +2492,7 @@ public var cameraSpeed:Float = 1;
 		}
 		StrumNote.vsliceHitbox = null;
 		layoutStrums(player);
+		if(backend.TouchControls.touchLayout()) backend.TouchControls.layoutStrums(this, player);
 
 		// the look of the note style of the side, on the songs of V-Slice mods
 		#if HSCRIPT_ALLOWED
@@ -2581,10 +2588,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			openPauseMenu();
 		}
 
-		if (!paused && health > 0 && autoUpdateRPC)
-		{
-			DiscordClient.changePresence(detailsPausedText, SONG.song + " (" + storyDifficultyText + ")", iconP2.getCharacter());
-		}
+		if (!paused && health > 0) discordPresence('paused');
 	}
 	#end
 
@@ -2593,13 +2597,96 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 	function resetRPC(?showTime:Bool = false)
 	{
 		#if DISCORD_ALLOWED
-		if(!autoUpdateRPC) return;
-
-		if (showTime)
-			DiscordClient.changePresence(detailsText, SONG.song + " (" + storyDifficultyText + ")", iconP2.getCharacter(), true, songLength - Conductor.songPosition - ClientPrefs.data.noteOffset);
-		else
-			DiscordClient.changePresence(detailsText, SONG.song + " (" + storyDifficultyText + ")", iconP2.getCharacter());
+		discordPresence('playing', showTime);
 		#end
+	}
+
+	#if DISCORD_ALLOWED
+	var discordShowsTime:Bool = false;
+	var discordState:String = null;
+	var discordCheck:Float = 0;
+
+	/**
+	 * What Discord shows while a song is played: the song with its difficulty and mod, the score as it goes (accuracy, misses or the
+	 * full combo), and in the small picture's tooltip how it's played. `status`: 'playing', 'paused' or 'gameover'.
+	 */
+	function discordPresence(status:String, showTime:Bool = false):Void
+	{
+		if(!autoUpdateRPC || SONG == null) return;
+
+		var online:Bool = backend.NetworkManager.connected;
+		var song:String = SONG.song + ' (' + storyDifficultyText + ')';
+		var details:String = (status == 'gameover') ? Language.getPhrase('discord_game_over', 'Game Over: {1}', [song]) : song;
+		var mod:String = DiscordClient.modName(Mods.currentModDirectory);
+		if(mod != null) details += ' · ' + mod;
+
+		var state:String = switch(status)
+		{
+			case 'paused': Language.getPhrase('discord_paused', 'Paused · {1}', [discordStats()]);
+			case 'gameover': Language.getPhrase('discord_deaths', 'Deaths: {1}', [deathCounter]);
+			default: discordStats();
+		}
+
+		var how:String = online ? Language.getPhrase('discord_online', 'Online match')
+			: (isStoryMode ? Language.getPhrase('discord_story', 'Story Mode: {1}', [WeekData.getCurrentWeek().weekName]) : Language.getPhrase('discord_freeplay', 'Freeplay'));
+		var player:String = playAsOpponent ? ((dad != null) ? dad.curCharacter : null) : backend.PlayableCharacters.getCurrent().name;
+		if(player != null && player.length > 0) how += ' · ' + Language.getPhrase('discord_playing_as', 'Playing as {1}', [player]);
+
+		var picture:String = (status == 'playing') ? (online ? 'online' : 'playing') : status;
+		discordShowsTime = (status == 'playing' && showTime);
+		discordState = state;
+		DiscordClient.setParty(online ? 2 : 0, online ? 2 : 0);
+		DiscordClient.changePresence(details, state, picture, discordShowsTime, discordShowsTime ? songLength - Conductor.songPosition - ClientPrefs.data.noteOffset : 0, 'icon', how);
+	}
+
+	// "Score: 123,456 · 98.12% · FC" ("2 misses" instead of the full combo, "Botplay" when it plays by itself)
+	function discordStats():String
+	{
+		if(cpuControlled) return Language.getPhrase('discord_botplay', 'Botplay');
+
+		var text:String = Language.getPhrase('discord_score', 'Score: {1}', [flixel.util.FlxStringUtil.formatMoney(songScore, false)]);
+		if(totalPlayed > 0)
+		{
+			text += ' · ' + CoolUtil.floorDecimal(ratingPercent * 100, 2) + '%';
+			if(songMisses == 1) text += ' · ' + Language.getPhrase('discord_miss', '1 miss');
+			else if(songMisses > 1) text += ' · ' + Language.getPhrase('discord_misses', '{1} misses', [songMisses]);
+			else if(ratingFC != null && ratingFC.length > 0) text += ' · ' + ratingFC;
+		}
+		if(practiceMode) text += ' · ' + Language.getPhrase('discord_practice', 'Practice');
+		return text;
+	}
+
+	// The score on Discord follows the song, a few seconds at a time (Discord takes a few changes every 20 seconds)
+	function updateDiscordScore(elapsed:Float):Void
+	{
+		discordCheck += elapsed;
+		if(discordCheck < 5) return;
+		discordCheck = 0;
+		if(!autoUpdateRPC || DiscordClient.scriptPresence || paused || isDead || !startedCountdown || discordState == null) return;
+		if(discordStats() != discordState) discordPresence('playing', discordShowsTime);
+	}
+	#end
+
+	// Where the song really is right now. The music's own time only moves when the sound system takes another block of the song
+	// (every 20 to 100 ms on phones, about 23 ms on a computer), and stays still in between: a press judged by it was off by up to
+	// a whole block, a Bad or a Shit for a press right on time (V-Slice adds the time since it last moved, `getTimeWithDelta()`)
+	var lastMusicTime:Float = -1;
+	var lastMusicStamp:Float = 0;
+	public function musicTime():Float
+	{
+		var music = FlxG.sound.music;
+		if(music == null) return 0;
+
+		var raw:Float = music.time;
+		var now:Float = haxe.Timer.stamp() * 1000;
+		if(raw != lastMusicTime || !music.playing)
+		{
+			lastMusicTime = raw;
+			lastMusicStamp = now;
+			return raw;
+		}
+		// (a block is never this long: past it, the music stopped for some reason, and its own time is the right one)
+		return raw + Math.min(now - lastMusicStamp, 250) * playbackRate;
 	}
 
 	function resyncVocals():Void
@@ -2635,6 +2722,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 	override public function update(elapsed:Float)
 	{
+		#if DISCORD_ALLOWED updateDiscordScore(elapsed); #end
 		if (ClientPrefs.data.smoothHealthBar)
 		{
 			// O fator '14 * elapsed' determina a velocidade do deslize. 
@@ -2865,8 +2953,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			Conductor.songPosition += elapsed * 1000 * playbackRate;
 			if (Conductor.songPosition >= Conductor.offset)
 			{
-				Conductor.songPosition = FlxMath.lerp(FlxG.sound.music.time + Conductor.offset, Conductor.songPosition, Math.exp(-elapsed * 5));
-				var timeDiff:Float = Math.abs((FlxG.sound.music.time + Conductor.offset) - Conductor.songPosition);
+				var heard:Float = musicTime();
+				Conductor.songPosition = FlxMath.lerp(heard + Conductor.offset, Conductor.songPosition, Math.exp(-elapsed * 5));
+				var timeDiff:Float = Math.abs((heard + Conductor.offset) - Conductor.songPosition);
 				if (timeDiff > 1000 * playbackRate)
 					Conductor.songPosition = Conductor.songPosition + 1000 * FlxMath.signOf(timeDiff);
 			}
@@ -2928,6 +3017,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 				}
 				notes.insert(0, dunceNote);
 				dunceNote.spawned = true;
+				if(backend.TouchControls.touchLayout()) backend.TouchControls.fitNote(this, dunceNote);
 
 				if (dunceNote.isSustainNote) {
 					dunceNote.cameras = [camSus];
@@ -3391,7 +3481,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		openSubState(new PauseSubState());
 
 		#if DISCORD_ALLOWED
-		if(autoUpdateRPC) DiscordClient.changePresence(detailsPausedText, SONG.song + " (" + storyDifficultyText + ")", iconP2.getCharacter());
+		discordPresence('paused');
 		#end
 	}
 
@@ -3497,7 +3587,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 				#if DISCORD_ALLOWED
 				// Game Over doesn't get his its variable because it's only used here
-				if(autoUpdateRPC) DiscordClient.changePresence("Game Over - " + detailsText, SONG.song + " (" + storyDifficultyText + ")", iconP2.getCharacter());
+				discordPresence('gameover');
 				#end
 				isDead = true;
 				return true;
@@ -3883,6 +3973,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 	function triggerVortexEvent(name:String, value1:String, value2:String):Bool
 	{
 		if(!VORTEX_EVENTS.contains(name) || modOwnsEvent(name)) return false;
+		// (a V-Slice chart's events are its mod's: one with the same name as these that no script does is left alone, as V-Slice
+		// leaves it. Sonic.exe's Prey has "Lyrics" events that showed all their values; its lyrics are subtitles, see Subtitles)
+		if(backend.VSliceScripts.active && !backend.VSliceScripts.modulesOnly) return false;
 
 		var parts1:Array<String> = eventParts(value1);
 		var parts2:Array<String> = eventParts(value2);
@@ -3974,8 +4067,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 					add(lyricsText);
 				}
 				var text:String = (value1 != null) ? value1.replace('\\n', '\n') : '';
+				var color:FlxColor = eventColor(value2, FlxColor.WHITE);
 				lyricsText.text = text;
-				lyricsText.color = eventColor(value2, FlxColor.WHITE);
+				lyricsText.color = color;
 				lyricsText.alpha = 1;
 				lyricsText.visible = text.trim().length > 0;
 
@@ -5284,7 +5378,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 		// more accurate hit time for the ratings?
 		var lastTime:Float = Conductor.songPosition;
-		if(Conductor.songPosition >= 0) Conductor.songPosition = FlxG.sound.music.time + Conductor.offset - pressDelay * 1000 * playbackRate;
+		if(Conductor.songPosition >= 0) Conductor.songPosition = musicTime() + Conductor.offset - pressDelay * 1000 * playbackRate;
 
 		// obtain notes that the player can hit
 		var plrInputNotes:Array<Note> = notes.members.filter(function(n:Note):Bool {
@@ -5433,6 +5527,14 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			for (i in 0...pressArray.length)
 				if(pressArray[i] && strumsBlocked[i] != true)
 					keyPressed(i);
+
+		// the touch controls press and let go of the keys like a keyboard would (a controller already goes through the lines above)
+		if(touchNotes != null && !controls.controllerMode)
+			for (i in 0...keysArray.length)
+			{
+				if(backend.TouchControls.justPressed(keysArray[i]) && strumsBlocked[i] != true) keyPressed(i);
+				else if(backend.TouchControls.justReleased(keysArray[i])) keyReleased(i);
+			}
 
 		if (startedCountdown && !inCutscene && !playableCharacter.stunned && generatedMusic)
 		{
@@ -5920,6 +6022,9 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 	}
 
 	override function destroy() {
+		if(touchNotes != null) touchNotes.destroy();
+		touchNotes = null;
+		backend.TouchControls.restoreDownScroll();
 		if(levelAtStart != null) Paths.setCurrentLevel(levelAtStart); //(a stage changed to in the middle of the song had its own library)
 		backend.ClickBetweenFrames.stop();
 		#if LUA_ALLOWED psychlua.VortexFunctions.restoreWindow(); #end //(what scripts did to the window)
@@ -7208,8 +7313,54 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		});
 	}
 
-    function spawnGhost(char:Character, noteDirection:Int)
+    // The character that's showing for one that sings: itself, or when a script hid it and shows another one in its place, doing
+    // the same animations (Whitty's Julian going orange: the other character is made and shown by the mod), that one. Null if it's
+    // hidden and nothing stands in for it
+    function shownFor(char:Character):Character
     {
+        if (char == null) return null;
+        if (char.visible && char.alpha > 0) return char;
+
+        // (the same animation, whatever comes after a dash: Julian sings "singLEFT-crazy" hidden, the orange one "singLEFT")
+        inline function baseName(name:String):String
+            return (name == null) ? '' : ((name.indexOf('-') > 0) ? name.substr(0, name.indexOf('-')) : name);
+        var anim:String = baseName(char.getAnimationName());
+        var best:Character = null;
+        var bestDistance:Float = Math.POSITIVE_INFINITY;
+        var pending:Array<flixel.FlxBasic> = members.copy();
+        while (pending.length > 0)
+        {
+            var member:flixel.FlxBasic = pending.shift();
+            if (member == null || !member.exists || !member.visible) continue;
+            var group:FlxTypedGroup<flixel.FlxBasic> = Std.downcast(member, FlxTypedGroup);
+            if (group != null)
+            {
+                for (inner in group.members) pending.push(inner);
+                continue;
+            }
+            var spriteGroup = Std.downcast(member, flixel.group.FlxSpriteGroup);
+            if (spriteGroup != null)
+            {
+                for (inner in spriteGroup.members) pending.push(inner);
+                continue;
+            }
+            var other:Character = Std.downcast(member, Character);
+            if (other == null || other == char || other.alpha <= 0 || baseName(other.getAnimationName()) != anim) continue;
+
+            var distance:Float = Math.abs(other.x - char.x) + Math.abs(other.y - char.y);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = other;
+            }
+        }
+        return best;
+    }
+
+    function spawnGhost(singer:Character, noteDirection:Int)
+    {
+        // (the one that's showing: see shownFor())
+        var char:Character = shownFor(singer);
         // texture atlas characters have no sparrow frames to copy, the ghost would render as the default flixel logo
         if (char == null || char.isAnimateAtlas || char.frames == null || char.frame == null) return;
 
@@ -7240,16 +7391,18 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
         ghost.flipY = char.flipY;
         ghost.angle = char.angle;
         ghost.color = char.color;
+        ghost.shader = char.shader; //(a character tinted by one, the ghost the same)
         ghost.scale.set(char.scale.x, char.scale.y);
         ghost.antialiasing = char.antialiasing;
         
         ghost.alpha = 0.75;
 
         var groupIndex = members.indexOf(char);
+        if (groupIndex == -1) groupIndex = members.indexOf(singer);
         if (groupIndex == -1) {
-            if (char == boyfriend) groupIndex = members.indexOf(boyfriendGroup);
-            else if (char == dad) groupIndex = members.indexOf(dadGroup);
-            else if (char == gf) groupIndex = members.indexOf(gfGroup);
+            if (singer == boyfriend) groupIndex = members.indexOf(boyfriendGroup);
+            else if (singer == dad) groupIndex = members.indexOf(dadGroup);
+            else if (singer == gf) groupIndex = members.indexOf(gfGroup);
         }
         
         if (groupIndex != -1) insert(groupIndex, ghost);

@@ -161,6 +161,27 @@ class HealthIcon extends FlxSprite
 	}
 
 	/**
+	 * Gives the icon the one of a character's data (V-Slice's `HealthIcon.configure()`: `{id, scale, isPixel, flipX, offsets}`),
+	 * what scripts use to change an icon in the middle of a song. Null is the default icon.
+	 */
+	public function configure(data:Dynamic):Void
+	{
+		var id:String = (data != null && data.id != null) ? Std.string(data.id) : 'face';
+		var scale:Float = (data != null && data.scale != null) ? data.scale : 1;
+		useVSliceSize(id, data != null && data.isPixel == true, scale);
+		char = ''; //(made again even if it's the same name: its size may have changed)
+		changeIcon(id);
+		// (the player's faces the other way already, its animations are made flipped: the data's flipX turns it again)
+		flipX = (data != null && data.flipX == true);
+		if(data != null && data.offsets != null && data.offsets.length >= 2)
+		{
+			iconOffsets[0] -= data.offsets[0];
+			iconOffsets[1] -= data.offsets[1];
+			updateHitbox();
+		}
+	}
+
+	/**
 	 * Shows the icon for an amount of health, from 0 to 2: losing when it's low, winning when it's high (for the icons that have one).
 	 */
 	public function updateHealthIcon(health:Float):Void

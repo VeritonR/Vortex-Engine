@@ -3,19 +3,59 @@ package funkin.play.cutscene.dialogue;
 import flixel.addons.text.FlxTypeText;
 
 /**
- * What V-Slice's dialogue box scripts extend. The boxes of a dialogue are made by the engine out of their data files
- * (`cutscenes.VSliceConversation`), the scripts made for them aren't run: this is here so they load without complaining.
+ * What V-Slice's dialogue box scripts extend: the engine's own box (`cutscenes.VSliceConversation.VSliceDialogueBox`) for the box
+ * with that id, with the script doing what it has its own version of (the font and sound of the text, `loadText()`; what's typed,
+ * `setText()`...). V-Slice uses the script's box instead of the file's own when there's one for the id.
  */
-class DialogueBox extends funkin.modding.ScriptedBase
+class DialogueBox extends cutscenes.VSliceConversation.VSliceDialogueBox
 {
-	public var id(default, null):String;
+	public var dialogueBoxName(get, never):String;
+	function get_dialogueBoxName():String return (data != null && data.name != null) ? data.name : 'UNKNOWN';
 
 	public function new(id:String, ?params:Dynamic)
 	{
-		this.id = id;
+		// (made later, when it's shown: a script is made first only to know which box it is, see VSliceScripts.makeDialogueBoxScript())
+		super(id, withDefaults(cutscenes.VSliceConversation.loadData('boxes', id)), false);
 	}
 
-	public function toString():String
+	// V-Slice's data of a box has values when the file leaves them out, its scripts count on them (Hazier Hiver's box has no size
+	// for its text: 32), and its font is found by name. The font is given here as the game's file of it, which is what the text needs
+	@:access(cutscenes.VSliceConversation.VSliceDialogueBox)
+	static function withDefaults(data:Dynamic):Dynamic
+	{
+		if(data == null) return null;
+		if(data.offsets == null) data.offsets = [0, 0];
+		if(data.animations == null) data.animations = [];
+		if(data.text == null) data.text = {};
+		var text:Dynamic = data.text;
+		if(text.offsets == null) text.offsets = [0, 0];
+		if(text.width == null) text.width = 300;
+		if(text.size == null) text.size = 32;
+		if(text.color == null) text.color = '#000000';
+		text.fontFamily = cutscenes.VSliceConversation.VSliceDialogueBox.findFont((text.fontFamily != null) ? text.fontFamily : 'Arial');
+		return data;
+	}
+
+	// What V-Slice's has that scripts call or replace
+	public function onCreate(event:Dynamic):Void {}
+	public function onDestroy(event:Dynamic):Void {}
+	public function onUpdate(event:Dynamic):Void {}
+	public function onScriptEvent(event:Dynamic):Void {}
+	public function onDialogueStart(event:Dynamic):Void {}
+	public function onDialogueCompleteLine(event:Dynamic):Void {}
+	public function onDialogueLine(event:Dynamic):Void {}
+	public function onDialogueSkip(event:Dynamic):Void {}
+	public function onDialogueEnd(event:Dynamic):Void {}
+
+	public function setScale(scale:Null<Float>):Void
+	{
+		if(scale == null) scale = 1;
+		if(boxSprite == null) return;
+		boxSprite.scale.set(scale, scale);
+		boxSprite.updateHitbox();
+	}
+
+	override public function toString():String
 	{
 		return 'DialogueBox($id)';
 	}

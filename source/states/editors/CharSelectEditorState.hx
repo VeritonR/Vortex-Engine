@@ -1497,7 +1497,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 		if(path == null) return;
 		try
 		{
-			var bitmap:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(path);
+			var bitmap:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(backend.MobileStorage.forLime(path));
 			if(bitmap == null)
 			{
 				iconStatusText.text = 'Could not read "$path" as an image.';
@@ -1546,7 +1546,7 @@ class CharSelectEditorState extends MusicBeatState implements PsychUIEventHandle
 			return;
 		}
 
-		var source:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(path);
+		var source:openfl.display.BitmapData = openfl.display.BitmapData.fromFile(backend.MobileStorage.forLime(path));
 		if(source == null) return;
 		var frame:Int = Std.int(Math.min(source.width, source.height)); //(the first frame: square, as tall as the picture)
 		var size:Int = 50;

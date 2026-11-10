@@ -125,6 +125,9 @@ class ResultsState extends MusicBeatState
 	var movingSongStuff:Bool = false;
 	var speedOfTween:FlxPoint = FlxPoint.get(-1, 1);
 
+	// (the ranks by their number, for Discord)
+	static final DISCORD_RANKS:Array<String> = ['Loss', 'Good', 'Great', 'Excellent', 'Perfect', 'Perfect Gold'];
+
 	public function new(params:ResultsParams)
 	{
 		super();
@@ -237,7 +240,10 @@ class ResultsState extends MusicBeatState
 		if(FlxG.sound.music != null) FlxG.sound.music.stop();
 
 		#if DISCORD_ALLOWED
-		DiscordClient.changePresence('Results', null);
+		var resultTitle:String = (params.title != null) ? params.title : '';
+		var resultLine:String = Language.getPhrase('discord_rank_' + rank, DISCORD_RANKS[rank]) + ' · ' + clearPercentTarget + '% · '
+			+ Language.getPhrase('discord_score', 'Score: {1}', [flixel.util.FlxStringUtil.formatMoney(params.scoreData.score, false)]);
+		DiscordClient.changePresence(Language.getPhrase('discord_results', 'Results: {1}', [resultTitle]), resultLine, 'results');
 		#end
 
 		// the states' own camera, which would take the place of the ones made here if it was only made later

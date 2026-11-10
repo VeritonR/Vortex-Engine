@@ -123,6 +123,23 @@ class PlayState
 	public var currentVariation:String = 'default';
 
 	/**
+	 * The subtitles of the song (its "songs/(id)/subtitles/song-lyrics.srt") and of the cutscenes scripts give them to. Null with
+	 * the Subtitles option off, as on V-Slice.
+	 */
+	public var subtitles:funkin.play.components.Subtitles = null;
+
+	/**
+	 * Gives the song its subtitles when it starts, the ones of its variation if there are some, as V-Slice's `startSong()` does.
+	 */
+	public function assignSongSubtitles():Void
+	{
+		if(subtitles == null || currentSong == null) return;
+		var file:String = 'songs/${currentSong.id}/subtitles/song-lyrics';
+		if(currentVariation != null && currentVariation != 'default') file += '-$currentVariation';
+		subtitles.assignSubtitles(file, FlxG.sound.music);
+	}
+
+	/**
 	 * What the chart being played says about itself: `album`, `difficulty`, `variation`, `stage`, `noteStyle`, `scrollSpeed`, `songName`...
 	 * and `characters` with `player`, `opponent` and `girlfriend`.
 	 */
@@ -150,7 +167,6 @@ class PlayState
 	public var stageZoom:Float = 1;
 	public var defaultHUDCameraZoom:Float = 1;
 	public var isMinimalMode:Bool = false;
-	public var subtitles:Dynamic = null;
 	public var pauseButton:Dynamic = null;
 
 	/**

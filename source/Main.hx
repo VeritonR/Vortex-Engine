@@ -1,9 +1,5 @@
 package;
 
-#if android
-import android.content.Context;
-#end
-
 import debug.FPSCounter;
 
 import flixel.graphics.FlxGraphic;
@@ -75,11 +71,9 @@ class Main extends Sprite
 		backend.Native.fixScaling();
 		#end
 
-		// Credits to MAJigsaw77 (he's the og author for this code)
-		#if android
-		Sys.setCwd(Path.addTrailingSlash(Context.getExternalFilesDir()));
-		#elseif ios
-		Sys.setCwd(lime.system.System.applicationStorageDirectory);
+		#if mobile
+		// (the game's own folder of the phone, where its files are copied to: see backend.MobileStorage)
+		backend.MobileStorage.setup();
 		#elseif (cpp && desktop)
 		// The mods, the songs and everything the game reads or writes by itself are looked for from the folder the game was opened on,
 		// which is its own when it's opened by clicking on it, and anything else when it's a shortcut, a launcher or a command line doing it
@@ -168,7 +162,16 @@ class Main extends Sprite
 		Controls.instance = new Controls();
 		ClientPrefs.loadDefaultKeys();
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
-		var flxGame:FlxGame = new FlxGame(game.width, game.height, game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen);
+		var startState:Class<FlxState> = game.initialState;
+		#if mobile
+		// (the first time on a phone the game's files are copied to its folder before anything else)
+		if(backend.MobileStorage.needsCopy()) startState = backend.MobileStorage.CopyState;
+		#if android
+		// (and before that, the permission to use the phone's files, for the game's folder to be "Vortex Engine")
+		if(backend.MobileStorage.shouldAsk()) startState = backend.MobileStorage.StorageAccessState;
+		#end
+		#end
+		var flxGame:FlxGame = new FlxGame(game.width, game.height, startState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen);
 		addChild(flxGame);
 		// OpenFL tests what the mouse is over on every move, down to what each camera drew (all of a song's sprites, rasterized
 		// to check): up to a second each time on a busy song. Flixel reads the mouse from the stage, not from these, and the
@@ -179,6 +182,8 @@ class Main extends Sprite
 		// flixel may have made the first one already, while the game was being added)
 		if(FlxG.state != null) FlxG.scaleMode = new backend.GameScaleMode();
 		else FlxG.signals.postGameStart.addOnce(function() FlxG.scaleMode = new backend.GameScaleMode());
+		backend.TouchControls.init(); //(the menus taken by touching, see backend.TouchMenus)
+		backend.MobileGraphics.apply(); //(phones: the resolution the game is drawn at)
 		backend.RotatedCameras.install();
 		backend.WindowFocus.install();
 		backend.CustomCursor.init(); //(images/cursor.png, if there's one)
@@ -187,18 +192,19 @@ class Main extends Sprite
 		backend.Tutorial.init(); //(the "Tutorial" button of the screens that have one)
 		backend.ExtraKeys.init(); //(songs with more or fewer than 4 arrows)
 
-		#if !mobile
+		// (phones too: the FPS Counter option is there for them as well)
 		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);
 		addChild(fpsVar);
+		#if !mobile
 		Lib.current.stage.align = "tl";
 		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
+		#end
 		if(fpsVar != null) {
 			fpsVar.visible = ClientPrefs.data.showFPS;
 		}
-		#end
 
 		#if (linux || mac) // fix the app icon not showing up on the Linux Panel / Mac Dock
-		var icon = Image.fromFile("icon.png");
+		var icon = Image.fromFile(backend.MobileStorage.forLime("icon.png"));
 		Lib.current.stage.window.setIcon(icon);
 		#end
 

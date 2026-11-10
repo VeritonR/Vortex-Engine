@@ -53,7 +53,9 @@ class DiscordClient
 			message += '($user)';
 
 		trace(message);
-		changePresence();
+		// (what was already asked for, the game may have been on a song by the time Discord answered)
+		if(presence.details != null) updatePresence();
+		else changePresence();
 	}
 
 	private static function onError(errorCode:Int, message:cpp.ConstCharStar):Void
@@ -98,17 +100,59 @@ class DiscordClient
 		isInitialized = true;
 	}
 
-	public static function changePresence(details:String = 'In the Menus', ?state:String, ?smallImageKey:String, ?hasStartTimestamp:Bool, ?endTimestamp:Float, largeImageKey:String = 'icon')
+	/**
+	 * The engine's site, where the pictures of its status are (Discord shows pictures from a link: the engine's app has none of its own).
+	 */
+	public static final SITE:String = 'https://veritonr.github.io/Vortex-Engine/';
+	public static final SERVER:String = 'https://discord.gg/QKjMSpeHW';
+	static final PICTURES:String = SITE + 'img/rpc/';
+
+	/**
+	 * The small pictures of what's being done, by their name: 'playing', 'paused', 'menu', 'freeplay', 'editor', 'online', 'gameover'
+	 * and 'results'. 'icon' (or 'logo') is the engine's logo. Any other name is one of the pictures of a mod's own Discord app
+	 * (`loadModRPC()`), and a link is shown as it is.
+	 */
+	public static final PICTURE_NAMES:Array<String> = ['playing', 'paused', 'menu', 'freeplay', 'editor', 'online', 'gameover', 'results'];
+
+	static function pictureOf(key:String):String
+	{
+		if(key == null || key.length < 1) return null;
+		if(key.startsWith('https://') || key.startsWith('http://') || key.startsWith('mp:')) return key;
+		var ownApp:Bool = (clientID == _defaultID);
+		if(key == 'icon' || key == 'logo') return ownApp ? PICTURES + 'logo.png' : key;
+		if(PICTURE_NAMES.contains(key)) return PICTURES + key + '.png';
+		// (the engine's app has no pictures by name: a character's icon name, which Psych sent, would show an empty spot)
+		return ownApp ? null : key;
+	}
+
+	/**
+	 * What the status says, with the small picture of what's being done (`PICTURE_NAMES`) and what its tooltip says.
+	 * Times are counted from now; `endTimestamp` (milliseconds from now) shows the time left.
+	 */
+	public static function changePresence(details:String = 'In the Menus', ?state:String, ?smallImageKey:String, ?hasStartTimestamp:Bool, ?endTimestamp:Float, largeImageKey:String = 'icon', ?smallImageText:String)
 	{
 		var startTimestamp:Float = 0;
 		if (hasStartTimestamp) startTimestamp = Date.now().getTime();
 		if (endTimestamp > 0) endTimestamp = startTimestamp + endTimestamp;
 
-		presence.state = state;
-		presence.details = details;
-		presence.smallImageKey = smallImageKey;
-		presence.largeImageKey = largeImageKey;
-		presence.largeImageText = "Engine Version: " + states.MainMenuState.psychEngineVersion;
+		pending = null;
+
+		// a menu or an editor that doesn't say which small picture it has
+		if(smallImageKey == null && details != null)
+			smallImageKey = (details.indexOf('Editor') > -1 || details.indexOf('Editing') > -1 || details.indexOf('Playtesting') > -1) ? 'editor' : 'menu';
+
+		presence.setParty(nextParty != null ? nextParty[0] : 0, nextParty != null ? nextParty[1] : 0);
+		nextParty = null;
+
+		// (kept here too: the status only points at its texts)
+		keptTexts = [details, state, pictureOf(smallImageKey), pictureOf(largeImageKey), smallImageText];
+		presence.state = clip(state);
+		presence.details = clip(details);
+		presence.smallImageKey = keptTexts[2];
+		presence.smallImageText = clip(smallImageText);
+		presence.largeImageKey = keptTexts[3];
+		if(largeText == null) largeText = 'Vortex Engine v' + states.MainMenuState.vortexEngineVersion;
+		presence.largeImageText = largeText;
 		// Obtained times are in milliseconds so they are divided so Discord can use it
 		presence.startTimestamp = Std.int(startTimestamp / 1000);
 		presence.endTimestamp = Std.int(endTimestamp / 1000);
@@ -116,6 +160,82 @@ class DiscordClient
 
 		//trace('Discord RPC Updated. Arguments: $details, $state, $smallImageKey, $hasStartTimestamp, $endTimestamp, $largeImageKey');
 	}
+
+	static var modNames:Map<String, String> = [];
+
+	/**
+	 * The name of a mod for the status: its "pack.json" (or V-Slice metadata) name, or its folder. Null for none and for the content
+	 * that comes with the engine.
+	 */
+	public static function modName(folder:String):String
+	{
+		#if MODS_ALLOWED
+		if(folder == null || folder.length < 1 || folder == PolymodCompat.BASE_MOD) return null;
+		if(modNames.exists(folder)) return modNames.get(folder);
+
+		var name:String = folder;
+		try
+		{
+			var pack:Dynamic = Mods.getPack(folder);
+			if(pack != null && pack.name != null && Std.string(pack.name).trim().length > 0) name = Std.string(pack.name).trim();
+		}
+		catch(e:Dynamic) {}
+		modNames.set(folder, name);
+		return name;
+		#else
+		return null;
+		#end
+	}
+
+	static var pending:Array<String> = null;
+	static var pendingAt:Float = 0;
+	static var listening:Bool = false;
+
+	/**
+	 * The same as `changePresence()`, a moment later and only if nothing else was asked for since: for what's selected on a menu,
+	 * which changes many times while scrolling (Discord only takes a few changes every 20 seconds).
+	 */
+	public static function changePresenceSoon(details:String, ?state:String, ?smallImageKey:String, ?smallImageText:String):Void
+	{
+		pending = [details, state, smallImageKey, smallImageText];
+		pendingAt = haxe.Timer.stamp() + 1.2;
+		if(listening) return;
+		listening = true;
+		FlxG.signals.postUpdate.add(function()
+		{
+			if(pending == null || haxe.Timer.stamp() < pendingAt) return;
+			var next:Array<String> = pending;
+			changePresence(next[0], next[1], next[2], null, null, 'icon', next[3]);
+		});
+	}
+
+	/**
+	 * If a script of the song changed the status itself (Psych's `changeDiscordPresence()`): the song doesn't put its own back with the
+	 * score every few seconds then. Set back to false when a song starts.
+	 */
+	public static var scriptPresence:Bool = false;
+
+	static var keptTexts:Array<String> = [];
+	static var largeText:String = null;
+
+	// Discord takes texts of 2 to 128 characters
+	static function clip(text:String):String
+	{
+		if(text == null || text.length < 2) return (text != null && text.length == 1) ? text + ' ' : null;
+		if(text.length > 128) text = text.substr(0, 127) + '…';
+		keptTexts.push(text);
+		return text;
+	}
+
+	/**
+	 * The players of an online match (shown as "(1 of 2)"), 0 when not playing online. Discord shows either this or the
+	 * buttons to the engine's site and server.
+	 */
+	public static function setParty(size:Int, max:Int):Void
+	{
+		nextParty = [size, max];
+	}
+	static var nextParty:Array<Int> = null; //(for the next change only: the status of a menu after an online match has no players)
 
 	public static function updatePresence()
 	{
@@ -156,7 +276,10 @@ class DiscordClient
 	#if LUA_ALLOWED
 	public static function addLuaCallbacks(lua:State)
 	{
-		Lua_helper.add_callback(lua, "changeDiscordPresence", changePresence);
+		Lua_helper.add_callback(lua, "changeDiscordPresence", function(details:String = 'In the Menus', ?state:String, ?smallImageKey:String, ?hasStartTimestamp:Bool, ?endTimestamp:Float, largeImageKey:String = 'icon', ?smallImageText:String) {
+			scriptPresence = true;
+			changePresence(details, state, smallImageKey, hasStartTimestamp, endTimestamp, largeImageKey, smallImageText);
+		});
 		Lua_helper.add_callback(lua, "changeDiscordClientID", function(?newID:String) {
 			if(newID == null) newID = _defaultID;
 			clientID = newID;
@@ -176,11 +299,43 @@ private final class DiscordPresence
 	public var startTimestamp(get, set):Int;
 	public var endTimestamp(get, set):Int;
 
+	public var smallImageText(get, set):String;
+
 	@:noCompletion private var __presence:DiscordRichPresence;
 
 	function new()
 	{
 		__presence = DiscordRichPresence.create();
+		__presence.type = DiscordActivityType_Playing;
+		showButtons(true);
+	}
+
+	// Two buttons under the status, for whoever sees it (not for the one playing, Discord doesn't show them their own)
+	function showButtons(show:Bool):Void
+	{
+		__presence.buttons[0].label = show ? 'Get Vortex Engine' : '';
+		__presence.buttons[0].url = show ? DiscordClient.SITE : '';
+		__presence.buttons[1].label = show ? 'Discord Server' : '';
+		__presence.buttons[1].url = show ? DiscordClient.SERVER : '';
+	}
+
+	function setParty(size:Int, max:Int):Void
+	{
+		var online:Bool = size > 0 && max > 0;
+		showButtons(!online);
+		__presence.partyId = online ? 'vortex-online' : '';
+		__presence.partySize = online ? size : 0;
+		__presence.partyMax = online ? max : 0;
+	}
+
+	@:noCompletion inline function get_smallImageText():String
+	{
+		return __presence.smallImageText;
+	}
+
+	@:noCompletion inline function set_smallImageText(value:String):String
+	{
+		return __presence.smallImageText = value;
 	}
 
 	public function toString():String

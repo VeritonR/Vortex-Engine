@@ -30,6 +30,7 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		// =======================================================================
 		// MODO JANELA E EFEITO DE NITIDEZ
 		// =======================================================================
+		#if !mobile //(a phone's game is always the whole screen, and Sharpness and Supersampling draw it all again: too much for its graphics card)
 		var option:Option = new Option('Window Mode',
 			'Choose how the game is displayed on your monitor.',
 			'windowMode',
@@ -55,6 +56,26 @@ smoother edges and no shimmering. Heavier on the graphics card.',
 			STRING,
 			['Off', '1.5x', '2x']);
 		option.onChange = function() backend.Supersampling.apply(ClientPrefs.data.supersampling);
+		addOption(option);
+		#end
+
+		#if mobile
+		var option:Option = new Option('Render Resolution',
+			"How many lines of pixels the game is drawn at, stretched to the screen by the phone.
+Lower is faster: 720p is the game's own, Native the screen's (the slowest).",
+			'renderResolution',
+			STRING,
+			backend.MobileGraphics.RESOLUTIONS);
+		option.onChange = backend.MobileGraphics.apply;
+		addOption(option);
+		#end
+
+		var option:Option = new Option('Widescreen',
+			"On screens wider than 16:9 (ultrawide), the stage of a song fills the
+whole screen instead of black bars. The HUD stays in the middle.
+Some stages weren't made to be seen past 16:9 and may look cut.",
+			'wideScreen',
+			BOOL);
 		addOption(option);
 		// =======================================================================
 
@@ -146,6 +167,11 @@ smoother edges and no shimmering. Heavier on the graphics card.',
 		if (value > 0) filters.push(globalSharpenFilter);
 		FlxG.game.setFilters(filters.length > 0 ? filters : null);
 	}
+
+	/**
+	 * If a filter on the game is one of the engine's own options (Sharpness), kept with the Shaders option off.
+	 */
+	public static function isEngineFilter(filter:openfl.filters.BitmapFilter):Bool return isSharpenFilter(filter);
 
 	static function isSharpenFilter(filter:openfl.filters.BitmapFilter):Bool
 	{

@@ -89,7 +89,7 @@ class FreeplayState extends MusicBeatState
 
 		#if DISCORD_ALLOWED
 		// Updating Discord Rich Presence
-		DiscordClient.changePresence("In the FreePlay", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_freeplay_menu', 'Browsing Freeplay'), null, 'freeplay');
 		#end
 
 		if(WeekData.weeksList.length < 1)
@@ -660,6 +660,14 @@ class FreeplayState extends MusicBeatState
 
 		curSelected = FlxMath.wrap(curSelected + change, 0, songs.length-1);
 		_updateSongLastDifficulty();
+		#if DISCORD_ALLOWED
+		var hovered = songs[curSelected];
+		if(hovered != null)
+		{
+			var hoveredMod:String = DiscordClient.modName(hovered.folder);
+			DiscordClient.changePresenceSoon(Language.getPhrase('discord_freeplay_menu', 'Browsing Freeplay'), (hoveredMod != null) ? hovered.songName + ' · ' + hoveredMod : hovered.songName, 'freeplay');
+		}
+		#end
 		if(playSound) FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
 
 		var newColor:Int = songs[curSelected].color;

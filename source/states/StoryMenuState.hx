@@ -54,7 +54,7 @@ class StoryMenuState extends MusicBeatState
 
 		#if DISCORD_ALLOWED
 		// Updating Discord Rich Presence
-		DiscordClient.changePresence("In the Menus", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_story_menu', 'Choosing a Week'), null, 'menu');
 		#end
 
 		if(WeekData.weeksList.length < 1)
@@ -456,6 +456,11 @@ class StoryMenuState extends MusicBeatState
 		WeekData.setDirectoryFromWeek(leWeek);
 
 		var leName:String = Language.getPhrase('storyname_${leWeek.fileName}', leWeek.storyName);
+		#if DISCORD_ALLOWED
+		var weekTitle:String = (leWeek.weekName != null && leWeek.weekName.length > 0) ? leWeek.weekName : leName;
+		var weekMod:String = DiscordClient.modName(leWeek.folder);
+		DiscordClient.changePresenceSoon(Language.getPhrase('discord_story_menu', 'Choosing a Week'), (weekMod != null) ? weekTitle + ' · ' + weekMod : weekTitle, 'menu');
+		#end
 		txtWeekTitle.text = leName.toUpperCase();
 		txtWeekTitle.x = FlxG.width - (txtWeekTitle.width + 10);
 

@@ -64,7 +64,7 @@ class ModsMenuState extends MusicBeatState
 
 		#if DISCORD_ALLOWED
 		// Updating Discord Rich Presence
-		DiscordClient.changePresence("In the Menus", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_mods', 'Managing Mods'), Language.getPhrase('discord_mods_enabled', '{1} mods enabled', [Mods.parseList().enabled.length]), 'menu');
 		#end
 
 		bg = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
@@ -880,7 +880,7 @@ class ModItem extends FlxSpriteGroup
 		}
 
 		var bmp:BitmapData = null;
-		if (FileSystem.exists(file)) bmp = BitmapData.fromFile(file);
+		if (FileSystem.exists(file)) bmp = BitmapData.fromFile(backend.MobileStorage.forLime(file));
 		else isPixel = false;
 
 		if(polymodIcon && bmp != null)

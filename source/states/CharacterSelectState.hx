@@ -77,7 +77,7 @@ class CharacterSelectState extends MusicBeatState
 		initPsychCamera();
 
 		#if DISCORD_ALLOWED
-		DiscordClient.changePresence("Character Select", null);
+		DiscordClient.changePresence(Language.getPhrase('discord_char_select', 'Picking a Character'), null, 'menu');
 		#end
 
 		loadPlayers();
