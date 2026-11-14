@@ -33,10 +33,37 @@ class NoteStyleRegistry
 		checkCache();
 		if(cache.exists(id)) return cache.get(id);
 
-		var data:Dynamic = readFile(id, false);
-		var style:NoteStyle = (data != null) ? new NoteStyle(id, data) : null;
+		// (a script's style for the id, `class MyStyle extends ScriptedNoteStyle`, over the file alone)
+		var style:NoteStyle = scriptedStyles().get(id);
+		if(style == null)
+		{
+			var data:Dynamic = readFile(id, false);
+			style = (data != null) ? new NoteStyle(id, data) : null;
+		}
 		cache.set(id, style);
 		return style;
+	}
+
+	// The styles of the scripts that are loaded, by their id: made once for each time the cache is cleared
+	var scripted:Map<String, NoteStyle> = null;
+	function scriptedStyles():Map<String, NoteStyle>
+	{
+		if(scripted == null)
+		{
+			scripted = [];
+			#if HSCRIPT_ALLOWED
+			scripted = backend.VSliceScripts.makeScriptedNoteStyles();
+			#end
+		}
+		return scripted;
+	}
+
+	/**
+	 * What the file of a style has (`data/notestyles/(id).json` of the mod being played, or of the base game), null without one.
+	 */
+	public function readData(id:String):Dynamic
+	{
+		return (id != null && id.length > 0) ? readFile(id, false) : null;
 	}
 
 	/**
@@ -59,6 +86,7 @@ class NoteStyleRegistry
 	{
 		cache = [];
 		baseCache = [];
+		scripted = null;
 	}
 
 	function checkCache():Void

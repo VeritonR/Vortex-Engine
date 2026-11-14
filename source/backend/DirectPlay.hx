@@ -28,6 +28,8 @@ import sys.io.File;
  * --shots=5,12.5       Seconds after the song is opened at which a picture of the game is saved, as "directplay_(number).png"...
  * --shotdir=FOLDER     ...in this folder, the game's own if left out.
  * --quit=SECONDS       Closes the game that long after the song is opened.
+ * --quitonend          Closes the game when the song is over (the game left it: the results, Freeplay...), to play songs whole.
+ *                      A game over (3 seconds on its screen) ends it too.
  * --touch            The mouse counts as a finger on the menus too (dragging moves through them, a click picks), like on a phone.
  * --window=WIDTHxHEIGHT  The size of the window for this run ("--window=2560x1080" is an ultrawide screen).
  * --pref=NAME=VALUE    One of the game's options as this run should have it ("--pref=songCredits=false", more separated by commas).
@@ -39,6 +41,12 @@ import sys.io.File;
  * --menu=boot          Opens the game the usual way (the warnings, the title screen...), with the pictures and --quit counted from then.
  * --keys=3:13,6.5:40   Keys pressed by themselves: seconds, a colon and the key's code (13 is ENTER, 27 ESCAPE, 37 to 40 the arrows);
  *                      another colon and seconds holds it down for that long (5:16:2 is SHIFT held from 5 to 7 seconds).
+ * --maxtexture=4096   The biggest texture the graphics card takes, smaller for this run (a cheap phone's): bigger images are shrunk.
+ * --scriptlog         Every message of the Lua scripts is written on the output, the ones hidden without "luaDebugMode" too.
+ * --luatest          A bare Lua state runs a line when the game opens, each step written to last_steps.txt (finds where Lua breaks).
+ * --crashat=SECONDS   Makes the game crash that long after the song (or menu) is opened, to try the crash screen.
+ * --checkgraphics     Says what's drawn with an image that was already thrown away (which crashes the game), once for each.
+ * --touchlog           Writes every finger that touches the screen to the log: where it landed and what it touched (phones).
  * --editorsave=DIR    What the editors save is written to that folder, without asking where.
  * --mouse=4:move:640:300,4.2:down,4.3:move:700:500:0.5,5:up
  *                      The mouse, used by itself: seconds, a colon and what it does. "move:X:Y" (on the game's 1280x720, and a
@@ -62,6 +70,10 @@ class DirectPlay
 	static var shotTimes:Array<Float> = [];
 	static var shotsTaken:Int = 0;
 	static var quitAfter:Float = -1;
+	static var reachedSong:Bool = false; //(for --quitonend)
+	static var leftSongAt:Float = -1;
+	static var gameOverAt:Float = -1;
+	static var keepingFocus:Bool = false; //(Auto Pause kept off for a test, see start()) //(for --quitonend: when the game over screen came up)
 
 	static function read():Void
 	{
@@ -91,6 +103,17 @@ class DirectPlay
 			if(equals < 0) options.set(arg.substr(2).toLowerCase(), '');
 			else options.set(arg.substring(2, equals).toLowerCase(), arg.substr(equals + 1));
 		}
+	}
+
+	/**
+	 * With "--scriptlog", every message of a Lua script is written on the output, the ones only shown with "luaDebugMode" on too
+	 * (to find what scripts of a mod fail on: most of their errors aren't shown while playing).
+	 */
+	public static var scriptLog(get, never):Bool;
+	static function get_scriptLog():Bool
+	{
+		read();
+		return options.exists('scriptlog');
 	}
 
 	/**
@@ -170,6 +193,13 @@ class DirectPlay
 		// (the title screen reads the options again each time it's made before the game is all set up, the Auto Pause one included:
 		// a run that nobody is looking at would stop right there, waiting for its window to be clicked on)
 		if(started) FlxG.autoPause = false;
+		// (and it stays off: screens put it back to the option when they're destroyed, and Freeplay is destroyed after the song it
+		// opened is on, which then stopped at its first frame. Checked from the window's own frames, which come even when it's stopped)
+		if(!keepingFocus && options.keys().hasNext())
+		{
+			keepingFocus = true;
+			FlxG.stage.addEventListener(Event.ENTER_FRAME, function(_) if(FlxG.autoPause) FlxG.autoPause = false);
+		}
 
 		if(!started && options.get('menu') == 'boot')
 		{
@@ -229,6 +259,23 @@ class DirectPlay
 			else MusicBeatState.switchState(new states.FreeplayState());
 			return true;
 		}
+		#if LUA_ALLOWED
+		// "--luatest": a bare Lua state loads and runs a line, written on the output step by step (finds where Lua breaks on a platform)
+		if(options.exists('luatest'))
+		{
+			StepLog.add('luatest: newstate');
+			var state = llua.LuaL.newstate();
+			StepLog.add('luatest: state ' + (state != null));
+			llua.LuaL.openlibs(state);
+			StepLog.add('luatest: openlibs done');
+			var status:Int = llua.LuaL.loadstring(state, 'return 1 + 1');
+			StepLog.add('luatest: loadstring ' + status);
+			var run:Int = llua.Lua.pcall(state, 0, 1, 0);
+			StepLog.add('luatest: pcall ' + run + ' gives ' + llua.Lua.tonumber(state, -1));
+			llua.Lua.close(state);
+			StepLog.add('luatest: closed');
+		}
+		#end
 		// (one of the other menus, to see what the mods' scripts do on it: "main", "story", "credits", "charselect")
 		var otherMenu:Void->flixel.FlxState = switch(options.get('menu'))
 		{
@@ -291,7 +338,23 @@ class DirectPlay
 				trace('Imports checked: ' + missing.length + ' missing');
 			}
 			catch(e:Dynamic) trace('Could not check the imports: $e');
-			Sys.exit(0);
+			AppExit.exit(0, false);
+			return true;
+		}
+		#end
+		#if HSCRIPT_ALLOWED
+		// (a list of imports, one per line, and where to write what each one is to scripts: its class and everything it has)
+		if(!started && options.exists('describeimports'))
+		{
+			started = true;
+			var files:Array<String> = options.get('describeimports').split(',');
+			try
+			{
+				File.saveContent(files[1], VSliceScripts.describeImports(File.getContent(files[0]).replace('\r', '').split('\n')));
+				trace('Imports described');
+			}
+			catch(e:Dynamic) trace('Could not describe the imports: $e');
+			AppExit.exit(0, false);
 			return true;
 		}
 		#end
@@ -523,7 +586,7 @@ class DirectPlay
 				+ ' lime took ${round(limeTime)}s, PngDecoder ${round(ownTime)}s (inflating ${round(PngDecoder.inflateTime)}s, filters ${round(PngDecoder.unfilterTime)}s,'
 				+ ' pixels ${round(PngDecoder.pixelsTime)}s)';
 			File.saveContent(output, [summary].concat(lines).join('\n'));
-			if(next >= files.length) Sys.exit(0);
+			if(next >= files.length) AppExit.exit(0, false);
 		}
 		FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
 	}
@@ -533,6 +596,12 @@ class DirectPlay
 
 	static function onMenuFrame(_):Void
 	{
+		// (counted from when the menu is there: a song asked for while the screen before it is still leaving would be left out)
+		if(MusicBeatState.switching || Std.isOfType(FlxG.state, states.TitleState))
+		{
+			menuOpenedAt = haxe.Timer.stamp();
+			return;
+		}
 		if(haxe.Timer.stamp() - menuOpenedAt < number('menufirst', 3)) return;
 
 		FlxG.stage.removeEventListener(Event.ENTER_FRAME, onMenuFrame);
@@ -584,7 +653,7 @@ class DirectPlay
 			}
 			mouseActions.sort((a, b) -> Reflect.compare(a.time, b.time));
 		}
-		if(shotTimes.length > 0 || quitAfter >= 0 || keyPresses.length > 0 || mouseActions.length > 0 || options.exists('freezeatlas') || options.exists('members') || options.exists('fullscreenat')) FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
+		if(shotTimes.length > 0 || quitAfter >= 0 || keyPresses.length > 0 || mouseActions.length > 0 || options.exists('freezeatlas') || options.exists('members') || options.exists('fullscreenat') || options.exists('crashat') || options.exists('quitonend')) FlxG.stage.addEventListener(Event.ENTER_FRAME, onFrame);
 
 		// what the current state is doing, once a second (a menu that stopped updating, a substate over it...)
 		if(options.exists('stateinfo'))
@@ -605,9 +674,52 @@ class DirectPlay
 			});
 		}
 
+		// "--checkgraphics": every frame, what's on the screen with an image that was already thrown away (drawing it crashes the
+		// game, "FlxDrawQuadsItem"): said once for each, with where it is
+		if(options.exists('checkgraphics'))
+		{
+			var told:Map<String, Bool> = [];
+			function check(basic:flixel.FlxBasic, where:String):Void
+			{
+				if(basic == null || !basic.exists || !basic.visible) return;
+				var name:String = where + ' > ' + Type.getClassName(Type.getClass(basic)).split('.').pop();
+				var sprite:FlxSprite = Std.downcast(basic, FlxSprite);
+				if(sprite != null && !told.exists(name))
+				{
+					// (its image, and the images its frames are cut from: an atlas has a few)
+					var images:Array<flixel.graphics.FlxGraphic> = [sprite.graphic];
+					if(sprite.frame != null) images.push(sprite.frame.parent);
+					@:privateAccess if(sprite._frame != null) images.push(sprite._frame.parent); //(the copy it's drawn with)
+					if(sprite.frames != null && sprite.frames.frames != null)
+						for (frame in sprite.frames.frames) if(frame != null && !images.contains(frame.parent)) images.push(frame.parent);
+					for (image in images)
+						if(image != null && (image.isDestroyed || image.shader == null))
+						{
+							told.set(name, true);
+							Sys.println('THROWN-AWAY IMAGE drawn: $name, key "${image.key}", at ${Math.round(sprite.x)},${Math.round(sprite.y)}');
+							break;
+						}
+				}
+				var group:flixel.group.FlxGroup.FlxTypedGroup<Dynamic> = Std.downcast(basic, flixel.group.FlxGroup.FlxTypedGroup);
+				if(group == null && Std.isOfType(basic, flixel.group.FlxSpriteGroup.FlxTypedSpriteGroup))
+					group = @:privateAccess (cast basic:flixel.group.FlxSpriteGroup.FlxTypedSpriteGroup<Dynamic>).group;
+				if(group != null) for (i => member in group.members) check(member, name + '[' + i + ']');
+			}
+			FlxG.signals.preDraw.add(function()
+			{
+				var state:flixel.FlxState = FlxG.state;
+				while(state != null)
+				{
+					for (i => member in state.members) check(member, Type.getClassName(Type.getClass(state)).split('.').pop() + '[' + i + ']');
+					state = state.subState;
+				}
+			});
+		}
+
 		// "--perf": how long the game's own work takes per frame (update and draw, apart from waiting for the next frame), printed
 		// every 5 seconds and at the end: to compare a change's cost, the cap of the frame rate doesn't get in the way
 		if(options.exists('perf')) watchPerformance();
+		if(options.exists('touchlog')) TouchControls.logTouches = true;
 
 		// "--profile=FILE": hxcpp's own sampling profiler (which functions the time went to), from when the song is on the screen
 		// until the game closes. Needs the stack information the crash handler build has
@@ -654,6 +766,7 @@ class DirectPlay
 		var updateStart:Float = 0;
 		var drawStart:Float = 0;
 		var lastReport:Float = haxe.Timer.stamp();
+		FrameProfile.enabled = true;
 		FlxG.signals.preUpdate.add(function() updateStart = haxe.Timer.stamp());
 		FlxG.signals.postUpdate.add(function() perfUpdate.push((haxe.Timer.stamp() - updateStart) * 1000));
 		FlxG.signals.preDraw.add(function() drawStart = haxe.Timer.stamp());
@@ -665,6 +778,7 @@ class DirectPlay
 			lastReport = now;
 			if(Std.isOfType(FlxG.state, PlayState)) { perfAllUpdate = perfAllUpdate.concat(perfUpdate); perfAllDraw = perfAllDraw.concat(perfDraw); }
 			Sys.println('PERF ' + Type.getClassName(Type.getClass(FlxG.state)) + ': ' + perfSummary(perfUpdate, perfDraw));
+			Sys.println('PERF PARTS (ms per frame): ' + FrameProfile.report(perfUpdate.length));
 			perfUpdate = [];
 			perfDraw = [];
 		});
@@ -699,6 +813,8 @@ class DirectPlay
 		// (atlas symbols with a blend mode drawn the library's way, on a bitmap first: to compare with the engine's own way)
 		if(options.exists('libraryblend')) flxanimate.PsychFlxAnimate.directBlendModes = false;
 		#end
+		// (a graphics card that takes smaller textures, like a lot of cheap phones' 4096)
+		if(options.exists('maxtexture')) TextureQuality.testLimit = Std.int(number('maxtexture', 4096));
 		// (the mouse as a finger on the menus too, to try them the way a phone uses them)
 		if(options.exists('touch')) TouchControls.mouseIsTouch = true;
 		// (a window of another shape: "--window=2560x1080" for an ultrawide screen)
@@ -735,6 +851,8 @@ class DirectPlay
 			if(name == 'showFPS' && Main.fpsVar != null) Main.fpsVar.visible = ClientPrefs.data.showFPS;
 			// (the phone's resolution too)
 			if(name == 'renderResolution') MobileGraphics.apply();
+			// (the texts and images of that language, like when it's picked on the options)
+			if(name == 'language') Language.reloadPhrases();
 
 			// (the game goes at that speed right away, like when it's changed on the options)
 			if(name == 'framerate')
@@ -755,6 +873,8 @@ class DirectPlay
 		}
 	}
 
+	static var crashed:Bool = false;
+
 	static function onFrame(_):Void
 	{
 		if(songOpenedAt < 0)
@@ -766,6 +886,21 @@ class DirectPlay
 		}
 
 		var elapsed:Float = haxe.Timer.stamp() - songOpenedAt;
+
+		// an error in the middle of the game's update, like the ones that crash it (see backend.CrashHandler)
+		if(options.exists('crashat') && !crashed && elapsed >= number('crashat', 5))
+		{
+			crashed = true;
+			var fired:Bool = false;
+			FlxG.signals.postUpdate.add(function()
+			{
+				if(fired) return;
+				fired = true;
+				var nothing:Dynamic = null;
+				nothing.field = 1;
+			});
+		}
+
 		for (press in keyPresses)
 		{
 			if(press.done || elapsed < press.time) continue;
@@ -810,6 +945,18 @@ class DirectPlay
 				line += ' cams=' + cams.join('/');
 				lines.push(line);
 			}
+			// (and the song's characters: where they are, their size, the middle scripts place things from, what they're playing)
+			var game:states.PlayState = states.PlayState.instance;
+			if(game != null)
+				for (char in [game.dad, game.gf, game.boyfriend])
+				{
+					if(char == null) continue;
+					var middle = char.getGraphicMidpoint();
+					lines.push('character ' + char.curCharacter + ': at ' + Math.round(char.x) + ',' + Math.round(char.y) + ' size ' + Math.round(char.width) + 'x' + Math.round(char.height)
+						+ ' frame ' + char.frameWidth + 'x' + char.frameHeight + ' scale ' + FlxMath.roundDecimal(char.scale.x, 3) + ' middle ' + Math.round(middle.x) + ',' + Math.round(middle.y)
+						+ ' playing "' + char.getAnimationName() + '" atlas=' + char.isAnimateAtlas);
+					middle.put();
+				}
 			trace('MEMBERS at ' + elapsed + 's (cameras: ' + [for (i => c in FlxG.cameras.list) '$i a=' + c.alpha + (c.visible ? '' : ' hidden')].join(', ') + ')\n' + lines.join('\n'));
 		}
 		// "--fullscreenat=SECONDS": the window goes fullscreen then, like with ALT+ENTER (not through the game's option)
@@ -846,7 +993,39 @@ class DirectPlay
 			takeShot(shotsTaken);
 		}
 
-		if(quitAfter >= 0 && elapsed >= quitAfter && shotsTaken >= shotTimes.length)
+		// (the song is over when the game leaves it, after having been on it: a couple of seconds to see what comes next)
+		var songEnded:Bool = false;
+		if(options.exists('quitonend'))
+		{
+			var onSong:Bool = Std.isOfType(FlxG.state, PlayState);
+			if(onSong && Std.isOfType(FlxG.state.subState, substates.GameOverSubstate))
+			{
+				// (lost: a song with a mechanic Bot Play doesn't do. Over too, the game over screen would loop until --quit)
+				if(gameOverAt < 0) gameOverAt = haxe.Timer.stamp();
+				else if(haxe.Timer.stamp() - gameOverAt >= 3)
+				{
+					songEnded = true;
+					Sys.println('Song over after ' + Std.int(elapsed) + ' s (game over)');
+				}
+			}
+			else if(onSong)
+			{
+				reachedSong = true;
+				leftSongAt = -1;
+				gameOverAt = -1;
+			}
+			else if(reachedSong)
+			{
+				if(leftSongAt < 0) leftSongAt = haxe.Timer.stamp();
+				else if(haxe.Timer.stamp() - leftSongAt >= 2)
+				{
+					songEnded = true;
+					Sys.println('Song over after ' + Std.int(elapsed) + ' s (now on ' + Type.getClassName(Type.getClass(FlxG.state)) + ')');
+				}
+			}
+		}
+
+		if(songEnded || (quitAfter >= 0 && elapsed >= quitAfter && shotsTaken >= shotTimes.length))
 		{
 			FlxG.stage.removeEventListener(Event.ENTER_FRAME, onFrame);
 			// (what was playing: a run can't be listened to)
@@ -855,7 +1034,7 @@ class DirectPlay
 				Sys.println('Music when closed: ' + (music.playing ? 'playing' : 'not playing') + ' at ' + Std.int(music.time) + ' of ' + Std.int(music.length)
 					+ ' ms, volume ' + FlxMath.roundDecimal(music.volume, 2));
 			for (task in beforeQuit) task();
-			Sys.exit(0);
+			AppExit.exit(0, false);
 		}
 	}
 

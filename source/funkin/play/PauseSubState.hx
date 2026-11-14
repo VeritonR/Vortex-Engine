@@ -37,3 +37,35 @@ class PauseSubState
 		if(musicSuffix.length > 0) musicSuffix = '';
 	}
 }
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+/**
+ * Which set of options the pause menu should display.
+ */
+enum PauseMode
+{
+	/**
+	 * The menu displayed when the player pauses the game during a song.
+	 */
+	Standard;
+
+	/**
+	 * The menu displayed when the player pauses the game during a song while in charting mode.
+	 */
+	Charting;
+
+	/**
+	 * The menu displayed when the player moves to change the game's difficulty.
+	 */
+	Difficulty;
+
+	/**
+	 * The menu displayed when the player pauses the game during a conversation.
+	 */
+	Conversation;
+
+	/**
+	 * The menu displayed when the player pauses the game during a video cutscene.
+	 */
+	Cutscene;
+}

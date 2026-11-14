@@ -1204,6 +1204,42 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 		shader = kept;
 	}
 
+	// (with the test tool's --perf: the walk through the timeline timed apart from the rest of the animation's update)
+	override public function updateAnimation(elapsed:Float)
+	{
+		if(!backend.FrameProfile.enabled || anim == null)
+		{
+			super.updateAnimation(elapsed);
+			return;
+		}
+		@:privateAccess
+		{
+			// (FlxAnim.update(), in two timed parts)
+			var began:Float = haxe.Timer.stamp();
+			if(anim.curInstance != null)
+				anim.curInstance.updateRender(elapsed * anim.timeScale #if (flixel >= "5.5.0") * FlxG.animationTimeScale #end, anim.curFrame, anim.symbolDictionary, anim.swfRender);
+			backend.FrameProfile.since('        atlas timeline walk', began);
+			began = haxe.Timer.stamp();
+			if(anim.frameDelay != 0 && anim.isPlaying && !anim.finished)
+			{
+				anim._tick += elapsed;
+				while(anim._tick > anim.frameDelay)
+				{
+					(anim.reversed) ? anim.curFrame-- : anim.curFrame++;
+					anim.curSymbol.fireCallbacks();
+					anim.onFrame.dispatch(anim.curFrame);
+					anim._tick -= anim.frameDelay;
+				}
+				if(anim.loopType != flxanimate.data.AnimationData.Loop.SingleFrame && anim.curFrame == (anim.reversed ? 0 : anim.length - 1))
+				{
+					if(anim.loopType == flxanimate.data.AnimationData.Loop.PlayOnce) anim.pause();
+					anim.onComplete.dispatch();
+				}
+			}
+			backend.FrameProfile.since('        atlas frames and callbacks', began);
+		}
+	}
+
 	override function draw()
 	{
 		if(anim.curInstance == null || anim.curSymbol == null) return;
@@ -1478,6 +1514,8 @@ class PsychFlxAnimate extends OriginalFlxAnimate
 		#end
 		if(OpenFlAssets.exists(path, IMAGE)) bitmap = OpenFlAssets.getBitmapData(path);
 
+		// (the Texture Quality option, and smaller than the graphics card's limit: V-Slice's spritemaps are often 8192 pixels)
+		if(bitmap != null) backend.TextureQuality.lighten(bitmap);
 		return (bitmap != null) ? FlxGraphic.fromBitmapData(bitmap, false, path) : null;
 	}
 

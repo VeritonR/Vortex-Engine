@@ -40,6 +40,17 @@ class TouchControls
 	 */
 	public static var points(default, null):Array<FlxPoint> = [];
 
+	/**
+	 * For tests ("--touchlog", see DirectPlay): every finger that comes down is written to the log, with where it landed in the
+	 * game's and in the window's pixels and what it touched.
+	 */
+	public static var logTouches:Bool = false;
+
+	public static function logTouch(text:String):Void
+	{
+		if(logTouches) Sys.println('TOUCH ' + text);
+	}
+
 	public static inline function pressed(action:String):Bool return held.exists(action);
 	public static inline function justPressed(action:String):Bool return held.exists(action) && !before.exists(action);
 	public static inline function justReleased(action:String):Bool return before.exists(action) && !held.exists(action);
@@ -170,6 +181,7 @@ class TouchControls
 	public static function init():Void
 	{
 		add(new TouchMenus());
+		TouchMouse.init(); //(and the mouse of songs, the last finger: see backend.TouchMouse)
 	}
 
 	/**
@@ -195,6 +207,12 @@ class TouchControls
 	public static var askedKeys(default, null):Map<Int, Float> = [];
 	static var notButtons:Map<Int, Bool> = [];
 
+	/**
+	 * If the keys scripts ask for are being looked at: only during a song played with the touch controls (scripts ask all the time,
+	 * this keeps it from costing anything otherwise).
+	 */
+	public static var watchingKeys:Bool = false;
+
 	// keys that aren't for a song's mechanics: the game's own (pause, the editors' keys mods block, the debug ones) and the modifiers
 	static final NOT_BUTTONS:Array<String> = ['ESCAPE', 'ENTER', 'BACKSPACE', 'TAB', 'SHIFT', 'CONTROL', 'ALT', 'CAPSLOCK', 'WINDOWS', 'MENU',
 		'PRINTSCREEN', 'GRAVEACCENT', 'SEVEN', 'EIGHT', 'NINE', 'ZERO', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
@@ -205,7 +223,7 @@ class TouchControls
 	 */
 	public static function askedKey(key:Dynamic):Void
 	{
-		if(key == null || !touchLayout() || !Std.isOfType(FlxG.state, states.PlayState)) return;
+		if(!watchingKeys || key == null || !Std.isOfType(FlxG.state, states.PlayState)) return;
 
 		var code:Int = Std.isOfType(key, Int) ? key : flixel.input.keyboard.FlxKey.fromString(Std.string(key).toUpperCase().trim());
 		if(code < 0 || notButtons.exists(code)) return;
@@ -291,6 +309,9 @@ class TouchControls
 		return keys;
 	}
 
+	// (the fingers seen down already, see readTouches())
+	static var seenTouches:Map<Int, Bool> = [];
+
 	@:access(flixel.input.FlxPointer)
 	static function readTouches():Void
 	{
@@ -302,8 +323,22 @@ class TouchControls
 		fromMouse = false;
 		#if FLX_TOUCH
 		for (touch in FlxG.touches.list)
-			if(touch != null && touch.pressed)
+		{
+			if(touch == null) continue;
+			// (a finger that touched and lifted between two frames, a quick tap on a slow phone, counts on the frame that sees it lifted:
+			// otherwise it was never down at all, and the note was missed)
+			var quickTap:Bool = touch.justReleased && !seenTouches.exists(touch.touchPointID);
+			if(logTouches && (touch.justPressed || quickTap))
+				logTouch('down at game ' + Math.round(touch._globalScreenX) + ',' + Math.round(touch._globalScreenY) + ' window '
+					+ Math.round(touch._globalScreenX * FlxG.scaleMode.scale.x + FlxG.game.x) + ',' + Math.round(touch._globalScreenY * FlxG.scaleMode.scale.y + FlxG.game.y)
+					+ ' (stage ' + FlxG.stage.stageWidth + 'x' + FlxG.stage.stageHeight + ', game at ' + Math.round(FlxG.game.x) + ',' + Math.round(FlxG.game.y)
+					+ ' scale ' + flixel.math.FlxMath.roundDecimal(FlxG.scaleMode.scale.x, 3) + ')');
+			if(touch.pressed || quickTap)
 				points.push(FlxPoint.get(touch._globalScreenX, touch._globalScreenY));
+			if(touch.pressed) seenTouches.set(touch.touchPointID, true);
+		}
+		for (id in [for (id in seenTouches.keys()) id])
+			if(FlxG.touches.getByID(id) == null) seenTouches.remove(id);
 		if(points.length > 0) touchSeen = true;
 		#end
 		#if FLX_MOUSE
@@ -379,19 +414,21 @@ class TouchNotes implements TouchArea
 		holder.addChild(skipButton);
 
 		TouchControls.forgetAskedKeys();
+		TouchControls.watchingKeys = true;
 		TouchControls.add(this);
 	}
 
 	// A dialogue, a video or a cutscene is going on: the arrows aren't played, a touch goes on with it
 	function inCutscene():Bool
 	{
-		return game.inCutscene || game.psychDialogue != null || game.conversation != null || game.videoCutscene != null || !game.startedCountdown;
+		// (a video in the middle of the song plays over it while the notes go on: it's not one)
+		return game.inCutscene || game.psychDialogue != null || game.conversation != null || !game.startedCountdown;
 	}
 
 	// If there's something the skip button can skip: a dialogue, or a video that can be skipped
 	function canSkip():Bool
 	{
-		return game.psychDialogue != null || game.conversation != null || (game.videoCutscene != null && game.videoCutscene.canSkip);
+		return game.psychDialogue != null || game.conversation != null || (game.inCutscene && game.videoCutscene != null && game.videoCutscene.canSkip);
 	}
 
 	// The keys asked for recently enough to have their button, in the order they were first asked for
@@ -469,6 +506,7 @@ class TouchNotes implements TouchArea
 
 	public function touch(points:Array<FlxPoint>, held:Map<String, Bool>):Void
 	{
+		var lanesBefore:Array<Bool> = lanePressed.copy(); //(for --touchlog: the lanes a finger just came down on)
 		for (i in 0...lanePressed.length) lanePressed[i] = false;
 		pausePressed = false;
 		var wasSkipping:Bool = skipPressed;
@@ -531,6 +569,24 @@ class TouchNotes implements TouchArea
 					case 'Buttons': buttonAt(windowX, windowY);
 					default: arrowAt(point);
 				}
+				if(TouchControls.logTouches && (lane < 0 || !lanesBefore[lane]))
+				{
+					var places:Array<String> = [];
+					var strums = game.playableStrums;
+					if(strums != null)
+						for (i in 0...strums.length)
+						{
+							var strum:objects.StrumNote = strums.members[i];
+							if(strum == null) continue;
+							var camera:FlxCamera = strumCamera(strum);
+							var shownX:Float = strum.x - strum.offset.x + strum.origin.x - camera.scroll.x * strum.scrollFactor.x;
+							var shownY:Float = strum.y - strum.offset.y + strum.origin.y - camera.scroll.y * strum.scrollFactor.y;
+							var windowX:Float = ((shownX - camera.width / 2) * camera.zoom + camera.width / 2 + camera.x) * FlxG.scaleMode.scale.x + FlxG.game.x;
+							var windowY:Float = ((shownY - camera.height / 2) * camera.zoom + camera.height / 2 + camera.y) * FlxG.scaleMode.scale.y + FlxG.game.y;
+							places.push(i + ':' + Math.round(windowX) + ',' + Math.round(windowY) + ' (hitbox middle ' + Math.round(strum.x + strum.width / 2) + ' vs drawn ' + Math.round(strum.x - strum.offset.x + strum.origin.x) + ')');
+						}
+					TouchControls.logTouch('song: lane ' + lane + ' | arrows drawn at (window) ' + places.join('  '));
+				}
 				if(lane < 0 || lane >= actions.length) continue;
 				lanePressed[lane] = true;
 				held.set(actions[lane], true);
@@ -541,7 +597,7 @@ class TouchNotes implements TouchArea
 		// the skip button skips when it's touched: a dialogue gets BACK, a video is skipped right away
 		if(skipPressed && !wasSkipping)
 		{
-			if(game.videoCutscene != null && game.videoCutscene.canSkip) game.videoCutscene.skipNow();
+			if(game.inCutscene && game.videoCutscene != null && game.videoCutscene.canSkip) game.videoCutscene.skipNow();
 			else held.set('back', true);
 		}
 		draw(playing);
@@ -598,7 +654,7 @@ class TouchNotes implements TouchArea
 			if(strum == null || !strum.exists) continue;
 
 			// the point on the strum's camera, zoomed like it
-			var camera:FlxCamera = (strum.cameras != null && strum.cameras.length > 0) ? strum.cameras[0] : FlxG.camera;
+			var camera:FlxCamera = strumCamera(strum);
 			var x:Float = (point.x - camera.x - camera.width / 2) / camera.zoom + camera.width / 2 + camera.scroll.x * strum.scrollFactor.x;
 			var y:Float = (point.y - camera.y - camera.height / 2) / camera.zoom + camera.height / 2 + camera.scroll.y * strum.scrollFactor.y;
 
@@ -615,10 +671,23 @@ class TouchNotes implements TouchArea
 		return best;
 	}
 
+	// The camera a receptor is drawn on: its own if a script gave it one, or else its group's (the HUD's). Asking the receptor
+	// itself gives flixel's default camera, the stage's, which Widescreen makes wider: on a phone's screen a touch landed on the
+	// arrow next to the one touched
+	@:access(flixel.FlxBasic)
+	function strumCamera(strum:objects.StrumNote):FlxCamera
+	{
+		if(strum._cameras != null && strum._cameras.length > 0) return strum._cameras[0];
+		var group = game.strumLineNotes;
+		if(group != null && group._cameras != null && group._cameras.length > 0) return group._cameras[0];
+		return (game.camHUD != null) ? game.camHUD : FlxG.camera;
+	}
+
 	public function destroy():Void
 	{
 		keysHeld = TouchControls.holdKeys([], keysHeld);
 		TouchControls.forgetAskedKeys();
+		TouchControls.watchingKeys = false;
 		TouchControls.remove(this);
 		if(holder.parent != null) holder.parent.removeChild(holder);
 		game = null;
@@ -844,20 +913,56 @@ class TouchMenus implements TouchArea
 	static function keyGraphic(label:String):BitmapData
 		return TouchControls.labelGraphic(label, KEY_WIDTH, KEY_HEIGHT, 24);
 
-	// The pad's button under a point of the game's pixels, -1 for none
+	/*
+	 * The pad's button under a point of the game's pixels, -1 for none: the nearest one, as far as a finger reaches past it.
+	 * A finger is wider than the circle drawn and lands a little off it, between two of the arrows or past one: those used to be
+	 * touches of the screen, and on Freeplay the screen under the pad is the DJ's (it opened Character Select instead of going up).
+	 */
 	function padAt(x:Float, y:Float):Int
 	{
 		var windowX:Float = x * FlxG.scaleMode.scale.x + FlxG.game.x;
 		var windowY:Float = y * FlxG.scaleMode.scale.y + FlxG.game.y;
+		var reach:Float = PAD_SIZE * FlxG.scaleMode.scale.y * 0.8;
+		var best:Int = -1;
+		var bestDistance:Float = reach * reach;
 		for (i => button in pad)
 		{
 			if(!button.visible) continue;
-			var radius:Float = PAD_SIZE * FlxG.scaleMode.scale.y * 0.55;
 			var dx:Float = windowX - (button.x + button.width / 2);
 			var dy:Float = windowY - (button.y + button.height / 2);
-			if(dx * dx + dy * dy <= radius * radius) return i;
+			var distance:Float = dx * dx + dy * dy;
+			if(distance <= bestDistance)
+			{
+				bestDistance = distance;
+				best = i;
+			}
 		}
-		return -1;
+		return best;
+	}
+
+	// If a point of the game's pixels is on the pad, its buttons or the space between them (where a finger aiming at one of
+	// them lands): touching there is never a touch of the screen behind it
+	function nearPad(x:Float, y:Float):Bool
+	{
+		var windowX:Float = x * FlxG.scaleMode.scale.x + FlxG.game.x;
+		var windowY:Float = y * FlxG.scaleMode.scale.y + FlxG.game.y;
+		var margin:Float = PAD_SIZE * FlxG.scaleMode.scale.y * 0.35;
+		for (group in [[0, 1, 2, 3], [4, 5]])
+		{
+			var left:Float = Math.POSITIVE_INFINITY, top:Float = Math.POSITIVE_INFINITY;
+			var right:Float = Math.NEGATIVE_INFINITY, bottom:Float = Math.NEGATIVE_INFINITY;
+			for (i in group)
+			{
+				var button = pad[i];
+				if(button == null || !button.visible) continue;
+				left = Math.min(left, button.x);
+				top = Math.min(top, button.y);
+				right = Math.max(right, button.x + button.width);
+				bottom = Math.max(bottom, button.y + button.height);
+			}
+			if(windowX >= left - margin && windowX <= right + margin && windowY >= top - margin && windowY <= bottom + margin) return true;
+		}
+		return false;
 	}
 
 	// A circle with an arrow, or a letter for A and B
@@ -942,11 +1047,16 @@ class TouchMenus implements TouchArea
 				continue;
 			}
 			var button:Int = (active && shown) ? padAt(point.x, point.y) : -1;
-			if(button < 0)
+			if(button < 0 && active && shown && nearPad(point.x, point.y)) button = -2; //(next to the pad: neither a button nor the screen)
+			if(TouchControls.logTouches && !tracking && !startedOnPad)
+				TouchControls.logTouch('menu: pad button ' + button + ' | pad drawn at (window) '
+					+ [for (i => b in pad) i + ':' + Math.round(b.x + b.width / 2) + ',' + Math.round(b.y + b.height / 2) + (b.visible ? '' : ' hidden')].join('  '));
+			if(button == -1)
 			{
 				free.push(point);
 				continue;
 			}
+			if(button < 0) continue;
 			padPressed[button] = true;
 			held.set(PAD_ACTIONS[button], true);
 		}
@@ -959,7 +1069,12 @@ class TouchMenus implements TouchArea
 			return;
 		}
 		// (a finger that started on the pad isn't dragging the menu, even if it slides off)
-		if(points.length > 0 && !tracking && free.length < points.length && free.length == 0) startedOnPad = true;
+		// (a finger on the pad while another one left the screen on the same frame isn't that one lifting: it's no touch of the screen)
+		if(points.length > 0 && free.length == 0)
+		{
+			startedOnPad = true;
+			tracking = false;
+		}
 		if(points.length == 0) startedOnPad = false;
 		if(startedOnPad) return;
 		points = free;
@@ -1003,6 +1118,7 @@ class TouchMenus implements TouchArea
 
 		// a touch, where the finger was: a screen can take it itself first (`onTouchTap(x, y):Bool`, the Freeplay menu's DJ and songs)
 		var ownTap:Dynamic = Reflect.field(target, 'onTouchTap');
+		TouchControls.logTouch('menu: tap at game ' + Math.round(lastX) + ',' + Math.round(lastY) + ' on ' + Type.getClassName(Type.getClass(target)));
 		if(onBack(lastX, lastY)) held.set('back', true);
 		else if(Reflect.isFunction(ownTap) && Reflect.callMethod(target, ownTap, [lastX, lastY]) == true) {}
 		else if(!MOUSE_SCREENS.contains(Type.getClassName(Type.getClass(target))) && !pickFromList(target, lastX, lastY, held))

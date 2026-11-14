@@ -199,3 +199,12 @@ class Paths
 		#end
 	}
 }
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+enum abstract PathsFunction(String)
+{
+	public var MUSIC;
+	public var INST;
+	public var VOICES;
+	public var SOUND;
+}

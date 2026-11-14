@@ -5,6 +5,17 @@ package backend;
 
 class PsychCamera extends FlxCamera
 {
+	// (the Widescreen option: the world camera of a song is shown starting past the left of the game, see GameScaleMode.fitWideCamera())
+	override function updateFlashSpritePosition():Void
+	{
+		super.updateFlashSpritePosition();
+		if(flashSprite == null) return;
+		var left:Float = backend.GameScaleMode.shownOffset(this, false);
+		var top:Float = backend.GameScaleMode.shownOffset(this, true);
+		if(left != 0) flashSprite.x -= left * FlxG.scaleMode.scale.x;
+		if(top != 0) flashSprite.y -= top * FlxG.scaleMode.scale.y;
+	}
+
 	// (the Widescreen option: see backend.GameScaleMode.coverSides())
 	override function drawFX():Void
 	{

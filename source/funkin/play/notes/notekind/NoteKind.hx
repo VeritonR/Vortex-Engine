@@ -56,3 +56,15 @@ class NoteKind extends funkin.modding.ScriptedBase
 		return noteKind;
 	}
 }
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+/**
+ * Abstract for setting the type of the `NoteKindParam`
+ * This was supposed to be an enum but polymod kept being annoying
+ */
+abstract NoteKindParamType(String) from String to String
+{
+	public static final STRING:String = 'String';
+	public static final INT:String = 'Int';
+	public static final FLOAT:String = 'Float';
+}

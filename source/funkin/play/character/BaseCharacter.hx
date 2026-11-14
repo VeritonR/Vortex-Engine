@@ -71,7 +71,96 @@ class BaseCharacter extends funkin.modding.ScriptedBase #if HSCRIPT_ALLOWED impl
 
 	public function onAnimationFinished(name:String = ''):Void {}
 
-	public function getDeathCameraOffsets():Array<Float> return [0, 0];
+	/**
+	 * If the player is holding a note's key (V-Slice's): characters keep singing while it's held.
+	 */
+	@:access(states.PlayState)
+	public function isHoldingNote(player:Int = 1):Bool
+	{
+		var game:states.PlayState = states.PlayState.instance;
+		if(game == null || player != 1 || game.keysArray == null) return false;
+		for (key in game.keysArray)
+			if(game.controls.pressed(key)) return true;
+		return false;
+	}
+
+	/**
+	 * If the player just pressed a note's key (V-Slice's).
+	 */
+	@:access(states.PlayState)
+	public function justPressedNote(player:Int = 1):Bool
+	{
+		var game:states.PlayState = states.PlayState.instance;
+		if(game == null || player != 1 || game.keysArray == null) return false;
+		for (key in game.keysArray)
+			if(game.controls.justPressed(key)) return true;
+		return false;
+	}
+
+	// What the character's file says (V-Slice's `_data`), as scripts read it
+	function data():Dynamic
+	{
+		#if HSCRIPT_ALLOWED
+		if(character != null) return hxc.HxcRuntime.readMember(character, '_data');
+		#end
+		return null;
+	}
+
+	public function getDeathCameraZoom():Float
+	{
+		var death:Dynamic = (data() != null) ? data().death : null;
+		return (death != null && death.cameraZoom != null) ? death.cameraZoom : 1.0;
+	}
+
+	public function getDeathPreTransitionDelay():Float
+	{
+		var death:Dynamic = (data() != null) ? data().death : null;
+		return (death != null && death.preTransitionDelay != null) ? death.preTransitionDelay : 0.0;
+	}
+
+	public var characterCameraOffsets(get, never):Array<Float>;
+	function get_characterCameraOffsets():Array<Float>
+	{
+		var offsets:Dynamic = (data() != null) ? data().cameraOffsets : null;
+		return (offsets != null) ? offsets : [0.0, 0.0];
+	}
+
+	/**
+	 * The numbers of the character's animations named that way followed by one ("combo50", "drop10"...), smallest first.
+	 */
+	public function findCountAnimations(prefix:String):Array<Int>
+	{
+		var result:Array<Int> = [];
+		if(character == null || character.animOffsets == null) return result;
+		for (name in character.animOffsets.keys())
+		{
+			if(!StringTools.startsWith(name, prefix)) continue;
+			var count:Null<Int> = Std.parseInt(name.substr(prefix.length));
+			if(count != null && !result.contains(count)) result.push(count);
+		}
+		result.sort((a, b) -> a - b);
+		return result;
+	}
+
+	public function playComboAnimation(comboCount:Int):Void
+	{
+		if(character != null && character.hasAnimation('combo$comboCount')) character.playAnim('combo$comboCount', true);
+	}
+
+	// (the highest "drop" animation the combo that was lost reaches)
+	public function playComboDropAnimation(comboCount:Int):Void
+	{
+		var drop:String = null;
+		for (count in findCountAnimations('drop'))
+			if(comboCount >= count) drop = 'drop$count';
+		if(drop != null && character != null) character.playAnim(drop, true);
+	}
+
+	public function getDeathCameraOffsets():Array<Float>
+	{
+		var death:Dynamic = (data() != null) ? data().death : null;
+		return (death != null && death.cameraOffsets != null) ? death.cameraOffsets : [0.0, 0.0];
+	}
 	public function getDeathQuote():String return null;
 }
 

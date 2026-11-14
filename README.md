@@ -23,6 +23,8 @@
 | | |
 |---|---|
 | 🧩 **V-Slice mod support** | Play mods made for the official game (Polymod, `.hxc` scripts) next to your Psych mods, with no porting. |
+| 📱 **Android** | The whole engine on phones (Android 7 and newer, 32 and 64-bit), with mods, Lua, HScript, V-Slice scripts and videos, and touch controls for songs and menus. |
+| 📄 **Codename Engine charts** | Codename charts play like Psych ones (strumlines, events, BPM changes), and the chart editor converts them. |
 | 🌐 **Online multiplayer** | Host or join a match by IP and play a song against a friend: each player sings one side. The port opens by itself (UPnP), there's a chat, and a missing mod can be sent to the other player. |
 | 🎓 **Tutorials** | A "Tutorial" button on the menus and editors: Boyfriend zooms into each part of the screen and explains it. Mods can add their own. |
 | 📸 **Screenshots & Gallery** | `F3` takes a screenshot anywhere, with a flash and a preview; the Gallery shows them and saves copies. |
@@ -124,6 +126,10 @@ Each of these is an option, and Psych mods get them too.
 * **Window Mode** (windowed or fullscreen) and **Sharpness**.
 * **Keystrokes:** the keys you press, shown during songs and lit while held, with keys per second. **WASD** lays them out like W A S D,**DFJK** in a row (songs that don't have 4 arrows always use the row). They and the Break Timer are on a camera of their own over every other one, so songs that hide or move the HUD don't take them away.
 * **Supersampling:** the game is drawn bigger than the window and shrunk to it, for smoother edges (like DSR on NVIDIA cards).
+* **Widescreen:** songs and menus fill screens wider than 16:9 (ultrawide monitors, phones) instead of leaving black bars.
+* **Subtitles:** V-Slice songs' and cutscenes' subtitles, shown at the bottom of the screen.
+* **Texture Quality:** Half draws big images (characters, stages) from textures of half their size, for weak graphics cards and phones.
+* **Crash screen:** an error no longer closes the game: it shows what happened and where, with a way back to the menus, and saves a report in `crash/`.
 * **The options menu** is one panel with tabs (Gameplay, Graphics, Visuals, V-Slice, Vortex Engine, Mods and More), usable with the keyboard or the mouse. The note and splash settings show the arrows, with the splashes playing.
 * **Mods tab:** the settings mods add, each mod under its name. V-Slice mods add theirs the way they do on V-Slice (`createPrefItemCheckbox`, `createPrefItemEnum`, `createPrefItemNumber` and `createPrefItemPercentage` on the options menu's pages, from a module's `onStateChangeEnd`), and Psych mods with their `data/settings.json`.
 * **Controls:** two actions on the same key that work during a song (a note key that's also the chat's, for example) get a warning.
@@ -211,6 +217,20 @@ The button can be hidden in Options → Vortex Engine → **Tutorial Button**.
 * `pose`: what Boyfriend does: `hey`, `left`, `down`, `up`, `right` or `idle`. By default he looks at what he's showing.
 * `button`: where the button goes: `top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, `bottom-right`, or `[x, y]`.
 * Translations: add `"key": "mymod_menu"` to the file, and the language files' `mymod_menu_1`, `mymod_menu_2`... replace the steps' texts (counting from 1). The game's own tutorials use `tutorial_<screenname>`.
+
+---
+
+## 📱 Android
+
+The engine runs on phones: Android 7 and newer, 32 and 64-bit, with mods, Lua, HScript, V-Slice scripts and videos.
+
+* **Mods** go in `Android/media/com.team.vortexengine/mods` on the phone's storage (no permissions needed). That folder has the game's files too, copied on the first launch.
+* **Touch controls** (Options): **Arrows** (touch your own arrows, laid out like V-Slice on phones), **Hitbox** (the screen split in one lane per arrow) or **Buttons** (a button per arrow at the sides), with a pause button and their opacity. Extra keys songs work with all of them.
+* **Menus:** drag to scroll, tap to pick, a back button and an on-screen pad. Dialogues and cutscenes go on with a tap and have a Skip button, and keys a mod's script asks for (a dodge on SPACE) get a button of their own while it uses them.
+* **Render Resolution** draws the game at fewer lines than the screen has (720p by default) for weaker phones, and **Texture Quality** can halve big images.
+* Mods made for computers mostly work as they are: images too big for the phone's graphics card are made smaller instead of black, and file names don't care about capital letters.
+
+To build it yourself, see [Building](docs/BUILDING.md#android).
 
 ---
 

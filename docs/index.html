@@ -8,12 +8,12 @@
 	<meta property="og:title" content="Vortex Engine">
 	<meta property="og:description" content="A Psych Engine 1.0.4 fork that also runs V-Slice mods, with online multiplayer and the new Funkin' menus for every mod.">
 	<meta property="og:image" content="img/vortex/logo.png">
-	<meta name="theme-color" content="#120a1c">
+	<meta name="theme-color" content="#0d0d0e">
 	<link rel="icon" href="img/vortex/logo.png">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="assets/style.css">
+	<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="assets/style.css?v=2">
 </head>
 <body>
 
@@ -75,15 +75,18 @@
 			<h2>What's inside</h2>
 			<p class="lead">Everything Psych Engine has, plus V-Slice mods, multiplayer, and a lot of new options and tools for players and modders.</p>
 			<div class="grid three" style="margin-top:28px">
-				<div class="card"><span class="emoji">🧩</span><h3>V-Slice mod support</h3><p>Play mods made for the official game (Polymod, <code>.hxc</code> scripts) next to your Psych mods, with no porting.</p></div>
-				<div class="card"><span class="emoji">🌐</span><h3>Online multiplayer</h3><p>Play a song against a friend by IP. The port opens by itself, there's a chat, and a missing mod can be sent to the other player.</p></div>
-				<div class="card"><span class="emoji">🎤</span><h3>V-Slice menus for everyone</h3><p>Freeplay with the DJ, Character Select, the Results screen and the sticker transition, for Psych songs too.</p></div>
-				<div class="card"><span class="emoji">🎹</span><h3>Extra keys</h3><p>Songs with 1 to 9 arrows per side, for mods like Shaggy's 6 and 9 key songs, with their own keys.</p></div>
-				<div class="card"><span class="emoji">👥</span><h3>Extra characters</h3><p>More singers in a song (a duet, a third character...), set up in the chart editor with no script.</p></div>
-				<div class="card"><span class="emoji">🧊</span><h3>3D</h3><p>Sprites, receptors and notes turned in 3D, whole cameras tilted in perspective, and <code>.obj</code> models.</p></div>
-				<div class="card"><span class="emoji">🎓</span><h3>Tutorials</h3><p>A Tutorial button on the menus and editors: Boyfriend zooms into each part of the screen and explains it.</p></div>
-				<div class="card"><span class="emoji">🛠️</span><h3>Better editors</h3><p>Box selection in the chart editor, mouse tools and undo in the others, and a Character Select / Results editor.</p></div>
-				<div class="card"><span class="emoji">📜</span><h3>More scripting</h3><p>New Lua functions, callbacks and properties, state scripts for the menus, and a check for mods made for other engines.</p></div>
+				<div class="card"><h3>V-Slice mod support</h3><p>Play mods made for the official game (Polymod, <code>.hxc</code> scripts) next to your Psych mods, with no porting.</p></div>
+				<div class="card"><h3>Online multiplayer</h3><p>Play a song against a friend by IP. The port opens by itself, there's a chat, and a missing mod can be sent to the other player.</p></div>
+				<div class="card"><h3>V-Slice menus for everyone</h3><p>Freeplay with the DJ, Character Select, the Results screen and the sticker transition, for Psych songs too.</p></div>
+				<div class="card"><h3>Extra keys</h3><p>Songs with 1 to 9 arrows per side, for mods like Shaggy's 6 and 9 key songs, with their own keys.</p></div>
+				<div class="card"><h3>Extra characters</h3><p>More singers in a song (a duet, a third character...), set up in the chart editor with no script.</p></div>
+				<div class="card"><h3>3D</h3><p>Sprites, receptors and notes turned in 3D, whole cameras tilted in perspective, and <code>.obj</code> models.</p></div>
+				<div class="card"><h3>Tutorials</h3><p>A Tutorial button on the menus and editors: Boyfriend zooms into each part of the screen and explains it.</p></div>
+				<div class="card"><h3>Better editors</h3><p>Box selection in the chart editor, mouse tools and undo in the others, and a Character Select / Results editor.</p></div>
+				<div class="card"><h3>Android</h3><p>The whole engine on phones, with mods, Lua, HScript, V-Slice scripts and videos, and touch controls for songs and menus.</p></div>
+				<div class="card"><h3>Codename Engine charts</h3><p>Codename charts play like Psych ones (strumlines, events, BPM changes), and the chart editor converts them.</p></div>
+				<div class="card"><h3>Widescreen, subtitles, screenshots</h3><p>Songs and menus fill wide screens, V-Slice subtitles, <kbd>F3</kbd> screenshots with a Gallery, and a crash screen instead of closing.</p></div>
+				<div class="card"><h3>More scripting</h3><p>New Lua functions, callbacks and properties, state scripts for the menus, and a check for mods made for other engines.</p></div>
 			</div>
 		</div>
 	</section>
@@ -182,7 +185,39 @@
 						<li><strong>Keystrokes:</strong> the keys you press on the screen, WASD or DFJK style, with keys per second.</li>
 						<li><strong>Lane Underlay</strong>, <strong>Hold Note Covers</strong>, <strong>Sustain Wiggle</strong>, <strong>Icon Bop</strong>, <strong>Smooth Health Bar</strong>.</li>
 						<li><strong>Supersampling</strong> for smoother edges, <strong>Window Mode</strong> and <strong>Sharpness</strong>.</li>
+						<li><strong>Widescreen:</strong> songs and menus fill screens wider than 16:9 instead of leaving black bars.</li>
+						<li><strong>Subtitles</strong> of V-Slice songs and cutscenes, and <strong>Texture Quality</strong> to halve big images.</li>
 						<li><strong>Mods tab:</strong> the settings that Psych and V-Slice mods add, in the options menu.</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ============================================================ android -->
+	<section class="block" id="android">
+		<div class="container">
+			<span class="eyebrow">Android</span>
+			<h2>The engine on your phone</h2>
+			<p class="lead">Android 7 and newer, 32 and 64-bit, with mods, Lua, HScript, V-Slice scripts and videos.</p>
+			<div class="grid two">
+				<div>
+					<h3>Touch controls</h3>
+					<ul class="feature-list">
+						<li><strong>Arrows:</strong> touch your own arrows, laid out like V-Slice on phones.</li>
+						<li><strong>Hitbox:</strong> the screen split in one lane per arrow. <strong>Buttons:</strong> a button per arrow at the sides.</li>
+						<li>A pause button, their opacity, and extra keys songs with any of them.</li>
+						<li>Keys a mod's script asks for (a dodge on <kbd>SPACE</kbd>) get a button while it uses them.</li>
+						<li><strong>Menus:</strong> drag to scroll, tap to pick, a back button and an on-screen pad. Dialogues go on with a tap, with a Skip button.</li>
+					</ul>
+				</div>
+				<div>
+					<h3>Mods and performance</h3>
+					<ul class="feature-list">
+						<li>Mods go in <code>Android/media/com.team.vortexengine/mods</code> on the phone's storage, no permissions needed.</li>
+						<li>Mods made for computers mostly work as they are: images too big for the phone are made smaller, and file names don't care about capital letters.</li>
+						<li><strong>Render Resolution</strong> (720p by default) and <strong>Texture Quality</strong> for weaker phones.</li>
+						<li>An FPS counter with the time the logic and the drawing take.</li>
 					</ul>
 				</div>
 			</div>

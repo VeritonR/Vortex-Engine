@@ -11,14 +11,75 @@ class Strumline
 
 	var game(get, never):states.PlayState;
 	inline function get_game():states.PlayState
-		return states.PlayState.instance;
+		return detached ? null : states.PlayState.instance;
+
+	/*
+	 * A strumline a script makes for itself (`new Strumline(noteStyle, isPlayer)`, IndieCross' third singer on Bonedoggle): the engine
+	 * has no receptors of its own for it, so it has none and nothing done to it reaches the song's. It was the real one of that side
+	 * (moving it to where the script hides its own took one side's receptors off the screen).
+	 */
+	var detached:Bool = false;
 
 	var hidden:Bool = false;
 	var alphas:Array<Null<Float>> = [];
 
-	public function new(isPlayer:Bool)
+	public function new(isPlayer:Dynamic, ?playerOfStyle:Dynamic)
 	{
-		this.isPlayer = isPlayer;
+		if(Std.isOfType(isPlayer, Bool)) this.isPlayer = isPlayer;
+		else
+		{
+			// (V-Slice's own arguments: a note style, then if it's the player's)
+			detached = true;
+			this.isPlayer = (playerOfStyle == true);
+		}
+	}
+
+	/**
+	 * A note of this side was hit (V-Slice's): its receptor lights up and the note goes away, or stays see-through and grey.
+	 */
+	public function hitNote(sprite:Dynamic, removeNote:Bool = true):Void
+	{
+		var note:objects.Note = noteOf(sprite);
+		if(note == null || game == null) return;
+		playConfirm(note.noteData);
+		if(removeNote) killNote(note);
+		else note.multAlpha = 0.5;
+	}
+
+	/**
+	 * The notes this side plays are only these (V-Slice's, which makes the strumline's notes out of them): the others of its side
+	 * go away. Mods give some notes of a side to someone else this way.
+	 */
+	public function applyNoteData(data:Array<Dynamic>):Void
+	{
+		if(game == null || data == null) return;
+		var wanted:Map<String, Bool> = [];
+		for (item in data)
+		{
+			if(item == null) continue;
+			var time:Dynamic = Reflect.field(item, 'time');
+			if(time == null) time = Reflect.field(item, 't');
+			var direction:Dynamic = Reflect.field(item, 'data');
+			if(direction == null) direction = Reflect.field(item, 'd');
+			if(time != null && direction != null) wanted.set(noteKey(time, Std.int(direction) % backend.ExtraKeys.keyCount), true);
+		}
+		var gone:Array<objects.Note> = [];
+		for (list in [game.unspawnNotes, (game.notes != null) ? game.notes.members : []])
+			for (note in list)
+				if(note != null && !note.isSustainNote && note.mustPress == isPlayer && !wanted.exists(noteKey(note.strumTime, note.noteData)))
+					gone.push(note);
+		for (note in gone) killNote(note);
+	}
+
+	static inline function noteKey(time:Float, direction:Int):String
+		return Math.round(time * 10) + ':' + direction;
+
+	static function noteOf(sprite:Dynamic):objects.Note
+	{
+		var note:objects.Note = Std.downcast(sprite, objects.Note);
+		if(note != null) return note;
+		var facade:NoteSprite = Std.downcast(sprite, NoteSprite);
+		return (facade != null) ? facade.note : null;
 	}
 
 	/**
@@ -320,6 +381,39 @@ class Strumline
 			count++;
 		}
 		return (count > 0) ? total / count : null;
+	}
+
+	/**
+	 * Takes the side's notes off the screen and puts its receptors back at rest (V-Slice's, which mods call when a song starts
+	 * or restarts: IndieCross' Burning in Hell and Final Stretch). The notes still to come aren't touched, like on V-Slice.
+	 */
+	public function clean():Void
+	{
+		if(game == null) return;
+		if(game.notes != null)
+			for (note in [for (note in game.notes.members) if(note != null && note.mustPress == isPlayer) note])
+				killNote(note);
+		for (i in 0...strums.length) playStatic(i);
+	}
+
+	/**
+	 * If the key of that direction is held (V-Slice's): only the side that's being played has keys.
+	 */
+	@:access(states.PlayState)
+	public function isKeyHeld(direction:Dynamic):Bool
+	{
+		if(game == null || game.keysArray == null || isPlayer == game.playAsOpponent) return false;
+		var key:String = game.keysArray[Std.int(direction) % game.keysArray.length];
+		return key != null && game.controls.pressed(key);
+	}
+
+	/**
+	 * Moves the strumline there, receptors and all (V-Slice's is a sprite group: Hypno's Lullaby's Missingno throws the receptors around).
+	 */
+	public function setPosition(x:Float = 0, y:Float = 0):Void
+	{
+		this.x = x;
+		this.y = y;
 	}
 
 	public function getByIndex(index:Int):StrumNote

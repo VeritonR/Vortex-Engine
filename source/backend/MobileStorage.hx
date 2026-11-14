@@ -10,12 +10,9 @@ import sys.io.File;
  * the editors...); on a phone the files that come with the game are inside the APK, where those can't be read as files, so they're
  * copied to a folder of the phone the first time the game is opened (and after it's updated), and the game works from there:
  *
- *     Vortex Engine/      (on the phone's storage, next to Download, DCIM...: assets, mods, modsList.txt...)
+ *     Android/media/(the game's package)/      (assets, mods, modsList.txt...)
  *
- * That one needs the permission to use the phone's files ("All files access" from Android 11 on), which the game asks for the first
- * time (see StorageAccessState). Without it the game uses a folder of its own that needs none, which any file manager can still open:
- *
- *     Android/media/(the game's package)/
+ * A folder of the game's own: it needs no permission, and any file manager can open it to put mods in.
  */
 class MobileStorage
 {
@@ -24,26 +21,17 @@ class MobileStorage
 	 */
 	public static var folder(default, null):String = null;
 
-	/**
-	 * The name of the game's folder on the phone's storage.
-	 */
-	public static inline final FOLDER_NAME:String = 'Vortex Engine';
-
 	// (written in the folder once the files of a version of the game were copied)
 	static inline final COPIED_MARK:String = '.copied';
-	// (written in the app's own folder when the permission was refused: it isn't asked for every time)
-	static inline final REFUSED_MARK:String = '.no_storage_access';
 
 	/**
-	 * Goes to the game's folder on the phone (the first thing the game does, and again once the permission is given).
+	 * Goes to the game's folder on the phone (the first thing the game does).
 	 * Nothing on computers.
 	 */
 	public static function setup():Void
 	{
 		#if android
-		folder = null;
-		if(hasFileAccess()) folder = usable(publicFolder());
-		if(folder == null) folder = usable(mediaFolder());
+		folder = usable(mediaFolder());
 		if(folder == null) folder = usable(appFolder());
 		if(folder == null) folder = haxe.io.Path.addTrailingSlash(lime.system.System.applicationStorageDirectory);
 		Sys.setCwd(folder);
@@ -57,12 +45,6 @@ class MobileStorage
 	}
 
 	#if android
-	/**
-	 * "(storage)/Vortex Engine/": the folder the game uses when it can.
-	 */
-	public static function publicFolder():String
-		return haxe.io.Path.addTrailingSlash(extension.androidtools.os.Environment.getExternalStorageDirectory()) + FOLDER_NAME + '/';
-
 	static function appFolder():String
 		return haxe.io.Path.addTrailingSlash(extension.androidtools.content.Context.getExternalFilesDir());
 
@@ -91,55 +73,6 @@ class MobileStorage
 		return null;
 	}
 
-	/**
-	 * If the game may use the phone's files: "All files access" from Android 11 on, the storage permission before that.
-	 */
-	public static function hasFileAccess():Bool
-	{
-		try
-		{
-			if(extension.androidtools.os.Build.VERSION.SDK_INT >= 30) return extension.androidtools.os.Environment.isExternalStorageManager();
-			return extension.androidtools.Permissions.getGrantedPermissions().contains('android.permission.WRITE_EXTERNAL_STORAGE');
-		}
-		catch(e:Dynamic) {}
-		return false;
-	}
-
-	/**
-	 * Asks for it: Android 11 and newer open the page of the settings where it's given.
-	 */
-	public static function askFileAccess():Void
-	{
-		try
-		{
-			if(extension.androidtools.os.Build.VERSION.SDK_INT >= 30)
-				extension.androidtools.Settings.requestSetting('android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION');
-			else
-				extension.androidtools.Permissions.requestPermissions(['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE']);
-		}
-		catch(e:Dynamic)
-		{
-			trace('Could not ask for the storage permission: $e');
-		}
-	}
-
-	/**
-	 * If the game should ask for the permission when it opens: it doesn't have it, and it wasn't refused before.
-	 */
-	public static function shouldAsk():Bool
-	{
-		if(hasFileAccess()) return false;
-		var own:String = usable(mediaFolder());
-		if(own == null) own = usable(appFolder());
-		return own == null || !FileSystem.exists(own + REFUSED_MARK);
-	}
-
-	public static function refuse():Void
-	{
-		var own:String = usable(mediaFolder());
-		if(own == null) own = usable(appFolder());
-		if(own != null) try File.saveContent(own + REFUSED_MARK, "The game uses this folder: it wasn't given the permission to use the phone's files.") catch(e:Dynamic) {}
-	}
 	#end
 
 	/**
@@ -162,7 +95,9 @@ class MobileStorage
 	public static function realPath(path:String):String
 	{
 		#if mobile
+		FrameProfile.count('file checks');
 		if(path == null || path.length == 0 || FileSystem.exists(path)) return path;
+		FrameProfile.countFrom('missing files');
 
 		var parts:Array<String> = path.split('/');
 		var found:String = (path.charAt(0) == '/') ? '/' : '';
@@ -234,10 +169,17 @@ class MobileStorage
 
 	static var toCopy:Array<String> = null;
 
-	// The files of the APK the game reads as files: all of them but the ones only read through the asset library (the fonts)
+	// The files of the APK the game reads as files: all of them but the ones built into the game itself, only read through the asset
+	// library (the engine's fonts, the editors' small images, flixel's own): there's no file of those to copy
+	@:access(lime.utils.AssetLibrary)
 	static function listToCopy():Array<String>
 	{
-		if(toCopy == null) toCopy = [for (id in lime.utils.Assets.list()) if(!StringTools.startsWith(id, '__')) id];
+		if(toCopy == null)
+		{
+			var library:lime.utils.AssetLibrary = lime.utils.Assets.getLibrary('default');
+			toCopy = [for (id in lime.utils.Assets.list())
+				if(!StringTools.startsWith(id, '__') && (library == null || !library.classTypes.exists(id))) id];
+		}
 		return toCopy;
 	}
 
@@ -250,6 +192,8 @@ class MobileStorage
 		try
 		{
 			var bytes:haxe.io.Bytes = lime.utils.Assets.getBytes(id);
+			// (an empty file comes as nothing: modsList.txt, the "put the files here" ones)
+			if(bytes == null && lime.utils.Assets.exists(id)) bytes = haxe.io.Bytes.alloc(0);
 			if(bytes == null) return false;
 			if(FileSystem.exists(id) && FileSystem.stat(id).size == bytes.length) return true;
 
@@ -341,70 +285,10 @@ class CopyState extends flixel.FlxState
 
 		if(queue.length == 0)
 		{
-			// (the ones that can't be copied are inside the game itself, read from there: the fonts, flixel's own images)
 			if(failed > 0) trace('$failed of the files were not copied');
 			MobileStorage.markCopied();
 			FlxG.switchState(Type.createInstance(next, []));
 		}
 		super.update(elapsed);
-	}
-}
-
-/**
- * The first time the game is opened on a phone: asks for the permission to use the phone's files, so its folder (and its mods) can
- * be "Vortex Engine" on the phone's storage. Without it the game goes on with a folder of its own (see MobileStorage).
- */
-class StorageAccessState extends flixel.FlxState
-{
-	var text:flixel.text.FlxText;
-	var wait:Float = 0;
-
-	override function create():Void
-	{
-		text = new flixel.text.FlxText(80, 0, FlxG.width - 160, '', 28);
-		text.alignment = CENTER;
-		text.text = 'The game keeps its files and your mods in the folder\n"' + MobileStorage.FOLDER_NAME + '" of your phone.\n\n'
-			+ "Touch the screen to let it use the phone's files\n(on Android 11 and newer, turn on \"Allow access to manage all files\").\n\n"
-			+ 'Touch the top of the screen to skip it: the game will use a folder of its own\n(Android/media) instead.';
-		text.screenCenter(Y);
-		add(text);
-		super.create();
-	}
-
-	override function update(elapsed:Float):Void
-	{
-		super.update(elapsed);
-
-		#if android
-		// (given in the settings, the game comes back to here: checked a few times a second)
-		wait -= elapsed;
-		if(wait <= 0)
-		{
-			wait = 0.5;
-			if(MobileStorage.hasFileAccess())
-			{
-				done();
-				return;
-			}
-		}
-
-		if(FlxG.mouse.justReleased)
-		{
-			if(FlxG.mouse.screenY < FlxG.height * 0.2)
-			{
-				MobileStorage.refuse();
-				done();
-			}
-			else MobileStorage.askFileAccess();
-		}
-		#else
-		done();
-		#end
-	}
-
-	function done():Void
-	{
-		MobileStorage.setup();
-		FlxG.switchState(MobileStorage.needsCopy() ? new CopyState() : Type.createInstance(states.TitleState, []));
 	}
 }

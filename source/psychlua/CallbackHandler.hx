@@ -52,6 +52,7 @@ class CallbackHandler
 		}
 		catch(e:haxe.Exception)
 		{
+			backend.FrameProfile.count('lua callback error: ' + fname + ': ' + e.message.substr(0, 120));
 			if(Lua_helper.sendErrorsToLua)
 			{
 				LuaL.error(l, 'CALLBACK ERROR! ${e.details()}');

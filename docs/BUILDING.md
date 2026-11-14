@@ -34,7 +34,7 @@ vs_Community.exe --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add M
 This will use `curl`, which is a tool for downloading certain files through your command prompt,
 to download the binary for Microsoft Visual Studio with the specific packages you need for compiling on Windows.
 
-(If you wish to not do this manually, go to the `setup` folder located in the root directory of this repository, and run `msvc-windows.bat`)
+(If you wish to not do this manually, go to the `setup` folder located in the root directory of this repository, and run `windows-msvc.bat`)
 
 ---
 ### Linux Distributions
@@ -88,6 +88,24 @@ It depends on your operating system. For Windows, run `windows.bat`, for anythin
 Sit back, relax, and wait for haxelib to do its magic. You will be done when you see the word "**Finished!**"
 
 To build the game, run `lime test cpp`.
+
+---
+
+### Android
+
+You need, besides the above:
+
+- The Java JDK 17
+- The Android SDK, with the NDK **21.4.7075529** (r21e)
+
+Tell lime where they are with `lime setup android` (it asks for the SDK, the NDK and the JDK folders).
+
+Then run `build_android.bat` at the root of the repository (or double click it). It compiles the game, checks it and packs the APK at `export/VortexEngine-android.apk`:
+
+- `build_android.bat -Clean` builds everything again from scratch (if a build ever comes out broken)
+- `build_android.bat -Install` also installs it on the phone plugged in by USB (with USB debugging on)
+
+The script looks for the JDK, the SDK and the NDK where the top of `setup/android/build_android.ps1` says: change those three lines if yours are somewhere else.
 
 ---
 

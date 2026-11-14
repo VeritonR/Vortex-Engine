@@ -36,6 +36,7 @@ import states.TitleState;
 	public var naughtyness:Bool = true; //if off, the results screen shows the tamer version of some animations
 	public var lowQuality:Bool = false;
 	public var shaders:Bool = true;
+	public var textureQuality:String = 'Full'; //"Half": big images are sent to the GPU at half their size (see backend.TextureQuality)
 	public var cacheOnGPU:Bool = #if !switch false #else true #end; // GPU Caching made by Raltyro
 	public var framerate:Int = 60;
 	public var windowMode:String = 'Windowed';

@@ -41,6 +41,10 @@ class OnlineChat extends Sprite
 	var lines:Array<{text:String, mine:Bool, age:Float}> = [];
 	var history:TextField;
 	var input:TextField;
+	#if mobile
+	// (a phone has no chat key: this opens it, where the chat is, out of songs)
+	var chatButton:TextField;
+	#end
 	var typed:String = '';
 	var lastTime:Float = 0;
 	var reenableKeys:Bool = false;
@@ -98,6 +102,18 @@ class OnlineChat extends Sprite
 		input.backgroundColor = 0x000000;
 		input.visible = false;
 		addChild(input);
+		#if mobile
+		chatButton = makeField(22);
+		chatButton.background = true;
+		chatButton.backgroundColor = 0x202020;
+		chatButton.multiline = false;
+		chatButton.wordWrap = false;
+		chatButton.text = ' ' + Language.getPhrase('online_chat_button', 'Chat') + ' ';
+		chatButton.width = chatButton.textWidth + 10;
+		chatButton.height = chatButton.textHeight + 8;
+		chatButton.visible = false;
+		addChild(chatButton);
+		#end
 
 		addEventListener(Event.ENTER_FRAME, onFrame);
 		FlxG.stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown, false, 100); //(before the game's own)
@@ -146,6 +162,11 @@ class OnlineChat extends Sprite
 		// the chat key, when nothing else is being typed (FlxG.keys sees it before it's turned off)
 		if(connected && !typing && !blocked && FlxG.keys.enabled && FlxG.keys.anyJustPressed(ClientPrefs.keyBinds.get('chat')) && canOpenHere())
 			open();
+		#if mobile
+		chatButton.visible = connected && !typing && !blocked && !Std.isOfType(FlxG.state, states.PlayState);
+		if(chatButton.visible && FlxG.mouse.justPressed && chatButton.hitTestPoint(FlxG.stage.mouseX, FlxG.stage.mouseY))
+			open();
+		#end
 
 		for (line in lines) line.age += elapsed;
 		while(lines.length > 30) lines.shift();
@@ -176,6 +197,9 @@ class OnlineChat extends Sprite
 		typing = false;
 		typed = '';
 		reenableKeys = true; //(on the next frame: the ENTER or ESC that closed it isn't taken by the game too)
+		#if mobile
+		lime.app.Application.current.window.textInputEnabled = false; //(the phone's keyboard goes away)
+		#end
 		redraw();
 	}
 
@@ -258,5 +282,10 @@ class OnlineChat extends Sprite
 		input.y = stageHeight - input.height - 12;
 		history.height = history.textHeight + 6;
 		history.y = (typing ? input.y : stageHeight - 12) - history.height - 4;
+		#if mobile
+		chatButton.x = 12;
+		chatButton.y = stageHeight - chatButton.height - 12;
+		if(chatButton.visible) history.y = chatButton.y - history.height - 4;
+		#end
 	}
 }

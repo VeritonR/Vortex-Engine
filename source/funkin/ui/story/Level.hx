@@ -6,6 +6,15 @@ package funkin.ui.story;
  */
 class Level extends funkin.modding.ScriptedBase
 {
+	/**
+	 * The title of the week on the Story Mode menu, from its file's "titleAsset", like V-Slice's.
+	 */
+	public function buildTitleGraphic():FlxSprite
+	{
+		var asset:String = (_data != null && _data.titleAsset != null) ? Std.string(_data.titleAsset) : null;
+		return (asset != null) ? new FlxSprite().loadGraphic(Paths.image(asset)) : new FlxSprite();
+	}
+
 	public var id(default, null):String;
 
 	/**

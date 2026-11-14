@@ -5,6 +5,12 @@ package funkin.save;
  */
 class Save
 {
+	/**
+	 * Where V-Slice keeps its save (flixel's FlxSave): the engine's.
+	 */
+	public static var system(get, never):flixel.util.FlxSave;
+	static function get_system():flixel.util.FlxSave return FlxG.save;
+
 	public static var instance(get, never):Save;
 	static var _instance:Save = null;
 	static function get_instance():Save

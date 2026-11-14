@@ -171,6 +171,31 @@ class Note extends FlxSprite
 	public var rating:String = 'unknown';
 	public var ratingMod:Float = 0; //9 = unknown, 0.25 = shit, 0.5 = bad, 0.75 = good, 1 = sick
 	public var ratingDisabled:Bool = false;
+	var coloredSkin:Bool = false; //(see reloadNote())
+
+	// What older versions' scripts set on notes by its old name (0.6): the splash's skin and if it's shown are in `noteSplashData`
+	// now, and the colors were a hue/saturation/brightness shader (`colorSwap`) over notes already colored
+	public var noteSplashTexture(get, set):String;
+	function get_noteSplashTexture():String return noteSplashData.texture;
+	function set_noteSplashTexture(value:String):String return noteSplashData.texture = value;
+	public var noteSplashDisabled(get, set):Bool;
+	function get_noteSplashDisabled():Bool return noteSplashData.disabled;
+	function set_noteSplashDisabled(value:Bool):Bool return noteSplashData.disabled = value;
+	public var noteSplashHue:Float = 0;
+	public var noteSplashSat:Float = 0;
+	public var noteSplashBrt:Float = 0;
+	public var colorSwap(get, never):shaders.ColorSwap;
+	var _colorSwap:shaders.ColorSwap;
+	function get_colorSwap():shaders.ColorSwap
+	{
+		if(_colorSwap == null)
+		{
+			_colorSwap = new shaders.ColorSwap();
+			// (only on a note that isn't colored by the RGB shader: one with a skin of its own, colored like the old ones)
+			if(rgbShader == null || !rgbShader.enabled) shader = _colorSwap.shader;
+		}
+		return _colorSwap;
+	}
 
 	public var texture(default, set):String = null;
 
@@ -428,7 +453,11 @@ class Note extends FlxSprite
 		{
 			skin = PlayState.SONG != null ? PlayState.SONG.arrowSkin : null;
 			if(skin == null || skin.length < 1)
-				skin = defaultNoteSkin + postfix;
+			{
+				// (a mod for 0.6 or older with its skin where those had it: images/NOTE_assets.png)
+				var oldSkin:String = psychlua.LegacyCompat.oldNoteSkin(PlayState.isPixelStage);
+				skin = (oldSkin != null ? oldSkin : defaultNoteSkin) + postfix;
+			}
 		}
 		else rgbShader.enabled = false;
 
@@ -445,6 +474,10 @@ class Note extends FlxSprite
 		if(skinExists(path + customSkin))
 			skin = customSkin;
 		else skinPostfix = '';
+
+		// (a skin colored already, like the ones of 0.6 and older: the RGB shader would color it over its own colors)
+		coloredSkin = texture.length < 1 && psychlua.LegacyCompat.isColoredSkin(path + skin, null, PlayState.isPixelStage);
+		if(coloredSkin) rgbShader.enabled = false;
 
 		if(PlayState.isPixelStage) {
 			if(isSustainNote) {
@@ -502,7 +535,7 @@ class Note extends FlxSprite
 		var isEnd:Bool = animation.curAnim == null || StringTools.endsWith(animation.curAnim.name, 'holdend');
 
 		reloadNote(texture);
-		if(texture == null || texture.length < 1) rgbShader.enabled = !(PlayState.SONG != null && PlayState.SONG.disableNoteRGB);
+		if(texture == null || texture.length < 1) rgbShader.enabled = !(PlayState.SONG != null && PlayState.SONG.disableNoteRGB) && !coloredSkin;
 		if(isSustainNote)
 		{
 			scale.y = isEnd ? scale.x : oldHeight / frameHeight;

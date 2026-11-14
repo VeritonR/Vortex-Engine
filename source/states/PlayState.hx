@@ -130,7 +130,7 @@ class PlayState extends MusicBeatState
 	public static var stageUI(default, set):String = "normal";
 	public static var uiPrefix:String = "";
 	public static var uiPostfix:String = "";
-	public static var isPixelStage(get, never):Bool;
+	public static var isPixelStage(get, set):Bool;
 
 	@:noCompletion
 	static function set_stageUI(value:String):String
@@ -148,6 +148,14 @@ class PlayState extends MusicBeatState
 	static function get_isPixelStage():Bool
 		return stageUI == "pixel" || stageUI.endsWith("-pixel");
 
+	// (older versions had it as a variable of its own, which their stage scripts set)
+	@:noCompletion
+	static function set_isPixelStage(value:Bool):Bool
+	{
+		if(value != isPixelStage) stageUI = value ? "pixel" : "normal";
+		return value;
+	}
+
 	public static var SONG:SwagSong = null;
 	public static var isStoryMode:Bool = false;
 	public static var storyWeek:Int = 0;
@@ -157,8 +165,24 @@ class PlayState extends MusicBeatState
 	public var spawnTime:Float = 2000;
 
 	public var inst:FlxSound;
-	public var vocals:FlxSound;
-	public var opponentVocals:FlxSound;
+	// (a script that destroys one of them, `vocals.destroy()`, leaves the game with a sound it can't use anymore: it's given an empty
+	// one in its place, which the game can still turn up, stop and move like before)
+	public var vocals(get, set):FlxSound;
+	var _vocals:FlxSound;
+	function get_vocals():FlxSound
+	{
+		if(_vocals != null && backend.SoundLoader.isDestroyed(_vocals)) _vocals = new FlxSound();
+		return _vocals;
+	}
+	function set_vocals(value:FlxSound):FlxSound return _vocals = value;
+	public var opponentVocals(get, set):FlxSound;
+	var _opponentVocals:FlxSound;
+	function get_opponentVocals():FlxSound
+	{
+		if(_opponentVocals != null && backend.SoundLoader.isDestroyed(_opponentVocals)) _opponentVocals = new FlxSound();
+		return _opponentVocals;
+	}
+	function set_opponentVocals(value:FlxSound):FlxSound return _opponentVocals = value;
 
 	public var dad:Character = null;
 	public var gf:Character = null;
@@ -189,9 +213,72 @@ class PlayState extends MusicBeatState
 
 	public var healthBar:Bar;
 	public var timeBar:Bar;
+
+	// What older versions' scripts call by its old name: the backgrounds of the bars were sprites of their own (0.6), and the
+	// camera was locked on `camFollowPos`, which went after `camFollow` (moving it moved the camera right away)
+	public var healthBarBG(get, never):FlxSprite;
+	function get_healthBarBG():FlxSprite return (healthBar != null) ? healthBar.bg : null;
+	public var timeBarBG(get, never):FlxSprite;
+	function get_timeBarBG():FlxSprite return (timeBar != null) ? timeBar.bg : null;
+	// (and the maps older versions kept what Lua made in, now all in `variables`: see LegacyCompat.VariablesView)
+	public var modchartSprites(get, never):psychlua.LegacyCompat.VariablesView;
+	function get_modchartSprites() return legacyMap('', FlxSprite);
+	public var modchartTexts(get, never):psychlua.LegacyCompat.VariablesView;
+	function get_modchartTexts() return legacyMap('', FlxText);
+	public var modchartTweens(get, never):psychlua.LegacyCompat.VariablesView;
+	function get_modchartTweens() return legacyMap('tween_');
+	public var modchartTimers(get, never):psychlua.LegacyCompat.VariablesView;
+	function get_modchartTimers() return legacyMap('timer_');
+	public var modchartSounds(get, never):psychlua.LegacyCompat.VariablesView;
+	function get_modchartSounds() return legacyMap('sound_');
+	public var modchartSaves(get, never):psychlua.LegacyCompat.VariablesView;
+	function get_modchartSaves() return legacyMap('save_');
+	var legacyMaps:Map<String, psychlua.LegacyCompat.VariablesView> = [];
+	function legacyMap(prefix:String, ?kind:Class<Dynamic>):psychlua.LegacyCompat.VariablesView
+	{
+		var key:String = prefix + (kind != null ? Type.getClassName(kind) : '');
+		if(!legacyMaps.exists(key)) legacyMaps.set(key, new psychlua.LegacyCompat.VariablesView(this, prefix, kind));
+		return legacyMaps.get(key);
+	}
+
+	// (0.4 and 0.5: if a control is pressed, by its name in Controls: "NOTE_LEFT_P")
+	public function getControl(key:String):Bool
+		return Reflect.getProperty(controls, key) == true;
+
+	public var camFollowPos(get, never):psychlua.LegacyCompat.CameraPosition;
+	var _camFollowPos:psychlua.LegacyCompat.CameraPosition;
+	function get_camFollowPos()
+	{
+		if(_camFollowPos == null) _camFollowPos = new psychlua.LegacyCompat.CameraPosition(this);
+		return _camFollowPos;
+	}
 	var songPercent:Float = 0;
 
 	public var ratingsData:Array<Rating> = Rating.loadDefault();
+
+	// (up to 0.6 the hits of each rating were variables of their own: scripts of then read and set these)
+	public var sicks(get, set):Int;
+	function get_sicks():Int return ratingHits('sick');
+	function set_sicks(value:Int):Int return setRatingHits('sick', value);
+	public var goods(get, set):Int;
+	function get_goods():Int return ratingHits('good');
+	function set_goods(value:Int):Int return setRatingHits('good', value);
+	public var bads(get, set):Int;
+	function get_bads():Int return ratingHits('bad');
+	function set_bads(value:Int):Int return setRatingHits('bad', value);
+	public var shits(get, set):Int;
+	function get_shits():Int return ratingHits('shit');
+	function set_shits(value:Int):Int return setRatingHits('shit', value);
+	function ratingHits(name:String):Int
+	{
+		for (rating in ratingsData) if(rating.name == name) return rating.hits;
+		return 0;
+	}
+	function setRatingHits(name:String, value:Int):Int
+	{
+		for (rating in ratingsData) if(rating.name == name) rating.hits = value;
+		return value;
+	}
 
 	private var generatedMusic:Bool = false;
 	public var endingSong:Bool = false;
@@ -1615,6 +1702,23 @@ public var cameraSpeed:Float = 1;
 		Paths.sound('introGo' + introSoundsSuffix);
 	}
 
+	/**
+	 * Starts the song with no countdown, after a V-Slice script stopped the countdown and said the song is in it anyway
+	 * (`isInCountdown = true`): on V-Slice the song then starts on its own (QT Rewired's Obliterated Erect stayed on its intro forever).
+	 * The scripts aren't asked about the countdown again.
+	 */
+	public function startWithoutCountdown():Void
+	{
+		if(startedCountdown || !startingSong || endingSong) return;
+		var wasSkipping:Bool = skipCountdown;
+		skipCountdown = true;
+		startingByScript = true;
+		startCountdown();
+		startingByScript = false;
+		skipCountdown = wasSkipping;
+	}
+	var startingByScript:Bool = false;
+
 	public function startCountdown()
 	{
 		if(startedCountdown) {
@@ -1660,7 +1764,7 @@ public var cameraSpeed:Float = 1;
 		inCutscene = false;
 		//startSongCredits();
 
-		var ret:Dynamic = callOnScripts('onStartCountdown', null, true);
+		var ret:Dynamic = startingByScript ? LuaUtils.Function_Continue : callOnScripts('onStartCountdown', null, true);
 		if(ret != LuaUtils.Function_Stop) {
 			if (skipCountdown || startOnTime > 0) skipArrowStartTween = true;
 
@@ -2722,6 +2826,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 	override public function update(elapsed:Float)
 	{
+		backend.FrameProfile.start(); //(the parts of a frame, for the test tool's --perf)
 		#if DISCORD_ALLOWED updateDiscordScore(elapsed); #end
 		if (ClientPrefs.data.smoothHealthBar)
 		{
@@ -2749,6 +2854,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		
 		guardPlayableStrums();
 		updateKeystrokes(elapsed);
+		backend.FrameProfile.mark('start');
 
 		if (laneUnderlays != null)
         {
@@ -2791,9 +2897,14 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			}
 		}
 		else FlxG.camera.followLerp = 0;
+		backend.FrameProfile.mark('camera');
 		callOnScripts('onUpdate', [elapsed]);
+		backend.FrameProfile.mark('onUpdate');
 
+		var timedMembers = backend.FrameProfile.updateMembers(cast this, elapsed); //(only with --perf: each object timed)
 		super.update(elapsed);
+		backend.FrameProfile.restore(timedMembers);
+		backend.FrameProfile.mark('objects');
 
 		// ===============================================
 		// MULTIPLAYER: LENDO SINAIS NA GAMEPLAY
@@ -2918,8 +3029,10 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		}
 		// ===============================================
 
+		backend.FrameProfile.mark('online');
 		setOnScripts('curDecStep', curDecStep);
 		setOnScripts('curDecBeat', curDecBeat);
+		backend.FrameProfile.mark('setOnScripts');
 
 		if(botplayTxt != null && botplayTxt.visible) {
 			botplaySine += 180 * elapsed;
@@ -3000,6 +3113,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			trace("RESET = True");
 		}
 		doDeathCheck();
+		backend.FrameProfile.mark('hud and song time');
 
 		if (unspawnNotes[0] != null)
 		{
@@ -3035,6 +3149,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 				unspawnNotes.splice(index, 1);
 			}
 		}
+		backend.FrameProfile.mark('note spawn');
 
 		if (generatedMusic)
 		{
@@ -3133,7 +3248,18 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		#end
 
 		setOnScripts('botPlay', cpuControlled);
+		#if LUA_ALLOWED
+		// (variables older versions kept up to date for their scripts)
+		if(luaArray.length > 0 && camFollow != null)
+		{
+			setOnLuas('cameraX', camFollow.x);
+			setOnLuas('cameraY', camFollow.y);
+			setOnLuas('ghostMisses', songMisses);
+		}
+		#end
+		backend.FrameProfile.mark('notes');
 		callOnScripts('onUpdatePost', [elapsed]);
+		backend.FrameProfile.mark('onUpdatePost');
 		dropEmptyShaderFilters();
 		guardPlayableStrums(); //(what scripts did on this frame is seen before it's drawn)
 		guardPlayableNotesLate();
@@ -4692,10 +4818,13 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 
 	public var transitioning = false;
+	// (a V-Slice script ending the song early, for a cutscene: V-Slice has no check for skipped notes, see endSong())
+	public var endedByScript:Bool = false;
+
 	public function endSong()
 	{
 		//Should kill you if you tried to cheat
-		if(!startingSong)
+		if(!startingSong && !endedByScript)
 		{
 			notes.forEachAlive(function(daNote:Note)
 			{
@@ -5122,6 +5251,16 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			antialias = !isPixelStage;
 		}
 		var style:funkin.play.notes.notestyle.NoteStyle = popUpStyle();
+		var scripted:FlxSprite = scriptedJudgement(style, name);
+		if(judgementHidden) return null;
+		if(scripted != null)
+		{
+			placeScriptedJudgement(scripted, false);
+			comboGroup.add(scripted);
+			fadeJudgement(scripted);
+			return scripted;
+		}
+
 		var look = (style != null) ? style.getPopUpLook('judgement' + name.charAt(0).toUpperCase() + name.substr(1)) : null;
 		var path:String = (look != null) ? look.path : uiFolder + image + uiPostfix;
 		if(look == null && !Paths.fileExists('images/$path.png', IMAGE)) return null;
@@ -5144,7 +5283,12 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 		}
 		rating.updateHitbox();
 		comboGroup.add(rating);
+		fadeJudgement(rating);
+		return rating;
+	}
 
+	function fadeJudgement(rating:FlxSprite):Void
+	{
 		FlxTween.tween(rating, {alpha: 0}, 0.2 / playbackRate, {
 			onComplete: function(_)
 			{
@@ -5153,7 +5297,89 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 			},
 			startDelay: Conductor.crochet * 0.001 / playbackRate
 		});
+	}
+
+	/**
+	 * A rating as the engine draws it for a note style, sized and at no place yet: what a style of a script gets from
+	 * `super.buildJudgementSprite()`. Null when there's no picture for it.
+	 */
+	public function makeJudgementSprite(name:String, ?style:funkin.play.notes.notestyle.NoteStyle):FlxSprite
+	{
+		var image:String = name;
+		for (rating in ratingsData)
+			if(rating.name == name) image = rating.image;
+
+		var uiFolder:String = "";
+		var antialias:Bool = ClientPrefs.data.antialiasing;
+		if (stageUI != "normal")
+		{
+			uiFolder = uiPrefix + "UI/";
+			antialias = !isPixelStage;
+		}
+		var look = (style != null) ? style.getPopUpLook('judgement' + name.charAt(0).toUpperCase() + name.substr(1)) : null;
+		var path:String = (look != null) ? look.path : uiFolder + image + uiPostfix;
+		if(look == null && !Paths.fileExists('images/$path.png', IMAGE)) return null;
+
+		var rating:FlxSprite = new funkin.graphics.FunkinSprite().loadGraphic(Paths.image(path));
+		if (!PlayState.isPixelStage) rating.setGraphicSize(Std.int(rating.width * 0.7));
+		else rating.setGraphicSize(Std.int(rating.width * daPixelZoom * 0.85));
+		rating.antialiasing = antialias;
+		if (look != null)
+		{
+			rating.scale.set(look.scale, look.scale);
+			rating.antialiasing = !look.pixel && ClientPrefs.data.antialiasing;
+		}
+		rating.updateHitbox();
 		return rating;
+	}
+
+	// If the last `scriptedJudgement()` was a script that wants no rating shown (its `buildJudgementSprite()` gave null)
+	var judgementHidden:Bool = false;
+
+	/**
+	 * The rating a note style of a script makes of its own (`buildJudgementSprite()`, V-Slice's "dodged" of a mechanic, a rating
+	 * with an animation...). Null when the style has no script for it, or leaves it to the engine (`super.buildJudgementSprite()`).
+	 */
+	function scriptedJudgement(style:funkin.play.notes.notestyle.NoteStyle, name:String):FlxSprite
+	{
+		judgementHidden = false;
+		if(style == null || !style.hasScriptedJudgement()) return null;
+
+		funkin.play.notes.notestyle.NoteStyle.lastDefault = null;
+		var sprite:FlxSprite = style.buildJudgementSprite(name);
+		var made:FlxSprite = funkin.play.notes.notestyle.NoteStyle.lastDefault;
+		funkin.play.notes.notestyle.NoteStyle.lastDefault = null;
+
+		if(made != null && made != sprite) made.destroy(); //(asked for and not used)
+		if(sprite == null)
+		{
+			judgementHidden = true;
+			return null;
+		}
+		if(sprite == made)
+		{
+			sprite.destroy();
+			return null;
+		}
+		return sprite;
+	}
+
+	// Where a rating made by a script pops up from: where the engine's are (V-Slice puts them in the same place), the size is the script's
+	function placeScriptedJudgement(rating:FlxSprite, forHit:Bool):Void
+	{
+		rating.x = FlxG.width * 0.474 - rating.width / 2 + ClientPrefs.data.comboOffset[0];
+		rating.y = FlxG.height * 0.5 - rating.height / 2 - 60 - ClientPrefs.data.comboOffset[1];
+		if (forHit && scoreCamera == 'Game')
+		{
+			var scoreChar:Character = playableCharacter;
+			var offset:Float = playAsOpponent ? (scoreChar.width + 50) : -250;
+			rating.x = scoreChar.x + offset;
+			rating.y = scoreChar.y + 50;
+		}
+		rating.acceleration.y = 550 * playbackRate * playbackRate;
+		rating.velocity.y -= FlxG.random.int(140, 175) * playbackRate;
+		rating.velocity.x -= FlxG.random.int(0, 10) * playbackRate;
+		rating.visible = (!ClientPrefs.data.hideHud && showRating);
 	}
 
 	private function popUpScore(note:Note = null):Void
@@ -5216,7 +5442,11 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 		var style:funkin.play.notes.notestyle.NoteStyle = popUpStyle();
 		var ratingLook = (style != null) ? style.getPopUpLook('judgement' + daRating.name.charAt(0).toUpperCase() + daRating.name.substr(1)) : null;
-		rating.loadGraphic(Paths.image((ratingLook != null) ? ratingLook.path : uiFolder + daRating.image + uiPostfix));
+		// (a note style of a script can make the rating its own way, or have none shown)
+		var scriptedRating:FlxSprite = scriptedJudgement(style, daRating.name);
+		var ratingShown:Bool = !judgementHidden;
+		if(scriptedRating != null) rating = scriptedRating;
+		else rating.loadGraphic(Paths.image((ratingLook != null) ? ratingLook.path : uiFolder + daRating.image + uiPostfix));
 		rating.screenCenter();
 		rating.x = placement - 40;
 		rating.y -= 60;
@@ -5234,7 +5464,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
             rating.x = scoreChar.x + offset;
             rating.y = scoreChar.y + 50; 
         }
-		rating.antialiasing = antialias;
+		if(scriptedRating == null) rating.antialiasing = antialias;
 
 		var comboSpr:FlxSprite = new FlxSprite().loadGraphic(Paths.image(uiFolder + 'combo' + uiPostfix));
 		comboSpr.screenCenter();
@@ -5252,29 +5482,30 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 
 		if (!PlayState.isPixelStage)
 		{
-			rating.setGraphicSize(Std.int(rating.width * 0.7));
+			if(scriptedRating == null) rating.setGraphicSize(Std.int(rating.width * 0.7));
 			comboSpr.setGraphicSize(Std.int(comboSpr.width * 0.7));
 		}
 		else
 		{
-			rating.setGraphicSize(Std.int(rating.width * daPixelZoom * 0.85));
+			if(scriptedRating == null) rating.setGraphicSize(Std.int(rating.width * daPixelZoom * 0.85));
 			comboSpr.setGraphicSize(Std.int(comboSpr.width * daPixelZoom * 0.85));
 		}
-		if (ratingLook != null)
+		if (ratingLook != null && scriptedRating == null)
 		{
 			rating.scale.set(ratingLook.scale, ratingLook.scale);
 			rating.antialiasing = !ratingLook.pixel && ClientPrefs.data.antialiasing;
 		}
 
 		comboSpr.updateHitbox();
-		rating.updateHitbox();
+		if(scriptedRating != null) placeScriptedJudgement(rating, true); //(it's sized already, by the script)
+		else rating.updateHitbox();
 
 		var daLoop:Int = 0;
 		var xThing:Float = 0;
 
 		if (!cpuControlled)
 		{
-			comboGroup.add(rating);
+			if(ratingShown) comboGroup.add(rating);
 			if (showCombo)
 				comboGroup.add(comboSpr);
 		}
@@ -5789,7 +6020,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
             if(note.gfNote) char = gf;
             singExtraCharacters(note, animToPlay);
 
-            if(char != null && ExtraCharacter.mainSings(note))
+            if(char != null && char.animation != null && ExtraCharacter.mainSings(note)) //(not one a script destroyed)
             {
                 var canPlay:Bool = true;
                 if(note.isSustainNote)
@@ -5897,7 +6128,7 @@ stagesFunc(function(stage:BaseStage) stage.openSubState(SubState));
 					animCheck = 'cheer';
 				}
 
-				if(char != null && ExtraCharacter.mainSings(note))
+				if(char != null && char.animation != null && ExtraCharacter.mainSings(note)) //(not one a script destroyed)
 				{
 					var canPlay:Bool = true;
 					if(note.isSustainNote)

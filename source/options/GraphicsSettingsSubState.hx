@@ -99,6 +99,15 @@ Some stages weren't made to be seen past 16:9 and may look cut.",
 			BOOL);
 		addOption(option);
 
+		var option:Option = new Option('Texture Quality',
+			"Half: big images (characters, stages) are drawn from textures of half their size.
+Less video memory and faster on weak phones and graphics cards, a bit less sharp.
+Applies to the images loaded from then on.",
+			'textureQuality',
+			STRING,
+			backend.TextureQuality.OPTIONS);
+		addOption(option);
+
 		var option:Option = new Option('GPU Caching', //Name
 			"If checked, allows the GPU to be used for caching textures, decreasing RAM usage.\nDon't turn this on if you have a shitty Graphics Card.", //Description
 			'cacheOnGPU',

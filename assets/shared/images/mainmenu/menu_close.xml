@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas imagePath="menu_close.png">
+	<SubTexture name="close idle0000" x="0" y="0" width="102" height="102"/>
+	<SubTexture name="close idle0001" x="0" y="102" width="102" height="102"/>
+	<SubTexture name="close idle0002" x="0" y="204" width="102" height="102"/>
+	<SubTexture name="close idle0003" x="0" y="306" width="102" height="102"/>
+	<SubTexture name="close idle0004" x="0" y="408" width="102" height="102"/>
+	<SubTexture name="close idle0005" x="0" y="510" width="102" height="102"/>
+	<SubTexture name="close idle0006" x="0" y="612" width="102" height="102"/>
+	<SubTexture name="close idle0007" x="0" y="714" width="102" height="102"/>
+	<SubTexture name="close idle0008" x="0" y="816" width="102" height="102"/>
+	<SubTexture name="close selected0000" x="0" y="918" width="112" height="112"/>
+	<SubTexture name="close selected0001" x="0" y="1030" width="112" height="112"/>
+	<SubTexture name="close selected0002" x="0" y="1142" width="112" height="112"/>
+</TextureAtlas>

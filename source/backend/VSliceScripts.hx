@@ -78,6 +78,9 @@ class VSliceScripts
 	// Players the scripts that are loaded have something to say about, by their id (see funkin.ui.freeplay.charselect.PlayableCharacter)
 	static var scriptedPlayers:Map<String, HxcInstance> = null;
 
+	// What `_data` gives for each character (its file is read once)
+	static var characterDataCache:haxe.ds.ObjectMap<objects.Character, Dynamic> = new haxe.ds.ObjectMap();
+
 	// Functions of an object that are being done by its script, see callOverride()
 	static var overrideGuards:haxe.ds.ObjectMap<Dynamic, Array<String>> = new haxe.ds.ObjectMap();
 
@@ -102,7 +105,7 @@ class VSliceScripts
 		funkin.ui.debug.results.ResultsDebugSubState,
 		funkin.ui.Prompt, funkin.ui.ButtonStyle, funkin.ui.freeplay.AlbumRoll, funkin.util.InputUtil, funkin.util.plugins.NewgroundsMedalPlugin,
 		funkin.PlayerSettings, funkin.util.SwipeUtil, funkin.graphics.FunkinCamera,
-		funkin.play.notes.notestyle.NoteStyle, funkin.data.notestyle.NoteStyleRegistry, funkin.data.event.SongEventSchema,
+		funkin.play.notes.notestyle.NoteStyle, funkin.play.notes.notestyle.ScriptedNoteStyle, funkin.data.notestyle.NoteStyleRegistry, funkin.data.event.SongEventSchema,
 		funkin.util.tools.StringTools, funkin.util.tools.ArrayTools, funkin.util.tools.MapTools, funkin.util.tools.IntTools,
 		funkin.util.tools.FloatTools, funkin.util.tools.IteratorTools, funkin.util.BezierUtil, funkin.util.PlatformUtil,
 		funkin.util.SerializerUtil, funkin.util.MouseUtil,
@@ -118,7 +121,7 @@ class VSliceScripts
 		funkin.play.components.PopUpStuff, funkin.play.cutscene.CutsceneType,
 		funkin.play.cutscene.dialogue.DialogueBox, funkin.play.cutscene.dialogue.DialogueBox.FunkinTypeText,
 		funkin.ui.credits.CreditsDataHandler, funkin.util.AnsiUtil, funkin.util.FlxTweenUtil, funkin.util.HapticUtil, funkin.util.ReflectUtil,
-		funkin.util.TimerUtil.Sequence, funkin.util.TimerUtil.SongSequence, shaders.DropShadowShader, thx.semver.Version, thx.Objects, funkin.util.GRhythmUtil,
+		funkin.util.TimerUtil.Sequence, funkin.util.TimerUtil.SongSequence, shaders.DropShadowShader, funkin.util.GRhythmUtil,
 		funkin.effects.FunkTrail, funkin.effects.RetroCameraFade, funkin.mobile.input.ControlsHandler,
 		funkin.data.freeplay.player.PlayerRegistry, funkin.data.freeplay.player.PlayerData, funkin.data.freeplay.player.PlayerData.PlayerFreeplayDJData,
 		funkin.audio.visualize.ABotVis, funkin.data.song.SongRegistry, shaders.SserafimShader,
@@ -326,6 +329,43 @@ class VSliceScripts
 	/**
 	 * The ones of these imports that scripts can't have here (classes of V-Slice the engine has nothing for).
 	 */
+	public static function describeImports(paths:Array<String>):String
+	{
+		setupRuntime();
+		var lines:Array<String> = [];
+		for (path in paths)
+		{
+			path = path.trim();
+			if(path.length < 1) continue;
+			var value:Dynamic = HxcRuntime.resolveImport(path);
+			var name:String = null;
+			var instance:Array<String> = [];
+			var statics:Array<String> = [];
+			if(value != null && Std.isOfType(value, Class))
+			{
+				var cls:Class<Dynamic> = value;
+				name = Type.getClassName(cls);
+				instance = Type.getInstanceFields(cls);
+				statics = Type.getClassFields(cls);
+				var chain:Class<Dynamic> = cls;
+				while(chain != null)
+				{
+					var chainName:String = Type.getClassName(chain);
+					var extras:Map<String, Dynamic> = HxcRuntime.memberExtras.get(chainName);
+					if(extras != null) for (key in extras.keys()) instance.push(key);
+					for (key => byClass in HxcRuntime.memberGetters) if(byClass.exists(chainName)) instance.push(key);
+					for (key => byClass in HxcRuntime.memberReplacements) if(byClass.exists(chainName)) instance.push(key);
+					var staticExtras:Map<String, Dynamic> = HxcRuntime.staticExtras.get(chainName);
+					if(staticExtras != null) for (key in staticExtras.keys()) statics.push(key);
+					chain = Type.getSuperClass(chain);
+				}
+			}
+			else if(value != null && Std.isOfType(value, Enum)) name = 'enum ' + Type.getEnumName(value);
+			lines.push(haxe.Json.stringify({path: path, name: name, instance: instance, statics: statics}));
+		}
+		return lines.join('\n');
+	}
+
 	public static function unresolvedImports(paths:Array<String>):Array<String>
 	{
 		setupRuntime();
@@ -338,6 +378,8 @@ class VSliceScripts
 		HxcRuntime.customImports.set('flixel.effects.FlxFlicker', funkin.effects.ScriptFlicker); //(flixel's own crashes the way the base game uses it)
 		HxcRuntime.customImports.set('flixel.ui.FlxBar', funkin.ui.ScriptBar); //(flixel's own can't follow a variable of a script)
 		HxcRuntime.customImports.set('openfl.display.BlendMode', hxc.ScriptBlendMode); //(an abstract: its values)
+		HxcRuntime.customImports.set('funkin.play.components.SubtitlesAlignment', funkin.play.components.Subtitles.ScriptSubtitlesAlignment);
+		HxcRuntime.customImports.set('funkin.play.components.Subtitles.SubtitlesAlignment', funkin.play.components.Subtitles.ScriptSubtitlesAlignment);
 		// (V-Slice's Character Select is a substate over the menus, here it's a state of its own: modules that only listen on it ask for it)
 		HxcRuntime.customImports.set('funkin.ui.charSelect.CharSelectSubState', states.CharacterSelectState);
 		// (the song capsules of V-Slice's Freeplay: here they're the engine's own, made the same way)
@@ -360,8 +402,7 @@ class VSliceScripts
 		HxcRuntime.customImports.set('funkin.modding.base.ScriptedFlxSubState', funkin.modding.base.ScriptedClasses.ScriptedFlxSubState);
 		HxcRuntime.customImports.set('funkin.modding.base.ScriptedFlxRuntimeShader', funkin.modding.base.ScriptedClasses.ScriptedFlxRuntimeShader);
 		HxcRuntime.customImports.set('funkin.graphics.ScriptedFunkinSprite', funkin.modding.base.ScriptedClasses.ScriptedFunkinSprite);
-		HxcRuntime.customImports.set('funkin.group.ScriptedFunkinSpriteGroup', funkin.modding.base.ScriptedClasses.ScriptedFlxSpriteGroup);
-		HxcRuntime.customImports.set('funkin.group.ScriptedFunkinGroup', funkin.modding.base.ScriptedClasses.ScriptedFlxTypedGroup);
+		HxcRuntime.customImports.set('funkin.group.ScriptedFunkinSpriteGroup', funkin.group.ScriptedFunkinGroup.ScriptedFunkinSpriteGroup);
 		HxcRuntime.customImports.set('funkin.ui.ScriptedMusicBeatState', funkin.modding.base.ScriptedClasses.ScriptedMusicBeatState);
 		HxcRuntime.customImports.set('funkin.ui.ScriptedMusicBeatSubState', funkin.modding.base.ScriptedClasses.ScriptedMusicBeatSubState);
 		HxcRuntime.customImports.set('funkin.modding.base.ScriptedMusicBeatState', funkin.modding.base.ScriptedClasses.ScriptedMusicBeatState);
@@ -379,7 +420,19 @@ class VSliceScripts
 			[funkin.modding.base.ScriptedClasses.ScriptedFlxSubState, flixel.FlxSubState],
 			[funkin.modding.base.ScriptedClasses.ScriptedMusicBeatState, backend.MusicBeatState],
 			[funkin.modding.base.ScriptedClasses.ScriptedMusicBeatSubState, backend.MusicBeatSubstate],
-			[funkin.modding.base.ScriptedClasses.ScriptedFlxRuntimeShader, flixel.addons.display.FlxRuntimeShader]
+			[funkin.modding.base.ScriptedClasses.ScriptedFlxRuntimeShader, flixel.addons.display.FlxRuntimeShader],
+			[funkin.group.ScriptedFunkinGroup, funkin.group.FunkinGroup],
+			[funkin.group.ScriptedFunkinGroup.ScriptedFunkinSpriteGroup, funkin.group.FunkinGroup],
+			[funkin.play.notes.ScriptedStrumline, funkin.play.notes.Strumline],
+			[funkin.ui.transition.stickers.ScriptedStickerPack, funkin.ui.transition.stickers.StickerPack],
+			[funkin.graphics.video.ScriptedFunkinVideoSprite, funkin.graphics.video.FunkinVideoSprite],
+			[funkin.modding.base.ScriptedFlxStrip, flixel.FlxStrip],
+			[funkin.play.character.ScriptedCharacter.ScriptedBaseCharacter, funkin.play.character.BaseCharacter],
+			[funkin.play.character.ScriptedCharacter.ScriptedSparrowCharacter, funkin.play.character.BaseCharacter.SparrowCharacter],
+			[funkin.play.character.ScriptedCharacter.ScriptedMultiSparrowCharacter, funkin.play.character.BaseCharacter.MultiSparrowCharacter],
+			[funkin.play.character.ScriptedCharacter.ScriptedPackerCharacter, funkin.play.character.BaseCharacter.PackerCharacter],
+			[funkin.play.character.ScriptedCharacter.ScriptedAnimateAtlasCharacter, funkin.play.character.BaseCharacter.AnimateAtlasCharacter],
+			[funkin.play.character.ScriptedCharacter.ScriptedMultiAnimateAtlasCharacter, funkin.play.character.BaseCharacter.MultiAnimateAtlasCharacter]
 		]:Array<Array<Dynamic>>))
 			HxcRuntime.extendedThrough.set(Type.getClassName(pair[0]), pair[1]);
 
@@ -502,7 +555,11 @@ class VSliceScripts
 			return new backend.GameScaleMode();
 		});
 		HxcRuntime.customImports.set('funkin.play.notes.SustainTrail', funkin.play.notes.SustainTrail);
-		HxcRuntime.customImports.set('funkin.group.FunkinGroup', funkin.modding.base.ScriptedClasses.ScriptedFlxTypedGroup);
+		// (V-Slice's typedefs of a class)
+		HxcRuntime.customImports.set('funkin.group.FunkinSpriteGroup', funkin.group.FunkinGroup);
+		HxcRuntime.customImports.set('funkin.group.FunkinGroup.FunkinSpriteGroup', funkin.group.FunkinGroup);
+		HxcRuntime.customImports.set('funkin.play.stage.StagePropGroup', 'flixel.group.FlxTypedSpriteGroup');
+		HxcRuntime.customImports.set('funkin.play.stage.StageProp.StagePropGroup', 'flixel.group.FlxTypedSpriteGroup');
 		HxcRuntime.customImports.set('funkin.graphics.FunkinAnimationController', flixel.animation.FlxAnimationController);
 
 		var tweenReplacements:Map<String, Dynamic> = [];
@@ -561,6 +618,21 @@ class VSliceScripts
 		});
 		HxcRuntime.staticExtras.set('flixel.util.FlxTimer', timerExtras);
 
+		// (what V-Slice gives scripts that import its Discord and Newgrounds clients)
+		// (V-Slice's names of these from before they were moved)
+		HxcRuntime.customImports.set('funkin.data.dialogue.dialoguebox.DialogueBoxRegistry', funkin.data.dialogue.DialogueBoxRegistry);
+		HxcRuntime.customImports.set('funkin.data.dialogue.speaker.SpeakerRegistry', funkin.data.dialogue.SpeakerRegistry);
+		HxcRuntime.customImports.set('funkin.data.dialogue.conversation.ConversationRegistry', funkin.data.dialogue.ConversationRegistry);
+		HxcRuntime.customImports.set('funkin.api.discord.DiscordClient', funkin.api.discord.DiscordClient.DiscordClientSandboxed);
+		HxcRuntime.customImports.set('funkin.api.newgrounds.Medals', funkin.api.newgrounds.Medals.MedalsSandboxed);
+		HxcRuntime.customImports.set('funkin.api.newgrounds.Leaderboards', funkin.api.newgrounds.Leaderboards.LeaderboardsSandboxed);
+		HxcRuntime.customImports.set('funkin.api.newgrounds.NewgroundsClient', funkin.api.newgrounds.NewgroundsClient.NewgroundsClientSandboxed);
+
+		// V-Slice's Freeplay is made with `FreeplayState.build(params, stickers)` (the screen that goes after a sticker transition)
+		var freeplayExtras:Map<String, Dynamic> = [];
+		freeplayExtras.set('build', Reflect.makeVarArgs(function(_:Array<Dynamic>):Dynamic return new states.FreeplayStateVslice()));
+		HxcRuntime.staticExtras.set('states.FreeplayStateVslice', freeplayExtras);
+
 		var flickerExtras:Map<String, Dynamic> = [];
 		flickerExtras.set('pause', function(flicker:flixel.effects.FlxFlicker):Void
 		{
@@ -601,6 +673,51 @@ class VSliceScripts
 			}
 		});
 		HxcRuntime.memberExtras.set('flixel.FlxCamera', cameraExtras);
+
+		// V-Slice's flixel-addons calls a shader's images "BitmapData" (`setBitmapData()`), this one "Sampler2D" (Vs Impostor's heat wave)
+		var shaderExtras:Map<String, Dynamic> = [];
+		shaderExtras.set('setBitmapData', function(shader:flixel.addons.display.FlxRuntimeShader, name:String, value:openfl.display.BitmapData):Void
+			shader.setSampler2D(name, value));
+		shaderExtras.set('getBitmapData', function(shader:flixel.addons.display.FlxRuntimeShader, name:String):openfl.display.BitmapData
+			return shader.getSampler2D(name));
+		HxcRuntime.memberExtras.set('flixel.addons.display.FlxRuntimeShader', shaderExtras);
+
+		// On V-Slice every sprite of the game is a FunkinSprite: scripts ask any of them (an icon, the stage's) about its animation like that
+		var spriteExtras:Map<String, Dynamic> = [];
+		spriteExtras.set('hasAnimation', function(sprite:FlxSprite, name:String):Bool return sprite.animation != null && sprite.animation.exists(name));
+		spriteExtras.set('getCurrentAnimation', function(sprite:FlxSprite):String return (sprite.animation != null && sprite.animation.curAnim != null) ? sprite.animation.curAnim.name : '');
+		spriteExtras.set('isAnimationFinished', function(sprite:FlxSprite):Bool return sprite.animation == null || sprite.animation.curAnim == null || sprite.animation.curAnim.finished);
+		spriteExtras.set('playAnimation', Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
+		{
+			var sprite:FlxSprite = args[0];
+			var name:String = (args.length > 1 && args[1] != null) ? Std.string(args[1]) : null;
+			if(sprite == null || name == null || sprite.animation == null || !sprite.animation.exists(name)) return null;
+			sprite.animation.play(name, args.length > 2 && args[2] == true, args.length > 4 && args[4] == true);
+			return null;
+		}));
+		spriteExtras.set('loadTexture', function(sprite:FlxSprite, key:String):FlxSprite return sprite.loadGraphic(Paths.image(key)));
+		spriteExtras.set('loadSparrow', function(sprite:FlxSprite, key:String):FlxSprite
+		{
+			sprite.frames = Paths.getSparrowAtlas(key);
+			return sprite;
+		});
+		spriteExtras.set('loadPacker', function(sprite:FlxSprite, key:String):FlxSprite
+		{
+			sprite.frames = Paths.getPackerAtlas(key);
+			return sprite;
+		});
+		spriteExtras.set('makeSolidColor', Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
+		{
+			var sprite:FlxSprite = args[0];
+			var color:FlxColor = (args.length > 3 && args[3] != null) ? args[3] : FlxColor.WHITE;
+			sprite.makeGraphic(1, 1, color);
+			sprite.scale.set(args[1], args[2]);
+			sprite.updateHitbox();
+			return sprite;
+		}));
+		spriteExtras.set('listAnimations', function(sprite:FlxSprite):Array<String> return (sprite.animation != null) ? sprite.animation.getNameList() : []);
+		HxcRuntime.memberExtras.set('flixel.FlxSprite', spriteExtras);
+
 
 		// The props of V-Slice stages that are sprite sheets are Psych's sprites here, with V-Slice's names for their animations
 		var propExtras:Map<String, Dynamic> = [];
@@ -647,12 +764,26 @@ class VSliceScripts
 			return (char.isAnimateAtlas && char.atlas != null) ? new funkin.play.character.AtlasCharacterAnimation(char) : null);
 		HxcRuntime.memberGetters.set('animation', atlasAnimation);
 
-		// V-Slice's characters have their data (`_data`): scripts look at its "renderType" to know if one is a texture atlas
+		// V-Slice's characters have their data (`_data`): scripts look at its "renderType" to know if one is a texture atlas, and use
+		// its animations to make sprites of their own (QT Rewired's KB, his eyes). What the character's file has, with what a Psych
+		// character's has instead when there's no such file
 		var characterData:Map<String, Dynamic> = [];
 		characterData.set('objects.Character', function(char:objects.Character):Dynamic
-			return {id: char.curCharacter, name: char.curCharacter, renderType: char.isAnimateAtlas ? 'animateatlas' : (char.isVSlice ? 'multisparrow' : 'sparrow'),
+		{
+			var data:Dynamic = characterDataCache.get(char);
+			if(data != null && data.id == char.curCharacter) return data;
+
+			data = funkin.data.character.CharacterDataParser.parseCharacterData(char.curCharacter);
+			if(data == null || !Reflect.isObject(data)) data = {};
+			var made:Dynamic = {id: char.curCharacter, name: char.curCharacter, renderType: char.isAnimateAtlas ? 'animateatlas' : (char.isVSlice ? 'multisparrow' : 'sparrow'),
 				healthColorArray: char.healthColorArray, healthIcon: {id: char.healthIcon}, scale: char.jsonScale, flipX: char.originalFlipX,
-				singTime: char.singDuration, danceEvery: char.danceEveryNumBeats});
+				singTime: char.singDuration, danceEvery: char.danceEveryNumBeats, animations: []};
+			for (field in Reflect.fields(made))
+				if(field == 'id' || Reflect.field(data, field) == null) Reflect.setField(data, field, Reflect.field(made, field));
+
+			characterDataCache.set(char, data);
+			return data;
+		});
 		HxcRuntime.memberGetters.set('_data', characterData);
 
 		// V-Slice's `animOffsets` are the offsets of the animation being played ([x, y]), which it draws the character moved by,
@@ -679,11 +810,14 @@ class VSliceScripts
 			#if flxanimate
 			if(char != null && char.isAnimateAtlas && char.atlas != null)
 			{
+				var began:Float = FrameProfile.enabled ? haxe.Timer.stamp() : 0;
 				char.atlas.renderCurrent(function(wide:Int, tall:Int):openfl.display.BitmapData
 				{
-					target.makeGraphic(wide + x, tall + y, 0x00000000, true);
-					return target.graphic.bitmap;
+					var graphic:flixel.graphics.FlxGraphic = stampGraphic(target, wide + x, tall + y);
+					target.frames = graphic.imageFrame;
+					return graphic.bitmap;
 				});
+				if(FrameProfile.enabled) FrameProfile.since('        stamp of an atlas', began);
 				return target;
 			}
 			#end
@@ -693,8 +827,69 @@ class VSliceScripts
 		}));
 		HxcRuntime.memberReplacements.set('stamp', stampAtlas);
 
+		// A texture atlas sprite's `animation.play()` plays only what it has as an animation, like V-Slice's (see AtlasPlayer.playByScript())
+		var atlasPlay:Map<String, Dynamic> = [];
+		atlasPlay.set('objects.AtlasPlayer', Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
+		{
+			var player:objects.AtlasSprite.AtlasPlayer = args[0];
+			player.playByScript(args[1], args[2] == true, args[3] == true, (args[4] != null) ? Std.int(args[4]) : 0);
+			return null;
+		}));
+		HxcRuntime.memberReplacements.set('play', atlasPlay);
+
 		// V-Slice's texture atlas library can draw a sprite inside of an atlas' frames, the one used here can't
 		HxcRuntime.customImports.set('animate.internal.elements.FlxSpriteElement', funkin.graphics.SpriteElement);
+
+		#if flxanimate
+		// and scripts go through the atlas' symbols with that library's names (QT Rewired's collab characters swap a placeholder
+		// symbol's contents for a sprite of their own): `library.getSymbol()`, `timeline.getLayer()`, `layer.forEachFrame()`,
+		// `frame.elements`, `frame.forEachElement()`
+		var atlasLibrary:Map<String, Dynamic> = [];
+		atlasLibrary.set('objects.Character', function(char:objects.Character):Dynamic
+			return char.isAnimateAtlas ? new AtlasLibrary([for (atlas in char.getAtlases()) (atlas:Dynamic)]) : null);
+		atlasLibrary.set('objects.AtlasSprite', function(sprite:objects.AtlasSprite):Dynamic
+			return (sprite.anim != null) ? new AtlasLibrary([(sprite:Dynamic)]) : null);
+		atlasLibrary.set('funkin.graphics.FunkinSprite', function(sprite:funkin.graphics.FunkinSprite):Dynamic
+			return (sprite.atlas != null) ? new AtlasLibrary([(sprite.atlas:Dynamic)]) : null);
+		HxcRuntime.memberGetters.set('library', atlasLibrary);
+
+		var keyFrameElements:Map<String, Dynamic> = [];
+		keyFrameElements.set('flxanimate.animate.FlxKeyFrame', function(frame:flxanimate.animate.FlxKeyFrame):Dynamic
+			return @:privateAccess frame._elements);
+		HxcRuntime.memberGetters.set('elements', keyFrameElements);
+
+		var keyFrameExtras:Map<String, Dynamic> = [];
+		keyFrameExtras.set('forEachElement', function(frame:flxanimate.animate.FlxKeyFrame, func:Dynamic):Void
+		{
+			@:privateAccess
+			if(frame._elements != null && func != null)
+				for (element in frame._elements.copy()) func(element);
+		});
+		HxcRuntime.memberExtras.set('flxanimate.animate.FlxKeyFrame', keyFrameExtras);
+
+		var layerExtras:Map<String, Dynamic> = [];
+		layerExtras.set('forEachFrame', function(layer:flxanimate.animate.FlxLayer, func:Dynamic):Void
+		{
+			@:privateAccess
+			if(layer._keyframes != null && func != null)
+				for (frame in layer._keyframes.copy()) func(frame);
+		});
+		HxcRuntime.memberExtras.set('flxanimate.animate.FlxLayer', layerExtras);
+
+		var timelineExtras:Map<String, Dynamic> = [];
+		timelineExtras.set('getLayer', function(timeline:flxanimate.animate.FlxTimeline, which:Dynamic):Dynamic
+		{
+			if(which == null) return null;
+			if(Std.isOfType(which, Int))
+			{
+				var layers = timeline.getList();
+				var index:Int = which;
+				return (index >= 0 && index < layers.length) ? layers[index] : null;
+			}
+			return timeline.get(Std.string(which));
+		});
+		HxcRuntime.memberExtras.set('flxanimate.animate.FlxTimeline', timelineExtras);
+		#end
 
 		var soundDestroy:Map<String, Dynamic> = [];
 		soundDestroy.set('flixel.sound.FlxSound', function(sound:FlxSound):Void funkin.audio.FunkinSound.dispose(sound));
@@ -704,7 +899,8 @@ class VSliceScripts
 		// "sprite.anim.play('label')" for a frame label of the main timeline, or with no name for the whole thing
 		for (name in ['play', 'pause', 'resume'])
 		{
-			var atlasAnim:Map<String, Dynamic> = [];
+			// (added to the ones already there for that name: `play` has the texture atlas sprites' own too)
+			var atlasAnim:Map<String, Dynamic> = HxcRuntime.memberReplacements.exists(name) ? HxcRuntime.memberReplacements.get(name) : [];
 			atlasAnim.set('flxanimate.animate.FlxAnim', Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
 			{
 				var anim:flxanimate.animate.FlxAnim = args[0];
@@ -847,6 +1043,8 @@ class VSliceScripts
 		var notes:Array<SongNoteData> = [for (note in game.unspawnNotes) if(!note.isSustainNote) NoteSprite.get(note).noteData];
 		var events:Array<SongEventData> = [for (event in game.eventNotes) makeEventData(event.event, event.value1, event.value2, event.strumTime)];
 		facade.songEvents = events;
+		// (and the chart's own list, `currentChart.notes`, which scripts copy to give some notes to a strumline of their own)
+		if(facade.currentChart != null) Reflect.setField(facade.currentChart, 'notes', notes.copy());
 		dispatch(new SongLoadScriptEvent(facade.currentSong.id, facade.currentDifficulty, notes, events));
 
 		// V-Slice tells its modules when a state is done opening, which is when some of them set their things up. Its modules were
@@ -976,6 +1174,7 @@ class VSliceScripts
 			}
 		}
 
+		funkin.data.notestyle.NoteStyleRegistry.instance.clearCache(); //(the styles of the scripts are all there now)
 		facade = new funkin.play.PlayState(game);
 		funkin.play.PlayState.instance = facade;
 		active = true;
@@ -1581,7 +1780,9 @@ class VSliceScripts
 				{
 					atlas.anim.onFrame.add(function(frame:Int)
 					{
+						var began:Float = FrameProfile.enabled ? haxe.Timer.stamp() : 0;
 						if(active && char.atlas == atlas) script.call('onAnimationFrame', [char.getAnimationName(), frame, frame]);
+						if(FrameProfile.enabled) FrameProfile.since('        ${char.curCharacter}: script onAnimationFrame', began);
 					});
 				}
 				if(script.hasMethod('onAnimationFinished'))
@@ -1589,7 +1790,9 @@ class VSliceScripts
 					atlas.anim.onComplete.add(function()
 					{
 						// (the ones that loop tell about it every time around, which isn't ending)
+						var began:Float = FrameProfile.enabled ? haxe.Timer.stamp() : 0;
 						if(active && char.atlas == atlas && atlas.anim != null && atlas.anim.finished) script.call('onAnimationFinished', [char.getAnimationName()]);
+						if(FrameProfile.enabled) FrameProfile.since('        ${char.curCharacter}: script onAnimationFinished', began);
 					});
 				}
 			}
@@ -1891,18 +2094,58 @@ class VSliceScripts
 		if(helper != null) Paths.scriptModDirectory = helper;
 		#end
 
+		var began:Float = FrameProfile.enabled ? haxe.Timer.stamp() : 0;
 		target.call('onScriptEvent', [event]);
 		if(event.shouldPropagate)
 		{
 			var callback:String = ScriptEventType.callbacks.get(event.type);
 			if(callback != null) target.call(callback, [event]);
 		}
+		if(FrameProfile.enabled) FrameProfile.since('      ' + target.cls.name + ': ' + event.type, began); //(--perf: which script costs)
 
 		#if MODS_ALLOWED
 		if(owner != null) Mods.currentModDirectory = oldMod;
 		if(helper != null) Paths.scriptModDirectory = oldHelper;
 		#end
 	}
+
+	#if flxanimate
+	/*
+	 * The images `stamp()` draws atlas characters on, kept for each sprite and size. A script stamping a character on every double note
+	 * (Vs Impostor's trails) made a new image each time, the size of the character: on phones making it and sending it to the graphics
+	 * card took a few hundred milliseconds, a stutter on every double note. A character has a few poses, so after the first of each one
+	 * the image is reused (it's drawn on the graphics card, cleared first). They go with the song.
+	 */
+	static var stampGraphics:haxe.ds.ObjectMap<FlxSprite, Map<Int, flixel.graphics.FlxGraphic>> = new haxe.ds.ObjectMap();
+	static var stampGraphicsOf:Dynamic = null;
+
+	static function stampGraphic(target:FlxSprite, wide:Int, tall:Int):flixel.graphics.FlxGraphic
+	{
+		if(stampGraphicsOf != FlxG.state)
+		{
+			for (sizes in stampGraphics)
+				for (graphic in sizes)
+					if(graphic != null && !graphic.isDestroyed && graphic.useCount <= 0) graphic.destroy();
+			stampGraphics = new haxe.ds.ObjectMap();
+			stampGraphicsOf = FlxG.state;
+		}
+		var sizes:Map<Int, flixel.graphics.FlxGraphic> = stampGraphics.get(target);
+		if(sizes == null)
+		{
+			sizes = [];
+			stampGraphics.set(target, sizes);
+		}
+		var size:Int = wide * 100000 + tall;
+		var graphic:flixel.graphics.FlxGraphic = sizes.get(size);
+		if(graphic == null || graphic.isDestroyed || graphic.bitmap == null)
+		{
+			graphic = FlxG.bitmap.create(wide, tall, 0x00000000, true);
+			graphic.destroyOnNoUse = false; //(kept while another of its sizes is shown)
+			sizes.set(size, graphic);
+		}
+		return graphic;
+	}
+	#end
 
 	/**
 	 * Tells the scripts about something PlayState is telling to Psych's own scripts.
@@ -1911,6 +2154,16 @@ class VSliceScripts
 	public static function onCallback(name:String, args:Array<Dynamic>):Bool
 	{
 		if(!active) return false;
+		if(!FrameProfile.enabled) return callbackOf(name, args);
+		// (with --perf: the time the scripts take on each callback, a part of its own inside the part of the frame it's in)
+		var began:Float = haxe.Timer.stamp();
+		var stopped:Bool = callbackOf(name, args);
+		FrameProfile.since('    v-slice scripts: ' + name, began);
+		return stopped;
+	}
+
+	static function callbackOf(name:String, args:Array<Dynamic>):Bool
+	{
 		if(args == null) args = [];
 
 		switch(name)
@@ -2524,6 +2777,16 @@ class VSliceScripts
 			scripted.call('handleEvent', [data]);
 			return;
 		}
+		runBuiltInEvent(data);
+	}
+
+	/**
+	 * Does one of the base game's events the engine knows ("FocusCamera", "ZoomCamera"...), the way V-Slice's own classes of them do:
+	 * where a script that extends one of those (`class MyFocus extends FocusCameraSongEvent`) ends up with `super.handleEvent(data)`.
+	 */
+	public static function runBuiltInEvent(data:SongEventData):Void
+	{
+		if(!active || data == null) return;
 
 		switch(data.eventKind)
 		{
@@ -2830,6 +3093,7 @@ class VSliceScripts
 		var oldMod:String = Mods.currentModDirectory;
 		var oldQuiet:Bool = HxcRuntime.quietErrors;
 		HxcRuntime.quietErrors = true; //(a script reaching for something of V-Slice's menu that isn't here: its options still count)
+		var told:Array<HxcInstance> = [];
 		for (module in modules)
 		{
 			var base:Module = cast module.base;
@@ -2847,6 +3111,38 @@ class VSliceScripts
 				module.call('onStateChangeEnd', [event]);
 			}
 			catch(e:Dynamic) trace('Options of "${module.cls.name}": $e');
+
+			// and a frame of the options being open: some add theirs in onUpdate, to `FlxG.state` (Vs Impostor's BF skin and pet),
+			// which is the stand-in for that moment
+			@:privateAccess
+			{
+				var realState = FlxG.game._state;
+				FlxG.game._state = stand;
+				try
+				{
+					var update = new UpdateScriptEvent(0);
+					module.call('onScriptEvent', [update]);
+					module.call('onUpdate', [update]);
+				}
+				catch(e:Dynamic) trace('Options of "${module.cls.name}": $e');
+				FlxG.game._state = realState;
+			}
+			told.push(module);
+		}
+		// and then told which screen is really there: a script that keeps the screen it was told about (Vs Impostor's) took the
+		// stand-in for the options being open, and looked for their pages on the menu's every frame after
+		if(FlxG.state != null)
+		{
+			var real = new StateChangeScriptEvent(ScriptEventType.STATE_CHANGE_END, FlxG.state);
+			for (module in told)
+			{
+				try
+				{
+					module.call('onScriptEvent', [real]);
+					module.call('onStateChangeEnd', [real]);
+				}
+				catch(e:Dynamic) {}
+			}
 		}
 		HxcRuntime.quietErrors = oldQuiet;
 		funkin.ui.options.OptionsState.PreferencesMenu.currentMod = null;
@@ -2858,6 +3154,9 @@ class VSliceScripts
 			if(Std.isOfType(page, funkin.ui.options.OptionsState.PreferencesMenu))
 				for (entry in cast(page, funkin.ui.options.OptionsState.PreferencesMenu).entries) found.push(entry);
 		}
+		#if sys
+		if(DirectPlay.testRun) Sys.println('MOD OPTIONS: ' + [for (entry in found) entry.mod + ' > ' + entry.name].join(' | '));
+		#end
 		#end
 		return found;
 	}
@@ -3213,6 +3512,33 @@ class VSliceScripts
 	}
 
 	/**
+	 * The note styles of the scripts (`class MyStyle extends ScriptedNoteStyle`), by the id each one says it is (`super('funkin')`):
+	 * the song's mod's first.
+	 */
+	public static function makeScriptedNoteStyles():Map<String, funkin.play.notes.notestyle.NoteStyle>
+	{
+		var styles:Map<String, funkin.play.notes.notestyle.NoteStyle> = [];
+		for (cls in modFirst(HxcRuntime.listSubclasses(funkin.play.notes.notestyle.NoteStyle)))
+		{
+			#if MODS_ALLOWED
+			var oldMod:String = Mods.currentModDirectory;
+			var owner:String = getScriptMod(cls);
+			if(owner != null) Mods.currentModDirectory = owner;
+			#end
+
+			var script:HxcInstance = HxcRuntime.instantiate(cls, ['unknown']);
+
+			#if MODS_ALLOWED
+			Mods.currentModDirectory = oldMod;
+			#end
+
+			var style:funkin.play.notes.notestyle.NoteStyle = (script != null) ? Std.downcast(script.base, funkin.play.notes.notestyle.NoteStyle) : null;
+			if(style != null && style.id != null && !styles.exists(style.id)) styles.set(style.id, style);
+		}
+		return styles;
+	}
+
+	/**
 	 * Makes the Freeplay menu's card a script of the mods has for a player, null if none of them has one.
 	 * Like on V-Slice, each script says who it's for when it's made (`super('bf')`).
 	 */
@@ -3346,5 +3672,34 @@ class VSliceScripts
 	{
 		return [for (id in songEvents.keys()) id].concat(['FocusCamera', 'ZoomCamera', 'SetCameraBop', 'SetHealthIcon', 'SetTargetBopSpeed']);
 	}
+}
+#end
+
+#if flxanimate
+/**
+ * The symbols of one or more texture atlases, as V-Slice's library gives them to scripts (`character.library.getSymbol('name')`).
+ */
+class AtlasLibrary
+{
+	var atlases:Array<Dynamic>;
+
+	public function new(atlases:Array<Dynamic>)
+	{
+		this.atlases = (atlases != null) ? atlases : [];
+	}
+
+	public function getSymbol(name:String):flxanimate.animate.FlxSymbol
+	{
+		for (atlas in atlases)
+		{
+			var sprite:flxanimate.FlxAnimate = Std.downcast(atlas, flxanimate.FlxAnimate);
+			if(sprite == null || sprite.anim == null || sprite.anim.symbolDictionary == null) continue;
+			var symbol:flxanimate.animate.FlxSymbol = sprite.anim.symbolDictionary.get(name);
+			if(symbol != null) return symbol;
+		}
+		return null;
+	}
+
+	public function existsSymbol(name:String):Bool return getSymbol(name) != null;
 }
 #end

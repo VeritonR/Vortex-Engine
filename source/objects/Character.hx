@@ -293,6 +293,25 @@ class Character extends FlxSprite
 						animationAtlases.set(animAnim, target);
 					}
 
+					// V-Slice joins all the atlases of a "multi" character into one: an animation that doesn't say which one it's on is
+					// found on any of them. Here, when the main one doesn't have it, it's looked for on the others the character has
+					// (QT Rewired's Boyfriend dances with his other atlas's "dance" at the end of Blissful: he was left on his idle)
+					if(target == atlas && !target.hasSymbol(animName) && !target.hasFrameLabel(animName))
+					{
+						for (other in animationsArray)
+						{
+							var otherAtlas:String = Reflect.field(other, 'atlas');
+							if(otherAtlas == null || otherAtlas.length < 1 || otherAtlas == json.image) continue;
+							var candidate:FlxAnimate = getExtraAtlas(otherAtlas);
+							if(candidate != null && (candidate.hasSymbol(animName) || candidate.hasFrameLabel(animName)))
+							{
+								target = candidate;
+								animationAtlases.set(animAnim, target);
+								break;
+							}
+						}
+					}
+
 					// V-Slice atlases have their animations as frame labels of the main timeline instead of one symbol for each
 					var isFrameLabel:Bool = (Reflect.field(anim, 'frameLabel') == true) || (!target.hasSymbol(animName) && target.hasFrameLabel(animName));
 					if(isFrameLabel && target.addAnimByFrameLabel(animAnim, animName, animFps, animLoop, animIndices))
@@ -332,11 +351,37 @@ class Character extends FlxSprite
 	override function update(elapsed:Float)
 	{
 		singAnimationTime += elapsed * (FlxG.animationTimeScale);
+		var timing:Bool = backend.FrameProfile.enabled;
+		var began:Float = timing ? haxe.Timer.stamp() : 0;
 		#if HSCRIPT_ALLOWED
-		if(scriptOverrides != null && scriptOverrides.contains('update') && backend.VSliceScripts.callOverride(this, 'update', [elapsed])) return;
+		if(scriptOverrides != null && scriptOverrides.contains('update') && backend.VSliceScripts.callOverride(this, 'update', [elapsed]))
+		{
+			if(timing) backend.FrameProfile.since('      $curCharacter: script update', began);
+			return;
+		}
 		#end
+		if(timing) { backend.FrameProfile.since('      $curCharacter: script', began); began = haxe.Timer.stamp(); }
 
+		#if cpp
+		var memoryBefore:Float = (timing && isAnimateAtlas) ? cpp.vm.Gc.memInfo64(cpp.vm.Gc.MEM_INFO_USAGE) : 0;
+		#end
 		if(isAnimateAtlas) atlas.update(elapsed);
+		if(timing)
+		{
+			var took:Float = (haxe.Timer.stamp() - began) * 1000;
+			backend.FrameProfile.since('      $curCharacter: atlas', began);
+			if(isAnimateAtlas)
+			{
+				// (what it costs on a frame the garbage collector didn't stop, and the memory it took)
+				if(took < 100) backend.FrameProfile.amount('$curCharacter atlas ms on normal frames x1000', took * 1000);
+				else backend.FrameProfile.count('$curCharacter atlas slow frames');
+				#if cpp
+				var allocated:Float = cpp.vm.Gc.memInfo64(cpp.vm.Gc.MEM_INFO_USAGE) - memoryBefore;
+				if(allocated > 0) backend.FrameProfile.amount('$curCharacter atlas KB allocated', allocated / 1024);
+				#end
+			}
+			began = haxe.Timer.stamp();
+		}
 
 		if(debugMode || (!isAnimateAtlas && animation.curAnim == null) || (isAnimateAtlas && (atlas.anim.curInstance == null || atlas.anim.curSymbol == null)))
 		{
@@ -398,8 +443,10 @@ class Character extends FlxSprite
 		var name:String = getAnimationName();
 		if(isAnimationFinished() && hasAnimation('$name-loop'))
 			playAnim('$name-loop');
+		if(timing) { backend.FrameProfile.since('      $curCharacter: logic', began); began = haxe.Timer.stamp(); }
 
 		super.update(elapsed);
+		if(timing) backend.FrameProfile.since('      $curCharacter: sprite update', began);
 	}
 
 	inline public function isAnimationNull():Bool

@@ -1,82 +1,84 @@
 package states;
 
-import flixel.FlxObject;
 import flixel.effects.FlxFlicker;
 import lime.app.Application;
 import states.editors.MasterEditorMenu;
 import options.OptionsState;
 import options.OptionsMenu;
-import backend.Highscore;
-import flixel.util.FlxTimer;
-import flixel.addons.display.FlxBackdrop;
-import flixel.addons.transition.FlxTransitionableState;
 
+enum MainMenuColumn {
+	LEFT;
+	CENTER;
+	RIGHT;
+	CLOSE;
+}
+
+/**
+ * Psych Engine's main menu: the list in the middle, the achievements on the bottom left, the options on the bottom right, and the X
+ * on the top right that closes the game.
+ */
 class MainMenuState extends MusicBeatState
 {
 	public static var psychEngineVersion:String = '1.0.4';
-	public static var vortexEngineVersion:String = '1.4'; // This is also used for Discord RPC
+	public static var vortexEngineVersion:String = '1.5'; // This is also used for Discord RPC
 	public static var curSelected:Int = 0;
-
-	public static var returningFromOptions:Bool = false;
-	var optionsGear:FlxSprite;
-	var isOptionsAnimating:Bool = false;
+	public static var curColumn:MainMenuColumn = CENTER;
 
 	var allowMouse:Bool = true; //Turn this off to block mouse movement in menus
 
 	var menuItems:MainMenuItemList;
+	var leftItem:FlxSprite;
+	var rightItem:FlxSprite;
+	var closeItem:FlxSprite;
+
+	//Centered/Text options
+	var optionShit:Array<String> = [
+		'story_mode',
+		'freeplay',
+		'online',
+		'gallery',
+		#if MODS_ALLOWED 'mods', #end
+		'credits'
+	];
+
+	var leftOption:String = #if ACHIEVEMENTS_ALLOWED 'achievements' #else null #end;
+	var rightOption:String = 'options';
+
+	var galleryUnlocked:Bool = true;
 
 	/**
 	 * What V-Slice's main menu has, for the scripts of its mods that change it: its backgrounds (`bg` is its first member) and the
-	 * screen it goes to (`startExitState()`). This menu is the engine's own: those backgrounds are there but aren't seen, and the
-	 * options the mods add to the list (`menuItems.addItem()`) are kept out of it.
+	 * screen it goes to (`startExitState()`). This menu is the engine's own: those backgrounds are there but aren't seen, the
+	 * options the mods add to the list (`menuItems.addItem()`) are kept out of it, and its options stay where they are.
 	 */
 	public var bg:FlxSprite;
 	public var magenta:FlxSprite;
+
+	var menuBG:FlxSprite;
+	var menuFlash:FlxSprite;
+
+	/**
+	 * The texts on the bottom corners of the screen, with the names V-Slice gives them: its mods write on them.
+	 */
+	public var leftWatermarkText:FlxText;
+	public var rightWatermarkText:FlxText;
 
 	// (above the text V-Slice's mods write on, which they make taller)
 	var vortexVer:FlxText;
 	var psychVer:FlxText;
 
-	var parallaxBg:FlxSprite;
-	var cloudsBg:FlxBackdrop;
-	var parallaxBg1:FlxSprite;
-	var parallaxBg2:FlxSprite;
-	var itemsBaseX:Array<Float> = [];
+	// The list doesn't fit on the screen: it goes up and down with the selected option, the background a little with it
+	var menuScroll:Float = 0;
 	var itemsBaseY:Array<Float> = [];
-
-	var road:FlxSprite;
-	var phillyCar:FlxSprite;
-	var carMoving:Bool = false;
-	var carDirection:Int = 1; // 1 vai para a direita, -1 vai para a esquerda
-	var carBaseX:Float = 0;
-	var carSpeed:Float = 0;
-
-	var inFreeplayMenu:Bool = false;
-	var freeplayBg:FlxSprite;
+	var itemsScroll:Float = 0;
+	var bgScroll:Float = 0.25;
+	var bgBaseY:Float = 0;
 
 	// The size the menu is laid out on: its camera's, the whole window with the Widescreen option (backend.GameScaleMode.widenMenu())
 	var screenWidth(get, never):Float;
 	function get_screenWidth():Float return (FlxG.camera != null) ? FlxG.camera.width : FlxG.width;
 	var screenHeight(get, never):Float;
 	function get_screenHeight():Float return (FlxG.camera != null) ? FlxG.camera.height : FlxG.height;
-	var galleryUnlocked:Bool = true;
-
-	var optionShit:Array<String> = [
-		'story_mode',
-		'freeplay',
-		'multiplayer',
-		'gallery',
-		'credits',
-		'quit'
-		//'options'
-	];
-
-	static var showOutdatedWarning:Bool = true;
-	/**
-	 * The texts on the bottom corners of the screen, with the names V-Slice gives them: its mods write on them.
-	 */
-	public var leftWatermarkText:FlxText;
-	public var rightWatermarkText:FlxText;
 
 	#if HSCRIPT_ALLOWED
 	override function destroy()
@@ -89,7 +91,7 @@ class MainMenuState extends MusicBeatState
 	override function create()
 	{
 		super.create();
-		
+
 		#if MODS_ALLOWED
 		Mods.pushGlobalMods();
 		#end
@@ -102,122 +104,70 @@ class MainMenuState extends MusicBeatState
 
 		persistentUpdate = persistentDraw = true;
 
+		// (the menu's music, if something stopped it: a mod's button that fades it out on its way to its own menu, left halfway)
+		if (FlxG.sound.music == null || !FlxG.sound.music.playing)
+			FlxG.sound.playMusic(Paths.music('freakyMenu'), 0);
+
 		// (the Widescreen option: the menu covers the whole window, its things placed on the camera's size, see screenWidth)
 		var wide:Bool = backend.GameScaleMode.widenMenu(FlxG.camera);
 
-		bg = new FlxSprite();
+		var count:Int = optionShit.length;
+		bgScroll = Math.max(0.25 - (0.05 * (count - 4)), 0.1);
+		itemsScroll = (count < 5) ? 0 : (count - 4) * 0.135;
+
+		// (V-Slice's two backgrounds, for its scripts: the engine's are menuBG and menuFlash. With a picture of their own, since
+		// scripts look at it: Spooky Mix reads `magenta.graphic.key` on every frame, which failing every frame left phones at 3 FPS)
+		bg = new FlxSprite().makeGraphic(1, 1, 0x00000000);
 		bg.visible = false;
 		add(bg);
-		magenta = new FlxSprite();
+		magenta = new FlxSprite().makeGraphic(1, 1, 0x00000000);
 		magenta.visible = false;
 
-		parallaxBg = new FlxSprite(0, 0).loadGraphic(Paths.image('mainmenu/parallax/bg'));
-		parallaxBg.antialiasing = ClientPrefs.data.antialiasing;
-		parallaxBg.scale.set(0.85, 0.85);
-		parallaxBg.updateHitbox();
-		parallaxBg.screenCenter();
-		add(parallaxBg);
+		menuBG = makeBackground('menuBG', wide);
+		add(menuBG);
 
-		cloudsBg = new FlxBackdrop(Paths.image('mainmenu/parallax/clouds'));
-		cloudsBg.antialiasing = ClientPrefs.data.antialiasing;
-		cloudsBg.scale.set(0.75, 0.75);
-		cloudsBg.velocity.set(-10, 5);
-		add(cloudsBg);
-
-		parallaxBg1 = new FlxSprite(0, 0).loadGraphic(Paths.image('mainmenu/parallax/bg1'));
-		parallaxBg1.antialiasing = ClientPrefs.data.antialiasing;
-		parallaxBg1.scale.set(0.85, 0.85);
-		parallaxBg1.updateHitbox();
-		parallaxBg1.screenCenter();
-		add(parallaxBg1);
-
-		road = new FlxSprite(0, 0).loadGraphic(Paths.image('mainmenu/parallax/road'));
-		road.antialiasing = ClientPrefs.data.antialiasing;
-		road.scale.set(0.85, 0.85);
-		road.updateHitbox();
-		road.screenCenter();
-		//road.y += 100;
-		add(road);
-
-		phillyCar = new FlxSprite(0, 0);
-		phillyCar.frames = Paths.getSparrowAtlas('mainmenu/parallax/phillyCars');
-		phillyCar.animation.addByPrefix('car1', 'car1', 0, false);
-		phillyCar.animation.addByPrefix('car2', 'car2', 0, false);
-		phillyCar.animation.addByPrefix('car3', 'car3', 0, false);
-		phillyCar.animation.addByPrefix('car4', 'car4', 0, false);
-		phillyCar.antialiasing = ClientPrefs.data.antialiasing;
-		phillyCar.scale.set(0.85, 0.85); 
-		phillyCar.visible = false;
-		add(phillyCar);
-
-		new FlxTimer().start(FlxG.random.float(2, 4), resetCar);
-
-		parallaxBg2 = new FlxSprite(0, 0).loadGraphic(Paths.image('mainmenu/parallax/bg2'));
-		parallaxBg2.antialiasing = ClientPrefs.data.antialiasing;
-		parallaxBg2.scale.set(0.85, 0.85);
-		parallaxBg2.updateHitbox();
-		parallaxBg2.screenCenter();
-		add(parallaxBg2);
-
-		if(wide)
-		{
-			// (bigger, to cover it all: with some more for the parallax)
-			for (layer in [parallaxBg, parallaxBg1, road, parallaxBg2]) backend.GameScaleMode.cover(layer, FlxG.camera, 0.85, 80);
-			var grown:Float = parallaxBg.scale.x / 0.85;
-			cloudsBg.scale.set(0.75 * grown, 0.75 * grown);
-			phillyCar.scale.set(0.85 * grown, 0.85 * grown);
-			for (layer in [parallaxBg, parallaxBg1, road, parallaxBg2]) layer.x = (screenWidth - layer.width) / 2;
-		}
+		menuFlash = makeBackground('menuDesat', wide);
+		menuFlash.visible = false;
+		menuFlash.color = 0xFFfd719b;
+		add(menuFlash);
+		bgBaseY = menuBG.y;
 
 		menuItems = new MainMenuItemList();
 		add(menuItems);
 
 		// Uncomment this if you want the gallery to unlock only after the player finishes Week 1.
-		//if (Highscore.getWeekScore('week1', 0) > 0 || Highscore.getWeekScore('week1', 1) > 0 || Highscore.getWeekScore('week1', 2) > 0) {
-			//galleryUnlocked = true;
-		//}
+		//galleryUnlocked = (Highscore.getWeekScore('week1', 0) > 0 || Highscore.getWeekScore('week1', 1) > 0 || Highscore.getWeekScore('week1', 2) > 0);
 
-		var currentY:Float = 0;
+		var top:Float = (screenHeight - FlxG.height) / 2;
+		var offset:Float = 108 - (Math.max(count, 4) - 4) * 80;
 		for (num => option in optionShit)
 		{
-			var item:FlxSprite = createMenuItem(option, 0, currentY);
+			var item:FlxSprite = createMenuItem(option, 0, top + (num * 140) + offset);
 			item.ID = num;
-
-			item.scale.set(0.7, 0.7);
-			item.updateHitbox();
-
-			var targetX:Float = screenWidth - item.width - 100;
-
-			itemsBaseX.push(screenWidth + item.width - 80);
-			itemsBaseY.push(currentY);
-
-			FlxTween.num(screenWidth + item.width - 80, targetX, 0.8, {ease: FlxEase.backOut, startDelay: num * 0.15}, function(val:Float) {
-				itemsBaseX[item.ID] = val; 
-			});
-
-			if (option == 'gallery' && !galleryUnlocked) {
-				item.color = 0xFF444444; 
-			}
-			currentY += item.height + 15;
+			item.x = (screenWidth - item.width) / 2;
+			itemsBaseY.push(item.y);
+			menuItems.add(item);
 		}
-		vortexVer = new FlxText(12, screenHeight - 74, 0, "Vortex Engine v" + vortexEngineVersion, 14);
-		vortexVer.scrollFactor.set();
-		vortexVer.antialiasing = ClientPrefs.data.antialiasing;
-		vortexVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
-		add(vortexVer);
 
-		psychVer = new FlxText(12, screenHeight - 54, 0, "Psych Engine v" + psychEngineVersion, 14);
-		psychVer.scrollFactor.set();
-		psychVer.antialiasing = ClientPrefs.data.antialiasing;
-		psychVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
-		add(psychVer);
+		var cornerY:Float = screenHeight - 300;
+		if (leftOption != null)
+		{
+			leftItem = createMenuItem(leftOption, 60, cornerY);
+			add(leftItem);
+		}
+		if (rightOption != null)
+		{
+			rightItem = createMenuItem(rightOption, 0, cornerY);
+			rightItem.x = screenWidth - 60 - rightItem.width;
+			add(rightItem);
+		}
+		closeItem = createMenuItem('close', 0, 20);
+		closeItem.x = screenWidth - 20 - closeItem.width;
+		add(closeItem);
 
-		var fnfVer:FlxText = new FlxText(12, screenHeight - 34, 0, "Friday Night Funkin" , 14);
-		fnfVer.scrollFactor.set();
-		fnfVer.antialiasing = ClientPrefs.data.antialiasing;
-		fnfVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
-		add(fnfVer);
-		leftWatermarkText = fnfVer;
+		vortexVer = makeVersionText("Vortex Engine v" + vortexEngineVersion, screenHeight - 74);
+		psychVer = makeVersionText("Psych Engine v" + psychEngineVersion, screenHeight - 54);
+		leftWatermarkText = makeVersionText("Friday Night Funkin", screenHeight - 34);
 
 		// Empty until a V-Slice mod writes on it (its name and version, usually)
 		rightWatermarkText = new FlxText(0, screenHeight - 34, screenWidth - 12, "", 14);
@@ -231,29 +181,11 @@ class MainMenuState extends MusicBeatState
 		backend.VSliceScripts.startMenu(this, true, true);
 		backend.VSliceScripts.menuOpened(this);
 		#end
+
+		if (curColumn == LEFT && leftItem == null) curColumn = CENTER;
 		changeItem();
-
-		freeplayBg = new FlxSprite().makeGraphic(Std.int(screenWidth), Std.int(screenHeight), 0xFF000000);
-		freeplayBg.alpha = 0;
-		freeplayBg.scrollFactor.set(0, 0);
-		freeplayBg.visible = false;
-		add(freeplayBg);
-
-		optionsGear = new FlxSprite(0, 10).loadGraphic(Paths.image('mainmenu/menu_options'));
-		optionsGear.antialiasing = ClientPrefs.data.antialiasing;
-		optionsGear.x = screenWidth - (optionsGear.width / 2);
-		add(optionsGear);
-
-		// the buttons of the top left corner: the achievements and the mods (LEFT picks them with the keyboard)
-		var cornerX:Float = 14;
-		#if ACHIEVEMENTS_ALLOWED
-		var trophy:FlxSprite = makeCornerButton('achievements', cornerX, 10, 0.42);
-		cornerX += trophy.width + 10;
-		#end
-		#if MODS_ALLOWED
-		var mods:FlxSprite = makeCornerButton('mods', cornerX, 0, 0.36);
-		mods.y = 10 + (cornerButtons[0].height - mods.height) / 2;
-		#end
+		menuScroll = scrollTarget();
+		placeScrolled();
 
 		#if ACHIEVEMENTS_ALLOWED
 		// Unlocks "Freaky on a Friday Night" achievement if it's a Friday and between 18:00 PM and 23:59 PM
@@ -265,149 +197,69 @@ class MainMenuState extends MusicBeatState
 		Achievements.reloadList();
 		#end
 		#end
-
-		// Back from the options as a screen of their own (after "Adjust Delay and Combo"): the menu is opened again over this one,
-		// already there, and slides away. The static flag is reset right away, so it never happens twice
-		if (returningFromOptions) {
-			returningFromOptions = false;
-			openOptions(OptionsMenu.SLIDE_OUT);
-		}
 	}
 
-	/**
-	 * Opens the options menu right on top of this one: it slides in from the right with the gear rolling along its edge,
-	 * and slides back out the same way when it's left, with this menu right where it was.
-	 */
-	function openOptions(mode:Int):Void
+	function makeBackground(image:String, wide:Bool):FlxSprite
 	{
-		isOptionsAnimating = true;
-		selectedSomethin = true;
-		optionsGear.visible = false;
-		OptionsState.onPlayState = false;
-
-		var menu:OptionsMenu = new OptionsMenu(false, true, mode);
-		menu.onSlidOut = optionsClosed;
-		openSubState(menu);
-	}
-
-	function optionsClosed():Void
-	{
-		optionsGear.x = screenWidth - (optionsGear.width / 2);
-		optionsGear.angle = 0;
-		optionsGear.visible = true;
-		isOptionsAnimating = false;
-		selectedSomethin = false;
-		#if DISCORD_ALLOWED
-		DiscordClient.changePresence(Language.getPhrase('discord_main_menu', 'In the Main Menu'), null, 'menu');
-		#end
-	}
-
-	// ------------------------------------------------------------------------------------------
-	// The buttons of the top left corner (achievements, mods)
-	// ------------------------------------------------------------------------------------------
-
-	var cornerButtons:Array<FlxSprite> = [];
-	var cornerNames:Array<String> = [];
-	var cornerScales:Array<Float> = [];
-	var cornerSelected:Int = -1;
-	var cornerActive:Bool = false;
-	var controlsBlocked:Bool = false;
-
-	function makeCornerButton(name:String, x:Float, y:Float, size:Float):FlxSprite
-	{
-		var button:FlxSprite = new FlxSprite(x, y);
-		button.frames = Paths.getSparrowAtlas('mainmenu/menu_$name');
-		button.animation.addByPrefix('idle', '$name idle', 24, true);
-		button.animation.addByPrefix('selected', '$name selected', 24, true);
-		button.animation.play('idle');
-		button.antialiasing = ClientPrefs.data.antialiasing;
-		button.scrollFactor.set();
-		button.scale.set(size, size);
-		button.updateHitbox();
-		add(button);
-
-		cornerButtons.push(button);
-		cornerNames.push(name);
-		cornerScales.push(size);
-		return button;
-	}
-
-	function selectCorner(num:Int, ?playSound:Bool = true):Void
-	{
-		if(num == cornerSelected) return;
-		cornerSelected = num;
-		if(playSound) FlxG.sound.play(Paths.sound('scrollMenu'));
-
-		for (i => button in cornerButtons)
+		var sprite:FlxSprite = new FlxSprite().loadGraphic(Paths.image(image));
+		sprite.antialiasing = ClientPrefs.data.antialiasing;
+		sprite.scrollFactor.set();
+		if (wide)
+			backend.GameScaleMode.cover(sprite, FlxG.camera, 1.175, 60);
+		else
 		{
-			var picked:Bool = (i == cornerSelected);
-			button.animation.play(picked ? 'selected' : 'idle', true);
-			// (bigger while picked, from its middle)
-			var middleX:Float = button.x + button.width / 2;
-			var middleY:Float = button.y + button.height / 2;
-			var size:Float = cornerScales[i] * (picked ? 1.12 : 1);
-			button.scale.set(size, size);
-			button.updateHitbox();
-			button.setPosition(middleX - button.width / 2, middleY - button.height / 2);
+			sprite.setGraphicSize(Std.int(sprite.width * 1.175));
+			sprite.updateHitbox();
 		}
-
-		// the list on the right looks unpicked while one of these is
-		for (num => item in menuItems.members)
-			if(item != null) item.alpha = (cornerSelected > -1) ? 0.6 : 1;
-		if(cornerSelected < 0) changeItem();
+		sprite.x = (screenWidth - sprite.width) / 2;
+		sprite.y = (screenHeight - sprite.height) / 2;
+		return sprite;
 	}
 
-	function openCorner(num:Int):Void
+	function makeVersionText(text:String, y:Float):FlxText
 	{
-		var name:String = cornerNames[num];
-		var button:FlxSprite = cornerButtons[num];
-		FlxG.sound.play(Paths.sound('confirmMenu'));
-		selectedSomethin = true;
-		FlxG.mouse.visible = false;
-
-		FlxFlicker.flicker(button, 1, 0.06, false, false, function(_)
-		{
-			switch(name)
-			{
-				#if ACHIEVEMENTS_ALLOWED
-				case 'achievements': MusicBeatState.switchState(new AchievementsMenuState());
-				#end
-				#if MODS_ALLOWED
-				case 'mods': MusicBeatState.switchState(new ModsMenuState());
-				#end
-			}
-		});
-		for (item in menuItems)
-			if(item != null) FlxTween.tween(item, {alpha: 0}, 0.4, {ease: FlxEase.quadOut});
-	}
-
-	// The mouse over one of them picks it, a click opens it. True if the mouse was on one (the list doesn't get the click)
-	function updateCornerMouse():Bool
-	{
-		if(!FlxG.mouse.visible && !FlxG.mouse.justMoved && !FlxG.mouse.justPressed) return false;
-
-		for (i => button in cornerButtons)
-		{
-			if(!FlxG.mouse.overlaps(button)) continue;
-			if(FlxG.mouse.justMoved || FlxG.mouse.justPressed) FlxG.mouse.visible = true;
-			selectCorner(i);
-			if(FlxG.mouse.justPressed) openCorner(i);
-			return true;
-		}
-		return false;
+		var version:FlxText = new FlxText(12, y, 0, text, 14);
+		version.scrollFactor.set();
+		version.antialiasing = ClientPrefs.data.antialiasing;
+		version.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		add(version);
+		return version;
 	}
 
 	function createMenuItem(name:String, x:Float, y:Float):FlxSprite
 	{
 		var menuItem:FlxSprite = new FlxSprite(x, y);
-		
-		menuItem.loadGraphic(Paths.image('mainmenu/menu_$name'));
+		menuItem.frames = Paths.getSparrowAtlas('mainmenu/menu_$name');
+		menuItem.animation.addByPrefix('idle', '$name idle', 24, true);
+		menuItem.animation.addByPrefix('selected', '$name selected', 24, true);
+		menuItem.animation.play('idle');
 		menuItem.updateHitbox();
-		
+
 		menuItem.antialiasing = ClientPrefs.data.antialiasing;
 		menuItem.scrollFactor.set();
-		menuItems.add(menuItem);
+		if (name == 'gallery' && !galleryUnlocked) menuItem.color = 0xFF444444;
 		return menuItem;
+	}
+
+	/**
+	 * Opens the options menu right on top of this one, with this menu right where it was when it's left.
+	 */
+	function openOptions():Void
+	{
+		selectedSomethin = true;
+		OptionsState.onPlayState = false;
+
+		var menu:OptionsMenu = new OptionsMenu(false, true);
+		menu.onClosed = optionsClosed;
+		openSubState(menu);
+	}
+
+	function optionsClosed():Void
+	{
+		selectedSomethin = false;
+		#if DISCORD_ALLOWED
+		DiscordClient.changePresence(Language.getPhrase('discord_main_menu', 'In the Main Menu'), null, 'menu');
+		#end
 	}
 
 	var selectedSomethin:Bool = false;
@@ -418,54 +270,19 @@ class MainMenuState extends MusicBeatState
 		if (FlxG.sound.music.volume < 0.8)
 			FlxG.sound.music.volume = Math.min(FlxG.sound.music.volume + 0.5 * elapsed, 0.8);
 
-		if (!selectedSomethin)
-		{
-			if (!isOptionsAnimating && subState == null && ((FlxG.mouse.justPressed && FlxG.mouse.overlaps(optionsGear)) || controls.UI_RIGHT_P)) {
-				FlxG.sound.play(Paths.sound('chains'));
-				openOptions(OptionsMenu.SLIDE_IN);
-			}
-
-		}
-
-		// the buttons of the top left corner (the mouse on them, or LEFT to go to them)
-		controlsBlocked = false;
-		if (!selectedSomethin && !isOptionsAnimating && subState == null && cornerButtons.length > 0)
-		{
-			var onCorner:Bool = updateCornerMouse();
-			if (!selectedSomethin)
-			{
-				if (controls.UI_LEFT_P)
-					selectCorner((cornerSelected + 1) % cornerButtons.length);
-				else if (cornerSelected > -1 && (controls.UI_UP_P || controls.UI_DOWN_P))
-					selectCorner(-1);
-				else if (cornerSelected > -1 && controls.ACCEPT)
-					openCorner(cornerSelected);
-				else if (onCorner)
-				{
-					// (the click was the corner's)
-				}
-				else if (cornerSelected > -1 && FlxG.mouse.justMoved && FlxG.mouse.visible)
-					selectCorner(-1, false);
-			}
-			cornerActive = (onCorner || cornerSelected > -1);
-		}
-		else cornerActive = false;
-		if (cornerActive && !selectedSomethin && controls.BACK)
-		{
-			selectCorner(-1);
-			cornerActive = false;
-			controlsBlocked = true;
-		}
-
-		// checked again because opening the options above already "selected something" this frame
-		// (and not while one of the corner's buttons is picked: the keys and the click are theirs)
-		if (!selectedSomethin && !cornerActive && !controlsBlocked)
+		if (!selectedSomethin && subState == null)
 		{
 			if (controls.UI_UP_P)
-				changeItem(-1);
+			{
+				if (curColumn == RIGHT) selectColumn(CLOSE);
+				else changeItem(-1);
+			}
 
 			if (controls.UI_DOWN_P)
-				changeItem(1);
+			{
+				if (curColumn == CLOSE && rightItem != null) selectColumn(RIGHT);
+				else changeItem(1);
+			}
 
 			var allowMouse:Bool = allowMouse;
 			if (allowMouse && ((FlxG.mouse.deltaScreenX != 0 && FlxG.mouse.deltaScreenY != 0) || FlxG.mouse.justPressed)) //FlxG.mouse.deltaScreenX/Y checks is more accurate than FlxG.mouse.justMoved
@@ -474,14 +291,26 @@ class MainMenuState extends MusicBeatState
 				FlxG.mouse.visible = true;
 				timeNotMoving = 0;
 
-				var selectedItem:FlxSprite = menuItems.members[curSelected];
+				var selectedItem:FlxSprite = columnItem(curColumn);
 
+				var corner:Null<MainMenuColumn> = null;
+				if (closeItem != null && FlxG.mouse.overlaps(closeItem)) corner = CLOSE;
+				else if (leftItem != null && FlxG.mouse.overlaps(leftItem)) corner = LEFT;
+				else if (rightItem != null && FlxG.mouse.overlaps(rightItem)) corner = RIGHT;
+
+				if (corner != null)
+				{
+					allowMouse = true;
+					if (selectedItem != columnItem(corner)) selectColumn(corner);
+				}
+				else
+				{
 					var dist:Float = -1;
 					var distItem:Int = -1;
 					for (i in 0...optionShit.length)
 					{
 						var memb:FlxSprite = menuItems.members[i];
-						if(FlxG.mouse.overlaps(memb))
+						if (FlxG.mouse.overlaps(memb))
 						{
 							var distance:Float = Math.sqrt(Math.pow(memb.getGraphicMidpoint().x - FlxG.mouse.screenX, 2) + Math.pow(memb.getGraphicMidpoint().y - FlxG.mouse.screenY, 2));
 							if (dist < 0 || distance < dist)
@@ -493,16 +322,34 @@ class MainMenuState extends MusicBeatState
 						}
 					}
 
-					if(distItem != -1 && selectedItem != menuItems.members[distItem])
+					if (distItem != -1 && selectedItem != menuItems.members[distItem])
 					{
+						curColumn = CENTER;
 						curSelected = distItem;
 						changeItem();
 					}
+				}
 			}
 			else
 			{
 				timeNotMoving += elapsed;
-				if(timeNotMoving > 2) FlxG.mouse.visible = false;
+				if (timeNotMoving > 2) FlxG.mouse.visible = false;
+			}
+
+			switch (curColumn)
+			{
+				case CENTER:
+					if (controls.UI_LEFT_P && leftItem != null) selectColumn(LEFT);
+					else if (controls.UI_RIGHT_P && rightItem != null) selectColumn(RIGHT);
+
+				case LEFT:
+					if (controls.UI_RIGHT_P) selectColumn(CENTER);
+
+				case RIGHT:
+					if (controls.UI_LEFT_P) selectColumn(CENTER);
+
+				case CLOSE:
+					if (controls.UI_LEFT_P) selectColumn(CENTER);
 			}
 
 			if (controls.BACK)
@@ -514,61 +361,10 @@ class MainMenuState extends MusicBeatState
 			}
 
 			if (controls.ACCEPT || (FlxG.mouse.justPressed && allowMouse))
-            {
-                var option:String = optionShit[curSelected];
-                var item:FlxSprite = menuItems.members[curSelected];
-
-                if (option == 'gallery' && !galleryUnlocked) {
-                    FlxG.sound.play(Paths.sound('lockedElementInteract'));
-                    FlxG.camera.shake(0.005, 0.1);
-                }
-                else 
-                {
-                    FlxG.sound.play(Paths.sound('confirmMenu'));
-                    selectedSomethin = true;
-                    FlxG.mouse.visible = false;
-
-                        FlxFlicker.flicker(item, 1.5, 0.06, false, false, function(flick:FlxFlicker)
-                        {
-                            switch (option)
-                            {
-                                case 'story_mode':
-                                    MusicBeatState.switchState(new StoryMenuState());
-                                case 'credits':
-                                    MusicBeatState.switchState(new CreditsState());
-								case 'freeplay':
-                                    if (ClientPrefs.data.freeplayStyle == 'V-Slice')
-                                        MusicBeatState.switchState(new states.FreeplayStateVslice());
-                                    else
-                                        MusicBeatState.switchState(new states.FreeplayState());
-                                case 'options':
-                                    MusicBeatState.switchState(new OptionsState());
-                                    OptionsState.onPlayState = false;
-                                    if (PlayState.SONG != null)
-                                    {
-                                        PlayState.SONG.arrowSkin = null;
-                                        PlayState.SONG.splashSkin = null;
-                                        PlayState.stageUI = 'normal';
-                                    }
-                                case 'gallery':
-                                    MusicBeatState.switchState(new GalleryState());
-								case 'multiplayer':
-                                    MusicBeatState.switchState(new states.MultiplayerMenuState());
-								case 'quit':
-									#if sys Sys.exit(0); #end
-                            }
-                        });
-                        
-                        for (memb in menuItems)
-                        {
-                            if(memb == item) continue;
-                            FlxTween.tween(memb, {alpha: 0}, 0.4, {ease: FlxEase.quadOut});
-                        }
-                }
-            }
+				selectOption();
 
 			#if desktop
-			if (controls.justPressed('debug_1'))
+			if (!selectedSomethin && controls.justPressed('debug_1'))
 			{
 				selectedSomethin = true;
 				FlxG.mouse.visible = false;
@@ -582,106 +378,154 @@ class MainMenuState extends MusicBeatState
 		#end
 		super.update(elapsed);
 
-		var mouseOffX:Float = (FlxG.mouse.screenX - (screenWidth / 2));
-		var mouseOffY:Float = (FlxG.mouse.screenY - (screenHeight / 2));
-
-		var targetRoadX:Float = ((screenWidth - road.width) / 2) - (mouseOffX * 0.05);
-		var targetRoadY:Float = ((screenHeight - road.height) / 2) - (mouseOffY * 0.05);
-
-		var target1X:Float = ((screenWidth - parallaxBg1.width) / 2) - (mouseOffX * 0.03);
-		var target1Y:Float = ((screenHeight - parallaxBg1.height) / 2) - (mouseOffY * 0.03);
-
-		var target2X:Float = ((screenWidth - parallaxBg2.width) / 2) - (mouseOffX * 0.08);
-		var target2Y:Float = ((screenHeight - parallaxBg2.height) / 2) - (mouseOffY * 0.08);
-
-		var speed:Float = flixel.math.FlxMath.bound(elapsed * 6, 0, 1);
-		
-		parallaxBg1.x = flixel.math.FlxMath.lerp(parallaxBg1.x, target1X, speed);
-		parallaxBg1.y = flixel.math.FlxMath.lerp(parallaxBg1.y, target1Y, speed);
-
-		road.x = flixel.math.FlxMath.lerp(road.x, targetRoadX, speed);
-		road.y = flixel.math.FlxMath.lerp(road.y, targetRoadY, speed);
-
-		parallaxBg2.x = flixel.math.FlxMath.lerp(parallaxBg2.x, target2X, speed);
-		parallaxBg2.y = flixel.math.FlxMath.lerp(parallaxBg2.y, target2Y, speed);
-
-		if (carMoving) {
-			carBaseX += (carSpeed * carDirection) * elapsed;
-
-			var distDoCentro:Float = carBaseX - (screenWidth / 2);
-			
-			var curvaY:Float = Math.pow(distDoCentro, 2) / 9000; 
-
-			var carroYCentral:Float = 400; 
-			
-			var carBaseY:Float = carroYCentral + curvaY;
-
-			var roadOffX = road.x - ((screenWidth - road.width) / 2);
-			var roadOffY = road.y - ((screenHeight - road.height) / 2);
-
-			phillyCar.x = carBaseX + roadOffX;
-			phillyCar.y = carBaseY + roadOffY;
-
-			if ((carDirection == 1 && carBaseX > screenWidth + 200) || (carDirection == -1 && carBaseX < -phillyCar.width - 200)) {
-				carMoving = false;
-				phillyCar.visible = false;
-				
-				new FlxTimer().start(FlxG.random.float(2, 5), resetCar);
-			}
-		}
-		
-		var bg2CenterStartX:Float = (screenWidth - parallaxBg2.width) / 2;
-		var bg2CenterStartY:Float = (screenHeight - parallaxBg2.height) / 2;
-		var bg2OffX:Float = parallaxBg2.x - bg2CenterStartX;
-		var bg2OffY:Float = parallaxBg2.y - bg2CenterStartY;
-
+		// (as the camera following the selected option did on Psych, at its speed)
+		menuScroll = FlxMath.lerp(scrollTarget(), menuScroll, Math.exp(-elapsed * 9.6));
+		placeScrolled();
 		placeVersionTexts();
+	}
 
-		itemsScroll = FlxMath.lerp(itemsScroll, itemsScrollTarget(), speed);
-		for (i in 0...menuItems.members.length) {
-			var item = menuItems.members[i];
-			var optionName = optionShit[i];
+	function selectOption():Void
+	{
+		var option:String;
+		var item:FlxSprite;
+		switch (curColumn)
+		{
+			case CENTER:
+				option = optionShit[curSelected];
+				item = menuItems.members[curSelected];
+			case LEFT:
+				option = leftOption;
+				item = leftItem;
+			case RIGHT:
+				option = rightOption;
+				item = rightItem;
+			case CLOSE:
+				option = 'close';
+				item = closeItem;
+		}
 
-			if (optionName != 'options') {
-				item.x = itemsBaseX[i] + bg2OffX;
-				item.y = itemsBaseY[i] + bg2OffY - itemsScroll;
-			} else {
-				item.x = itemsBaseX[i];
-				item.y = itemsBaseY[i];
+		if (option == 'gallery' && !galleryUnlocked)
+		{
+			FlxG.sound.play(Paths.sound('lockedElementInteract'));
+			FlxG.camera.shake(0.005, 0.1);
+			return;
+		}
+
+		FlxG.mouse.visible = false;
+		if (option == 'options')
+		{
+			// (the options open right over the menu)
+			FlxG.sound.play(Paths.sound('confirmMenu'));
+			openOptions();
+			return;
+		}
+
+		FlxG.sound.play(Paths.sound('confirmMenu'));
+		selectedSomethin = true;
+
+		if (ClientPrefs.data.flashing && option != 'close')
+			FlxFlicker.flicker(menuFlash, 1.1, 0.15, false);
+
+		FlxFlicker.flicker(item, (option == 'close') ? 0.5 : 1, 0.06, false, false, function(flick:FlxFlicker)
+		{
+			switch (option)
+			{
+				case 'story_mode':
+					MusicBeatState.switchState(new StoryMenuState());
+				case 'freeplay':
+					if (ClientPrefs.data.freeplayStyle == 'V-Slice')
+						MusicBeatState.switchState(new states.FreeplayStateVslice());
+					else
+						MusicBeatState.switchState(new states.FreeplayState());
+				case 'online':
+					MusicBeatState.switchState(new states.MultiplayerMenuState());
+				case 'gallery':
+					MusicBeatState.switchState(new GalleryState());
+
+				#if MODS_ALLOWED
+				case 'mods':
+					MusicBeatState.switchState(new ModsMenuState());
+				#end
+
+				#if ACHIEVEMENTS_ALLOWED
+				case 'achievements':
+					MusicBeatState.switchState(new AchievementsMenuState());
+				#end
+
+				case 'credits':
+					MusicBeatState.switchState(new CreditsState());
+				case 'close':
+					backend.AppExit.exit();
+				default:
+					trace('Menu Item ${option} doesn\'t do anything');
+					selectedSomethin = false;
+					item.visible = true;
 			}
+		});
+
+		for (memb in allItems())
+		{
+			if (memb == item) continue;
+			FlxTween.tween(memb, {alpha: 0}, 0.4, {ease: FlxEase.quadOut});
 		}
 	}
 
-	// The items don't all fit on the screen: the list goes up just enough for the selected one to be seen whole
-	var itemsScroll:Float = 0;
-	function itemsScrollTarget():Float
+	function allItems():Array<FlxSprite>
 	{
-		var count:Int = menuItems.members.length;
-		if(count < 1 || itemsBaseY.length < count) return 0;
+		var items:Array<FlxSprite> = [for (memb in menuItems.members) if (memb != null) memb];
+		for (corner in [leftItem, rightItem, closeItem])
+			if (corner != null) items.push(corner);
+		return items;
+	}
 
-		var margin:Float = 40;
-		var last:FlxSprite = menuItems.members[count - 1];
-		var maxScroll:Float = Math.max(0, itemsBaseY[count - 1] + last.height - (screenHeight - margin));
-		if(maxScroll <= 0) return 0;
+	function columnItem(column:MainMenuColumn):FlxSprite
+	{
+		return switch (column)
+		{
+			case CENTER: menuItems.members[curSelected];
+			case LEFT: leftItem;
+			case RIGHT: rightItem;
+			case CLOSE: closeItem;
+		}
+	}
 
-		var selected:FlxSprite = menuItems.members[curSelected];
-		var top:Float = itemsBaseY[curSelected] - margin;
-		var bottom:Float = itemsBaseY[curSelected] + selected.height - (screenHeight - margin);
+	function selectColumn(column:MainMenuColumn):Void
+	{
+		curColumn = column;
+		changeItem();
+	}
 
-		var target:Float = itemsScroll;
-		if(top < target) target = top;
-		else if(bottom > target) target = bottom;
-		return FlxMath.bound(target, 0, maxScroll);
+	// Where the list should be for the selected option to be in sight (the camera's spot on Psych)
+	function scrollTarget():Float
+	{
+		if (itemsScroll <= 0) return 0;
+		var item:FlxSprite = menuItems.members[curSelected];
+		if (item == null) return 0;
+		var lift:Float = (optionShit.length > 4) ? optionShit.length * 8 : 0;
+		return (itemsBaseY[curSelected] + item.height / 2) - lift - screenHeight / 2;
+	}
+
+	function placeScrolled():Void
+	{
+		for (i in 0...optionShit.length)
+		{
+			var item:FlxSprite = menuItems.members[i];
+			if (item == null) continue;
+			item.x = (screenWidth - item.width) / 2;
+			item.y = itemsBaseY[i] - menuScroll * itemsScroll;
+		}
+		for (layer in [menuBG, menuFlash])
+			if (layer != null) layer.y = bgBaseY - menuScroll * bgScroll;
 	}
 
 	// V-Slice's mods add lines to `leftWatermarkText` (and move it up for them): it stays on the screen, with the engine's own
 	// versions above it
 	function placeVersionTexts():Void
 	{
-		if(leftWatermarkText == null || vortexVer == null || psychVer == null) return;
+		if (leftWatermarkText == null || vortexVer == null || psychVer == null) return;
 
 		var bottom:Float = screenHeight - 14;
-		if(leftWatermarkText.y + leftWatermarkText.height > bottom) leftWatermarkText.y = bottom - leftWatermarkText.height;
+		if (leftWatermarkText.y + leftWatermarkText.height > bottom) leftWatermarkText.y = bottom - leftWatermarkText.height;
 		psychVer.y = leftWatermarkText.y - 20;
 		vortexVer.y = psychVer.y - 20;
 	}
@@ -691,66 +535,31 @@ class MainMenuState extends MusicBeatState
 	 */
 	public function startExitState(nextState:flixel.FlxState):Void
 	{
-		if(nextState == null) return;
+		if (nextState == null) return;
 		selectedSomethin = true;
 		MusicBeatState.switchState(nextState);
 	}
 
-	function changeItem(huh:Int = 0)
+	function changeItem(change:Int = 0)
 	{
+		if (change != 0) curColumn = CENTER;
+		curSelected = FlxMath.wrap(curSelected + change, 0, optionShit.length - 1);
 		FlxG.sound.play(Paths.sound('scrollMenu'));
-		curSelected += huh;
 
-		if (curSelected >= menuItems.length)
-			curSelected = 0;
-		if (curSelected < 0)
-			curSelected = menuItems.length - 1;
-
-		menuItems.forEach(function(spr:FlxSprite)
+		for (item in allItems())
 		{
-			FlxTween.cancelTweensOf(spr.scale);
-
-			if (spr.ID == curSelected)
-			{
-				FlxTween.tween(spr.scale, {x: 0.8, y: 0.8}, 0.15, {ease: FlxEase.quadOut});
-				
-				spr.alpha = 1;
-				if (optionShit[spr.ID] == 'gallery' && !galleryUnlocked) 
-					spr.color = 0xFF444444;
-				else 
-					spr.color = 0xFFFFFFFF;
-			}
-			else
-			{
-				FlxTween.tween(spr.scale, {x: 0.6, y: 0.6}, 0.15, {ease: FlxEase.quadOut});
-				spr.alpha = 0.85;
-				if (optionShit[spr.ID] == 'gallery' && !galleryUnlocked) 
-					spr.color = 0xFF444444; 
-				else 
-					spr.color = 0xFF666666;
-			}
-		});
-	}
-
-	function resetCar(?t:FlxTimer):Void 
-	{
-		carMoving = true;
-		phillyCar.visible = true;
-
-		var randomCar = FlxG.random.int(1, 4);
-		phillyCar.animation.play('car' + randomCar);
-		phillyCar.updateHitbox();
-
-		carDirection = FlxG.random.bool(50) ? 1 : -1;
-		phillyCar.flipX = (carDirection == -1);
-		
-		carSpeed = FlxG.random.float(600, 1200); 
-
-		if (carDirection == 1) {
-			carBaseX = -phillyCar.width - 200;
-		} else {
-			carBaseX = screenWidth + 200;
+			item.animation.play('idle');
+			item.centerOffsets();
 		}
+
+		var selectedItem:FlxSprite = columnItem(curColumn);
+		if (selectedItem == null)
+		{
+			curColumn = CENTER;
+			selectedItem = menuItems.members[curSelected];
+		}
+		selectedItem.animation.play('selected');
+		selectedItem.centerOffsets();
 	}
 }
 
@@ -764,7 +573,7 @@ class MainMenuItemList extends FlxTypedGroup<FlxSprite>
 
 	public function addItem(name:String, item:FlxSprite):FlxSprite
 	{
-		if(name != null && item != null) scriptItems.set(name, item);
+		if (name != null && item != null) scriptItems.set(name, item);
 		return item;
 	}
 }

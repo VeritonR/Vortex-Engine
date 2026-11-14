@@ -6,6 +6,15 @@ package funkin.play.song;
  */
 class Song extends funkin.modding.ScriptedBase
 {
+	// (V-Slice's defaults for what a song's file leaves out)
+	public static final DEFAULT_SONGNAME:String = 'Unknown';
+	public static final DEFAULT_ARTIST:String = 'Unknown';
+	public static final DEFAULT_TIMEFORMAT:String = 'ms';
+	public static final DEFAULT_DIVISIONS:Null<Int> = null;
+	public static final DEFAULT_LOOPED:Bool = false;
+	public static final DEFAULT_STAGE:String = 'mainStage';
+	public static final DEFAULT_SCROLLSPEED:Float = 1.0;
+
 	public var id(default, null):String;
 	public var variation(default, null):String = 'default';
 

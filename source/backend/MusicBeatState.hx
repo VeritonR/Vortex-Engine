@@ -191,13 +191,44 @@ class MusicBeatState extends FlxState
 		curStep = lastChange.stepTime + Math.floor(shit);
 	}
 
+	/**
+	 * If a screen was asked for already and is on its way (its transition playing): the ones asked for after it are left out until it
+	 * opens. A mod whose animation ends on the way (SKYREBORN's gallery button, with ESC pressed while it fades) asked for a second one,
+	 * and the game went to two screens at once (the first one's leftovers on the second, or a crash).
+	 */
+	public static var switching(default, null):Bool = false;
+	static var watchingSwitches:Bool = false;
+	static var switchAskedAt:Float = 0;
+
+	static function startSwitch():Bool
+	{
+		if(!watchingSwitches)
+		{
+			watchingSwitches = true;
+			// (cleared before the new screen is made: one that sends somewhere else right away when it opens still can)
+			FlxG.signals.preStateCreate.add(function(_) switching = false);
+		}
+		// (one that never opened, its transition cut by something else, doesn't keep every screen out after it)
+		var now:Float = haxe.Timer.stamp();
+		if(switching && now - switchAskedAt < 3) return false;
+		switching = true;
+		switchAskedAt = now;
+		return true;
+	}
+
 	public static function switchState(nextState:FlxState = null) {
 		if(nextState == null) nextState = FlxG.state;
+		if(!startSwitch())
+		{
+			backend.StepLog.add('Switching to ' + Type.getClassName(Type.getClass(nextState)) + ' was asked for while another screen was on its way: left out');
+			return;
+		}
 		// (the Freeplay the player picked in the options: mods' own pause menus and Lua's exitSong() ask for Psych's one)
 		if(nextState != null && Type.getClass(nextState) == states.FreeplayState && states.FreeplayState.vsliceInstead())
 			nextState = new states.FreeplayStateVslice();
 		if(nextState == FlxG.state)
 		{
+			switching = false; //(resetState() asks for itself)
 			resetState();
 			return;
 		}
@@ -209,6 +240,7 @@ class MusicBeatState extends FlxState
 	}
 
 	public static function resetState() {
+		if(!startSwitch()) return;
 		if(FlxTransitionableState.skipNextTransIn) FlxG.resetState();
 		else startTransition();
 		FlxTransitionableState.skipNextTransIn = false;

@@ -147,7 +147,7 @@ class MultiplayerMenuState extends MusicBeatState
         diffText.visible = false;
         add(diffText);
 
-        nicknameText = new FlxText(FlxG.width - 400, 70, 380, t('nick', "Nick: {1}\n[TAB] To Change", [NetworkManager.myNickname]), 24);
+        nicknameText = new FlxText(FlxG.width - 400, 70, 380, nicknameLabel(NetworkManager.myNickname), 24);
         nicknameText.setFormat(Paths.font("vcr.ttf"), 24, FlxColor.CYAN, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
         add(nicknameText);
 
@@ -265,24 +265,52 @@ class MultiplayerMenuState extends MusicBeatState
         changeConnSelection(0);
         super.create();
 
+        #if mobile
+        // (a phone's keyboard on the screen types through text, not keys)
+        lime.app.Application.current.window.onTextInput.add(onScreenKeyboard);
+        #else
         FlxG.stage.addEventListener(KeyboardEvent.KEY_DOWN, onTextInput);
+        #end
     }
 
     override function destroy() {
+        #if mobile
+        lime.app.Application.current.window.onTextInput.remove(onScreenKeyboard);
+        lime.app.Application.current.window.textInputEnabled = false;
+        #else
         FlxG.stage.removeEventListener(KeyboardEvent.KEY_DOWN, onTextInput);
+        #end
         super.destroy();
+    }
+
+    // What the phone's keyboard typed, letter by letter like the keys of a computer's
+    function onScreenKeyboard(text:String) {
+        for (i in 0...text.length) typeChar(text.charCodeAt(i));
+    }
+
+    // The nickname's text, as it says how to change it (a tap on a phone, TAB on a computer: there's no TAB on a phone's keyboard)
+    static function nicknameLabel(nickname:String):String {
+        #if mobile
+        return t('nick_touch', "Nick: {1}\n(Tap to change)", [nickname]);
+        #else
+        return t('nick', "Nick: {1}\n[TAB] To Change", [nickname]);
+        #end
     }
 
     // Captura APENAS o texto digitado aqui. Os botões de controle (ENTER, ESC) ficam no update().
     function onTextInput(e:KeyboardEvent) {
+        typeChar(e.charCode);
+    }
+
+    function typeChar(charCode:Int) {
         if (typingNickname) {
-            if (e.charCode >= 32 && e.charCode <= 126 && e.charCode != 124 && typedNickname.length < 15) { //(124 is "|", which separates the messages)
-                typedNickname += String.fromCharCode(e.charCode);
+            if (charCode >= 32 && charCode <= 126 && charCode != 124 && typedNickname.length < 15) { //(124 is "|", which separates the messages)
+                typedNickname += String.fromCharCode(charCode);
             }
         }
         else if (typingIP) {
-            if (((e.charCode >= 48 && e.charCode <= 57) || e.charCode == 46) && typedIP.length < 39) {
-                typedIP += String.fromCharCode(e.charCode);
+            if (((charCode >= 48 && charCode <= 57) || charCode == 46) && typedIP.length < 39) {
+                typedIP += String.fromCharCode(charCode);
             }
         }
     }
@@ -459,7 +487,15 @@ class MultiplayerMenuState extends MusicBeatState
             return;
         }
 
-        if (FlxG.keys.justPressed.TAB && !typingIP && !typingNickname) {
+        #if mobile
+        // (the phone's keyboard shows up while something is typed)
+        var keyboardWanted:Bool = typingIP || typingNickname;
+        if (lime.app.Application.current.window.textInputEnabled != keyboardWanted)
+            lime.app.Application.current.window.textInputEnabled = keyboardWanted;
+        #end
+
+        var nicknameTapped:Bool = FlxG.mouse.justPressed && nicknameText.visible && FlxG.mouse.overlaps(nicknameText);
+        if ((FlxG.keys.justPressed.TAB || nicknameTapped) && !typingIP && !typingNickname) {
             typingNickname = true;
             typedNickname = NetworkManager.myNickname;
             FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -496,7 +532,7 @@ class MultiplayerMenuState extends MusicBeatState
                 NetworkManager.myNickname = typedNickname;
                 FlxG.save.data.multiplayerNickname = typedNickname;
                 FlxG.save.flush();
-                nicknameText.text = t('nick', "Nick: {1}\n[TAB] To Change", [typedNickname]);
+                nicknameText.text = nicknameLabel(typedNickname);
                 FlxG.sound.play(Paths.sound('confirmMenu'));
 
                 if (NetworkManager.connected) NetworkManager.send("NICK_EXCHANGE|" + typedNickname);

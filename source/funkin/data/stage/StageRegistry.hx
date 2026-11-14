@@ -9,6 +9,10 @@ import funkin.play.stage.Stage;
  */
 class StageRegistry
 {
+	// (the version of V-Slice's stage files it reads)
+	public static final STAGE_DATA_VERSION:String = '1.0.2';
+	public static final STAGE_DATA_VERSION_RULE:String = '>=1.0.0 <1.1.0';
+
 	public static var instance(get, never):StageRegistry;
 	static var _instance:StageRegistry = null;
 	static function get_instance():StageRegistry
@@ -22,16 +26,38 @@ class StageRegistry
 	/**
 	 * A stage, not built yet. Null if there's no such stage.
 	 */
+	/*
+	 * Like V-Slice's registry, asking for a stage again gives the same one: the one the song is on when it's that one (IndieCross
+	 * asks for "hall" on every frame to read what its script made), or the one made the last time. A new one was made every time,
+	 * a script of each stage made until finding it on every frame, and it had nothing of what the stage on the screen had.
+	 * They go with the song.
+	 */
+	var entries:Map<String, Stage> = [];
+	var entriesOf:Dynamic = null;
+
 	public function fetchEntry(id:String, ?params:Dynamic):Stage
 	{
 		if(id == null || id.length < 1) return null;
 
-		#if HSCRIPT_ALLOWED
-		var scripted:Stage = backend.VSliceScripts.makeStageScript(id);
-		if(scripted != null) return scripted;
-		#end
+		var playing:funkin.play.PlayState = funkin.play.PlayState.instance;
+		if(playing != null && playing.currentStage != null && playing.currentStage.id == id && playing.currentStage.alive)
+			return playing.currentStage;
 
-		return hasEntry(id) ? new Stage(id) : null;
+		if(entriesOf != states.PlayState.instance)
+		{
+			entries = [];
+			entriesOf = states.PlayState.instance;
+		}
+		var kept:Stage = entries.get(id);
+		if(kept != null && kept.alive) return kept;
+
+		var stage:Stage = null;
+		#if HSCRIPT_ALLOWED
+		stage = backend.VSliceScripts.makeStageScript(id);
+		#end
+		if(stage == null && hasEntry(id)) stage = new Stage(id);
+		if(stage != null) entries.set(id, stage);
+		return stage;
 	}
 
 	public function hasEntry(id:String):Bool

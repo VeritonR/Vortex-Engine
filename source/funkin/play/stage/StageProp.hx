@@ -9,6 +9,11 @@ import funkin.modding.events.ScriptEvent;
  */
 class StageProp extends FunkinSprite
 {
+	/**
+	 * If it dances with "danceLeft" and "danceRight" by turns (null: if it has those), like V-Slice's Bopper.
+	 */
+	public var shouldAlternate:Null<Bool> = null;
+
 	public var name:String = '';
 
 	/**
@@ -47,6 +52,56 @@ class StageProp extends FunkinSprite
 
 		super.playAnimation(name, restart, ignoreOther, reversed);
 		if(ignoreOther) canPlayOtherAnims = false;
+		applyAnimationOffsets(name);
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Offsets of each animation, like V-Slice's `Bopper` has (scripts set them when they make one)
+	// ------------------------------------------------------------------------------------------
+
+	public var animationOffsets:Map<String, Array<Float>> = new Map<String, Array<Float>>();
+
+	/**
+	 * What every animation is moved by, taken out of each animation's own offsets.
+	 */
+	public var globalOffsets(default, set):Array<Float> = [0, 0];
+	function set_globalOffsets(value:Array<Float>):Array<Float>
+		return globalOffsets = (value != null && value.length > 1) ? value : [0, 0];
+
+	// The offsets of the animation being played
+	public var animOffsets(default, set):Array<Float> = [0, 0];
+	function set_animOffsets(value:Array<Float>):Array<Float>
+		return animOffsets = (value != null && value.length > 1) ? value : [0, 0];
+
+	public function setAnimationOffsets(name:String, xOffset:Float, yOffset:Float):Void
+	{
+		animationOffsets.set(name, [xOffset, yOffset]);
+		if(name == getCurrentAnimation()) applyAnimationOffsets(name);
+	}
+
+	function applyAnimationOffsets(name:String):Void
+	{
+		animOffsets = (name != null) ? animationOffsets.get(name) : null;
+	}
+
+	// (drawn moved by them: "(animOffsets - globalOffsets) * scale")
+	override function getScreenPosition(?result:FlxPoint, ?camera:FlxCamera):FlxPoint
+	{
+		var output:FlxPoint = super.getScreenPosition(result, camera);
+		output.x -= (animOffsets[0] - globalOffsets[0]) * scale.x;
+		output.y -= (animOffsets[1] - globalOffsets[1]) * scale.y;
+		return output;
+	}
+
+	override function drawAtlas():Void
+	{
+		var moveX:Float = (animOffsets[0] - globalOffsets[0]) * scale.x;
+		var moveY:Float = (animOffsets[1] - globalOffsets[1]) * scale.y;
+		x -= moveX;
+		y -= moveY;
+		super.drawAtlas();
+		x += moveX;
+		y += moveY;
 	}
 
 	/**

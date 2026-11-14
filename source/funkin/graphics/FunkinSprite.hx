@@ -8,6 +8,24 @@ import hxc.HxcRuntime.IHxcScripted;
 #end
 
 /**
+ * How a texture atlas is loaded (`loadTextureAtlas(path, library, settings)`), like V-Slice's. The engine reads `applyStageMatrix`
+ * and `useRenderTexture`; the rest is for V-Slice's own atlas library.
+ */
+typedef AtlasSpriteSettings =
+{
+	@:optional var swfMode:Bool;
+	@:optional var cacheOnLoad:Bool;
+	@:optional var filterQuality:Dynamic;
+	@:optional var spritemaps:Array<Dynamic>;
+	@:optional var metadataJson:String;
+	@:optional var cacheKey:String;
+	@:optional var uniqueInCache:Bool;
+	@:optional var onSymbolCreate:Dynamic->Void;
+	@:optional var applyStageMatrix:Bool;
+	@:optional var useRenderTexture:Bool;
+}
+
+/**
  * V-Slice's sprite class: a regular sprite with a layer and shortcuts to load things.
  *
  * Scripts can also extend it (`class MySprite extends FunkinSprite`), what they override of `update`, `draw`, `destroy`, `kill` and `revive`
@@ -70,6 +88,15 @@ class FunkinSprite extends FlxSprite #if HSCRIPT_ALLOWED implements IHxcScripted
 		sprite.loadPacker(key);
 		return sprite;
 	}
+
+	// The cache of older V-Slice versions, which moved to `FunkinMemory` (Twinsomnia's stages load their images with these)
+	public static function isTextureCached(key:String):Bool return funkin.FunkinMemory.isTextureCached(key);
+	public static function cacheTexture(key:Dynamic):Void funkin.FunkinMemory.cacheTexture(key);
+	public static function permanentCacheTexture(key:Dynamic):Void funkin.FunkinMemory.permanentCacheTexture(key);
+	public static function cacheSparrow(key:Dynamic):Void funkin.FunkinMemory.cacheTexture(key);
+	public static function cachePacker(key:Dynamic):Void funkin.FunkinMemory.cacheTexture(key);
+	public static function preparePurgeCache():Void funkin.FunkinMemory.preparePurgeTextureCache();
+	public static function purgeCache():Void funkin.FunkinMemory.purgeCache();
 
 	public function loadTexture(key:String):FunkinSprite
 	{

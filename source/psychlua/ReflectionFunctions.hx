@@ -32,11 +32,22 @@ class ReflectionFunctions
 			return value;
 		});
 		Lua_helper.add_callback(lua, "getPropertyFromClass", function(classVar:String, variable:String, ?allowMaps:Bool = false) {
-			var myClass:Dynamic = Type.resolveClass(classVar);
+			var myClass:Dynamic = LegacyCompat.resolveClass(classVar);
 			if(myClass == null)
 			{
 				FunkinLua.luaTrace('getPropertyFromClass: Class $classVar not found', false, false, FlxColor.RED);
 				return null;
+			}
+			// (the options, as older versions had them: ClientPrefs.downScroll)
+			if(myClass == backend.ClientPrefs)
+			{
+				var path:String = LegacyCompat.clientPrefsPath(variable);
+				if(path != null) variable = path;
+				else if(!Type.getClassFields(backend.ClientPrefs).contains(variable.split('.')[0]))
+				{
+					var old = LegacyCompat.oldOption(variable);
+					return old.value; //(an option of the mod's own engine: nothing, like those versions gave for one they didn't have)
+				}
 			}
 
 			var split:Array<String> = variable.split('.');
@@ -51,11 +62,17 @@ class ReflectionFunctions
 			return LuaUtils.getVarInArray(myClass, variable, allowMaps);
 		});
 		Lua_helper.add_callback(lua, "setPropertyFromClass", function(classVar:String, variable:String, value:Dynamic, ?allowMaps:Bool = false, ?allowInstances:Bool = false) {
-			var myClass:Dynamic = Type.resolveClass(classVar);
+			var myClass:Dynamic = LegacyCompat.resolveClass(classVar);
 			if(myClass == null)
 			{
 				FunkinLua.luaTrace('setPropertyFromClass: Class $classVar not found', false, false, FlxColor.RED);
 				return null;
+			}
+			if(myClass == backend.ClientPrefs)
+			{
+				var path:String = LegacyCompat.clientPrefsPath(variable);
+				if(path != null) variable = path;
+				else if(!Type.getClassFields(backend.ClientPrefs).contains(variable.split('.')[0])) return value;
 			}
 
 			var split:Array<String> = variable.split('.');
@@ -162,7 +179,12 @@ class ReflectionFunctions
 			}
 			else groupOrArray.insert(index, obj);
 		});
-		Lua_helper.add_callback(lua, "removeFromGroup", function(group:String, ?index:Int = -1, ?tag:String = null, ?destroy:Bool = true) {
+		Lua_helper.add_callback(lua, "removeFromGroup", function(group:String, ?index:Int = -1, ?tagArg:Dynamic = null, ?destroyArg:Dynamic = true) {
+			// (up to 0.7 the third was "dontDestroy": removeFromGroup('notes', i, true))
+			var tag:String = null;
+			var destroy:Bool = (destroyArg != false);
+			if(Std.isOfType(tagArg, Bool)) destroy = !tagArg;
+			else if(tagArg != null) tag = Std.string(tagArg);
 			var obj:FlxSprite = null;
 			if(tag != null)
 			{
@@ -214,7 +236,7 @@ class ReflectionFunctions
 			return Reflect.callMethod(null, parent, parseInstances(args));
 		});
 		Lua_helper.add_callback(lua, "callMethodFromClass", function(className:String, funcToRun:String, ?args:Array<Dynamic>) {
-			return callMethodFromObject(Type.resolveClass(className), funcToRun, parseInstances(args));
+			return callMethodFromObject(LegacyCompat.resolveClass(className), funcToRun, parseInstances(args));
 		});
 
 		Lua_helper.add_callback(lua, "createInstance", function(variableToSave:String, className:String, ?args:Array<Dynamic>) {
@@ -223,7 +245,7 @@ class ReflectionFunctions
 			if(MusicBeatState.getVariables().get(variableToSave) == null)
 			{
 				if(args == null) args = [];
-				var myType:Dynamic = Type.resolveClass(className);
+				var myType:Dynamic = LegacyCompat.resolveClass(className);
 		
 				if(myType == null)
 				{
@@ -294,7 +316,7 @@ class ReflectionFunctions
 				var lastIndex:Int = argStr.lastIndexOf('::');
 
 				var split:Array<String> = (lastIndex > -1) ? argStr.substring(0, lastIndex).split('.') : argStr.split('.');
-				arg = (lastIndex > -1) ? Type.resolveClass(argStr.substring(lastIndex+2)) : PlayState.instance;
+				arg = (lastIndex > -1) ? LegacyCompat.resolveClass(argStr.substring(lastIndex+2)) : PlayState.instance;
 				for (j in 0...split.length)
 				{
 					//trace('Op2: ${Type.getClass(args[i])}, ${split[j]}');

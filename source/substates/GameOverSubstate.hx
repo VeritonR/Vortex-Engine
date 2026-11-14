@@ -189,11 +189,15 @@ class GameOverSubstate extends MusicBeatSubstate
 		FlxG.camera.scroll.set();
 		FlxG.camera.target = null;
 
+		// (made before the death animation, like on V-Slice: a character's script moves it when that one starts, QT Rewired's
+		// Boyfriend on his saw death. What it moved it by is kept)
+		camFollow = new FlxObject(0, 0, 1, 1);
 		if(fadingDeath) startOpponentDeath();
 		else boyfriend.playAnim('firstDeath');
 
-		camFollow = new FlxObject(0, 0, 1, 1);
-		camFollow.setPosition(boyfriend.getGraphicMidpoint().x + boyfriend.cameraPosition[0], boyfriend.getGraphicMidpoint().y + boyfriend.cameraPosition[1]);
+		var movedX:Float = camFollow.x;
+		var movedY:Float = camFollow.y;
+		camFollow.setPosition(boyfriend.getGraphicMidpoint().x + boyfriend.cameraPosition[0] + movedX, boyfriend.getGraphicMidpoint().y + boyfriend.cameraPosition[1] + movedY);
 		FlxG.camera.focusOn(new FlxPoint(FlxG.camera.scroll.x + (FlxG.camera.width / 2), FlxG.camera.scroll.y + (FlxG.camera.height / 2)));
 		FlxG.camera.follow(camFollow, LOCKON, 0.01);
 		if(fadingDeath)
@@ -312,47 +316,7 @@ class GameOverSubstate extends MusicBeatSubstate
 			}
 			else if (controls.BACK)
 			{
-				#if DISCORD_ALLOWED DiscordClient.resetClientID(); #end
-				FlxG.camera.visible = false;
-				FlxG.sound.music.stop();
-				PlayState.deathCounter = 0;
-				PlayState.seenCutscene = false;
-				PlayState.chartingMode = false;
-
-				// ---> AVISA O GANHADOR E LIMPA A REDE <---
-				var wasMultiplayer:Bool = false;
-				if (backend.NetworkManager.connected) {
-					wasMultiplayer = true;
-					backend.NetworkManager.send("RETURN_TO_LOBBY"); // <--- AVISA O GANHADOR AQUI (a conexão continua, para a próxima música)
-				}
-				// -----------------------------------------
-	
-				backend.StickerTransition.prepare();
-				Mods.loadTopMod();
-				
-				// Se era Multiplayer, volta pro Lobby. Senão, segue o jogo normal.
-				if (wasMultiplayer)
-				{
-					backend.StickerTransition.switchState(new states.MultiplayerMenuState());
-					FlxG.sound.playMusic(Paths.music('freakyMenu'));
-				}
-				else if (PlayState.isStoryMode)
-				{
-					backend.StickerTransition.switchState(new StoryMenuState());
-					FlxG.sound.playMusic(Paths.music('freakyMenu'));
-				}
-				else if (ClientPrefs.data.freeplayStyle == 'V-Slice')
-				{
-					FreeplayStateVslice.playerDied = true;
-					backend.StickerTransition.switchState(new FreeplayStateVslice());
-				}
-				else
-				{
-					backend.StickerTransition.switchState(new FreeplayState());
-					FlxG.sound.playMusic(Paths.music('freakyMenu'));
-				}
-	
-				PlayState.instance.callOnScripts('onGameOverConfirm', [false]);
+				leaveToMenu();
 			}
 			else if (justPlayedLoop && playDeathQuote())
 			{
@@ -456,6 +420,55 @@ class GameOverSubstate extends MusicBeatSubstate
 		FlxTween.color(boyfriend, 0.6, deathColor, FlxColor.WHITE, {ease: FlxEase.quadOut});
 		for (piece in deathPieces) piece.visible = false;
 		if(boyfriend.animation.curAnim != null) boyfriend.animation.curAnim.resume();
+	}
+
+	// Back to the menu the song was picked on (BACK, or a V-Slice script's `goBack()`), once
+	var leftToMenu:Bool = false;
+	public function leaveToMenu():Void
+	{
+		if(leftToMenu) return;
+		leftToMenu = true;
+		#if DISCORD_ALLOWED DiscordClient.resetClientID(); #end
+		FlxG.camera.visible = false;
+		FlxG.sound.music.stop();
+		PlayState.deathCounter = 0;
+		PlayState.seenCutscene = false;
+		PlayState.chartingMode = false;
+
+		// ---> AVISA O GANHADOR E LIMPA A REDE <---
+		var wasMultiplayer:Bool = false;
+		if (backend.NetworkManager.connected) {
+			wasMultiplayer = true;
+			backend.NetworkManager.send("RETURN_TO_LOBBY"); // <--- AVISA O GANHADOR AQUI (a conexão continua, para a próxima música)
+		}
+		// -----------------------------------------
+
+		backend.StickerTransition.prepare();
+		Mods.loadTopMod();
+		
+		// Se era Multiplayer, volta pro Lobby. Senão, segue o jogo normal.
+		if (wasMultiplayer)
+		{
+			backend.StickerTransition.switchState(new states.MultiplayerMenuState());
+			FlxG.sound.playMusic(Paths.music('freakyMenu'));
+		}
+		else if (PlayState.isStoryMode)
+		{
+			backend.StickerTransition.switchState(new StoryMenuState());
+			FlxG.sound.playMusic(Paths.music('freakyMenu'));
+		}
+		else if (ClientPrefs.data.freeplayStyle == 'V-Slice')
+		{
+			FreeplayStateVslice.playerDied = true;
+			backend.StickerTransition.switchState(new FreeplayStateVslice());
+		}
+		else
+		{
+			backend.StickerTransition.switchState(new FreeplayState());
+			FlxG.sound.playMusic(Paths.music('freakyMenu'));
+		}
+
+		PlayState.instance.callOnScripts('onGameOverConfirm', [false]);
 	}
 
 	var isEnding:Bool = false;

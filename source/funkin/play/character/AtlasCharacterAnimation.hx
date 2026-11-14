@@ -147,6 +147,23 @@ class AtlasCharacterAnimationState
 	public function restart():Void
 		character.playAnim(name, true);
 
+	// (flixel's own, which scripts hold an animation with: QT Rewired's robot waits on the first frame of its entrance until its cue)
+	public function pause():Void
+	{
+		if(isCurrent()) character.animPaused = true;
+	}
+
+	public function resume():Void
+	{
+		if(isCurrent()) character.animPaused = false;
+	}
+
+	public function stop():Void
+		pause();
+
+	public function play(force:Bool = false, reversed:Bool = false, frame:Int = 0):Void
+		character.playAnimDirect(name, force, reversed, frame);
+
 	public function finish():Void
 	{
 		if(isCurrent()) character.finishAnimation();

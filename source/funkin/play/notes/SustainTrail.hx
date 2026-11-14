@@ -217,7 +217,19 @@ class SustainTrail
 	function get_graphic():flixel.graphics.FlxGraphic
 	{
 		var piece:Note = firstPiece();
-		return (piece != null) ? piece.graphic : null;
+		// (before its pieces are there, the note's own: scripts work out sizes with it, `graphic.width`)
+		if(piece == null || piece.graphic == null) return (parentNote != null) ? parentNote.graphic : null;
+		return piece.graphic;
+	}
+
+	/**
+	 * The scroll speed of the chart (V-Slice's: scripts size their own long notes with it).
+	 */
+	public function getBaseScrollSpeed():Float
+	{
+		var chart:Dynamic = (funkin.play.PlayState.instance != null) ? funkin.play.PlayState.instance.currentChart : null;
+		if(chart != null && chart.scrollSpeed != null) return chart.scrollSpeed;
+		return (states.PlayState.SONG != null) ? states.PlayState.SONG.speed : 1.0;
 	}
 	public var zoom:Float = 1;
 	public var graphicWidth:Float = 0;

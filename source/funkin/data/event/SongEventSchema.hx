@@ -28,3 +28,42 @@ class SongEventSchema
 	public var length(get, never):Int;
 	function get_length():Int return fields.length;
 }
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+/**
+ * The available field types for a song event schema.
+ */
+enum abstract SongEventFieldType(String) from String to String
+{
+	/**
+	 * The STRING type will display as a text field.
+	 */
+	public var STRING = 'string';
+
+	/**
+	 * The INTEGER type will display as a text field that only accepts numbers.
+	 */
+	public var INTEGER = 'integer';
+
+	/**
+	 * The FLOAT type will display as a text field that only accepts numbers.
+	 */
+	public var FLOAT = 'float';
+
+	/**
+	 * The BOOL type will display as a checkbox.
+	 */
+	public var BOOL = 'bool';
+
+	/**
+	 * The ENUM type will display as a dropdown.
+	 * Make sure to specify the `keys` field in the schema.
+	 */
+	public var ENUM = 'enum';
+
+	/**
+	 * The FRAME type will display a frame with child components.
+	 * Make sure to specify the `children` field in the schema.
+	 */
+	public var FRAME = 'frame';
+}

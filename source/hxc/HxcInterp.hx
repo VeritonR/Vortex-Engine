@@ -13,7 +13,7 @@ import hxc.HxcRuntime;
  * What changes from regular HScript is where the names come from: the object's variables and functions,
  * then what the class it extends has, then the class' static ones (see `HxcScope`). `this` and `super` exist as well.
  */
-class HxcInterp extends Interp
+class HxcInterp extends FlowInterp
 {
 	/**
 	 * An error the game threw while a script was running ("Null Object Reference"...), with the line of the script it happened on:
@@ -22,7 +22,19 @@ class HxcInterp extends Interp
 	public function withLine(error:Dynamic):Dynamic
 	{
 		if(Std.isOfType(error, crowplexus.hscript.Expr.Error) || curExpr == null) return error;
-		return Std.string(error) + ' (line ' + curExpr.line + ')';
+		// (and where in the engine it came from, the first few places of it that aren't the script interpreter)
+		var places:Array<String> = [];
+		for (item in haxe.CallStack.exceptionStack())
+		{
+			switch(item)
+			{
+				case FilePos(_, file, line, _):
+					if(file.indexOf('hscript') < 0 && file.indexOf('hxc/') < 0 && file.indexOf('Reflect') < 0) places.push(file.split('/').pop() + ':' + line);
+				default:
+			}
+			if(places.length >= 3) break;
+		}
+		return Std.string(error) + ' (line ' + curExpr.line + ')' + ((places.length > 0) ? ' at ' + places.join(' < ') : '');
 	}
 
 	public var cls(default, null):HxcClass;
@@ -126,6 +138,9 @@ class HxcInterp extends Interp
 	public function makeFunction(func:FunctionDecl, level:Int, name:String):Dynamic
 	{
 		var body:Expr = (func.expr != null) ? func.expr : makeExpr(EBlock([]), null);
+		// (a class's function called with fewer values than it takes gets null for the rest, or their default, like V-Slice's scripts:
+		// Twinsomnia's characters declare `playAnimation(name, restart, ignoreOther)` and call `playAnimation(name)`)
+		for (arg in func.args) arg.opt = true;
 		var oldLocals = locals;
 		locals = new Map(); //class functions don't capture anything
 		var raw:Dynamic = super.expr(makeExpr(EFunction(func.args, withDefaults(func.args, body), null, func.ret), body));
@@ -136,10 +151,11 @@ class HxcInterp extends Interp
 		// (a constructor that fails means there's no object: whoever asked for one has to know)
 		if(name == 'new') return Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic return me.run(raw, args, level, func.args));
 
-		// A function that gives nothing back (declared ":Void", or with no "return" of a value) gives null, like in Haxe: the library
-		// gives back the value of its last line, which a script then takes for what it asked for (Whitty's dialogue box set its
-		// sound to the path of the sound's file, and the game closed when it was played)
-		var givesNothing:Bool = returnsVoid(func.ret) || !returnsValue(body);
+		// A function with no "return" of a value gives null, like on V-Slice: the library gives back the value of its last line, which
+		// a script then takes for what it asked for (Whitty's dialogue box set its sound to the path of the sound's file, and the game
+		// closed when it was played). One declared ":Void" that returns something still gives it, as V-Slice doesn't look at the type
+		// (SKYREBORN's main menu button)
+		var givesNothing:Bool = !returnsValue(body);
 		if(givesNothing)
 			return Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic
 			{
@@ -173,16 +189,6 @@ class HxcInterp extends Interp
 			}
 			return null;
 		});
-	}
-
-	static function returnsVoid(type:CType):Bool
-	{
-		if(type == null) return false; //(no type written)
-		return switch(type)
-		{
-			case CTPath(path): path != null && path.name == 'Void' && (path.pack == null || path.pack.length == 0);
-			default: false;
-		}
 	}
 
 	// If a function's body has a "return" of a value (not counting the functions inside of it)
@@ -419,6 +425,15 @@ class HxcInterp extends Interp
 		if(local != null) return local.r;
 		if(id == LOOP_GUARD && loopGuards.length > 0) return loopGuards[loopGuards.length - 1];
 
+		// (what the script imported comes before the engine's own version of a name: `import funkin.util.tools.StringTools;` is V-Slice's
+		// StringTools, with its `stripSuffix()`, not Haxe's)
+		if(HxcRuntime.globals.exists(id) && (instance == null || !instance.hasMember(id)))
+		{
+			var imported:Map<String, Dynamic> = getImports();
+			if(imported.exists(id)) return imported.get(id);
+			if(imports.exists(id)) return imports.get(id);
+		}
+
 		if(scope.exists(id)) return scope.get(id);
 
 		var current:Map<String, Dynamic> = getImports();
@@ -526,7 +541,7 @@ class HxcInterp extends Interp
 		var scripted:HxcInstance = HxcRuntime.getInstance(o);
 		if(scripted != null) return scripted.getField(f);
 
-		if(Std.isOfType(o, flixel.input.FlxBaseKeyList)) backend.TouchControls.askedKey(f);
+		if(backend.TouchControls.watchingKeys && Std.isOfType(o, flixel.input.FlxBaseKeyList)) backend.TouchControls.askedKey(f);
 		var value:Dynamic = HxcRuntime.readMember(o, f);
 		if(value == null) value = HxcRuntime.getExtra(o, f);
 		if(value == null)
@@ -616,11 +631,15 @@ class HxcInterp extends Interp
 			}
 
 			HxcRuntime.setExtra(o, f, v);
+			// (on C++ setting a variable a class doesn't have always throws: one exception for every one of these, which on phones is
+			// a stutter of a few hundred milliseconds. Vs Impostor sets a sprite's "zIndex" on every double note. Kept on the side only)
+			#if !cpp
 			try
 			{
 				Reflect.setProperty(o, f, v);
 			}
 			catch(e:Dynamic) {}
+			#end
 			return v;
 		}
 

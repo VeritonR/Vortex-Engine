@@ -8,6 +8,16 @@ class SongRegistry
 {
 	public static var instance:SongRegistry = new SongRegistry();
 
+	// (the versions of V-Slice's song files it reads)
+	public static final SONG_METADATA_VERSION:String = '2.2.4';
+	public static final SONG_METADATA_VERSION_RULE:String = '2.2.x';
+	public static final SONG_CHART_DATA_VERSION:String = '2.0.0';
+	public static final SONG_CHART_DATA_VERSION_RULE:String = '2.0.x';
+	public static final SONG_MUSIC_DATA_VERSION:String = '2.0.0';
+	public static final SONG_MUSIC_DATA_VERSION_RULE:String = '2.0.x';
+	public static var DEFAULT_GENERATEDBY(get, never):String;
+	static function get_DEFAULT_GENERATEDBY():String return 'Vortex Engine';
+
 	public function new() {}
 
 	/**

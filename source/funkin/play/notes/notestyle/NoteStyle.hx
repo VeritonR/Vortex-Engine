@@ -561,6 +561,41 @@ class NoteStyle
 	// The rest of what V-Slice's note styles tell about themselves
 	// ------------------------------------------------------------------------------------------
 
+	/**
+	 * A rating of the style that pops up ("sick", "good"...), looking like the engine draws it for the style. Styles of scripts
+	 * (`ScriptedNoteStyle`) can have their own, and ask for this one with `super.buildJudgementSprite(rating)`.
+	 */
+	public function buildJudgementSprite(rating:String):FlxSprite
+	{
+		#if HSCRIPT_ALLOWED
+		if(backend.VSliceScripts.callOverride(this, 'buildJudgementSprite', [rating])) return backend.VSliceScripts.overrideResult;
+		#end
+		// (during a song, the way the engine draws the ratings; elsewhere the style's own picture)
+		var game:states.PlayState = states.PlayState.instance;
+		var sprite:FlxSprite = (game != null) ? game.makeJudgementSprite((rating != null) ? rating : 'sick', this) : buildPopUpSprite(judgementName(rating));
+		lastDefault = sprite;
+		return sprite;
+	}
+
+	/**
+	 * The last rating `buildJudgementSprite()` made as the engine draws it: when a script gives that one back, the engine shows the
+	 * rating its own way.
+	 */
+	public static var lastDefault:FlxSprite = null;
+
+	/**
+	 * If the style is a script's with its own `buildJudgementSprite()`.
+	 */
+	public function hasScriptedJudgement():Bool
+	{
+		#if HSCRIPT_ALLOWED
+		var script:hxc.HxcInstance = hxc.HxcRuntime.getInstance(this);
+		return script != null && script.hasMethod('buildJudgementSprite');
+		#else
+		return false;
+		#end
+	}
+
 	public function buildNoteSprite(target:Dynamic):Void
 	{
 		var note:objects.Note = Std.isOfType(target, NoteSprite) ? cast(target, NoteSprite).note : Std.downcast(target, objects.Note);
@@ -575,6 +610,30 @@ class NoteStyle
 
 	// (given with the frames, by `applyStrumlineFrames()`)
 	public function applyStrumlineAnimations(target:Dynamic, ?direction:Dynamic):Void {}
+
+	/*
+	 * The spritesheets of the style, loaded (V-Slice's: scripts call them to have a style ready before giving it to a strumline,
+	 * Darkness Takeover's corrupted notes). The engine's note styles load their pictures when they're used: this is that ahead.
+	 */
+	public function buildNoteFrames(force:Bool = false):FlxAtlasFrames
+		return framesOf(getNoteAssetPath());
+
+	public function buildSplashFrames(force:Bool = false):FlxAtlasFrames
+		return framesOf(getSplashAssetPath());
+
+	public function buildHoldCoverFrames(force:Bool = false):FlxAtlasFrames
+	{
+		var first:FlxAtlasFrames = null;
+		for (direction in 0...4)
+		{
+			var frames:FlxAtlasFrames = framesOf(getHoldCoverDirectionAssetPath(direction));
+			if(first == null) first = frames;
+		}
+		return first;
+	}
+
+	static function framesOf(path:String):FlxAtlasFrames
+		return (path != null && path.length > 0) ? Paths.getSparrowAtlas(path) : null;
 
 	public function buildSplashSprite(target:Dynamic):Void {}
 	public function buildHoldCoverSprite(target:Dynamic):Void {}
@@ -605,7 +664,6 @@ class NoteStyle
 
 	public function isJudgementSpritePixel(rating:String):Bool return isPartPixel(judgementName(rating));
 	public function getJudgementSpriteOffsets(rating:String):Array<Float> return offsetsOf(judgementName(rating));
-	public function buildJudgementSprite(rating:String):FunkinSprite return buildPopUpSprite(judgementName(rating));
 
 	public function isComboNumSpritePixel(digit:Int):Bool return isPartPixel('comboNumber$digit');
 	public function getComboNumSpriteOffsets(digit:Int):Array<Float> return offsetsOf('comboNumber$digit');

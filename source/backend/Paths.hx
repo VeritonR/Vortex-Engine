@@ -358,6 +358,32 @@ class Paths
 		return cacheBitmap(key, parentFolder, bitmap, allowGPU);
 	}
 
+	#if MODS_ALLOWED
+	/**
+	 * An image that isn't there as a PNG but as an ".astc" file: the mod is the version made for phones, whose images V-Slice turns
+	 * into that format when it builds itself for them (and only reads there). Says so (once on each song's log).
+	 */
+	static function warnCompressedImage(key:String):Void
+	{
+		if(key == null) return;
+		// (the image's path inside of a mod: "images/name", with or without its extension)
+		var name:String = key.toLowerCase().endsWith('.png') ? key.substr(0, key.length - 4) : key;
+		if(!name.startsWith('images/')) name = 'images/' + name;
+		var compressed:String = modFolders(name + '.astc');
+		if(compressed == null || !FileSystem.exists(compressed)) return;
+
+		var mod:String = (Mods.currentModDirectory != null && Mods.currentModDirectory.length > 0) ? Mods.currentModDirectory : 'this mod';
+
+		var message:String = 'The images of "' + mod + '" are in the ASTC format (".astc" files, with no ".png"): that is the version of the mod made for phones, and those images only open on V-Slice for mobile. Use the PC version of the mod to see them.';
+		trace(message);
+		#if HSCRIPT_ALLOWED
+		backend.VSliceScripts.warn(message);
+		#else
+		if(states.PlayState.instance != null) states.PlayState.instance.addTextToDebug(message, FlxColor.YELLOW);
+		#end
+	}
+	#end
+
 	public static function cacheBitmap(key:String, ?parentFolder:String = null, ?bitmap:BitmapData, ?allowGPU:Bool = true):FlxGraphic
 	{
 		if (bitmap == null)
@@ -372,11 +398,16 @@ class Paths
 			if (bitmap == null)
 			{
 				trace('Bitmap not found: $file | key: $key');
+				#if MODS_ALLOWED
+				warnCompressedImage(key);
+				#end
 				return null;
 			}
 		}
 
-		if (allowGPU && ClientPrefs.data.cacheOnGPU && bitmap.image != null)
+		// (Texture Quality: a big image goes to the GPU at half its size, its copy in the RAM let go)
+		var lightened:Bool = allowGPU && backend.TextureQuality.lighten(bitmap);
+		if (!lightened && allowGPU && ClientPrefs.data.cacheOnGPU && bitmap.image != null)
 		{
 			bitmap.lock();
 			if (bitmap.__texture == null)

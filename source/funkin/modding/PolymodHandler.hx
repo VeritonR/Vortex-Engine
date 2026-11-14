@@ -72,8 +72,9 @@ class ModFileSystem
 			author: raw.author,
 			contributors: (raw.contributors != null) ? raw.contributors : [],
 			homepage: raw.homepage,
-			apiVersion: (raw.api_version != null) ? raw.api_version : API_VERSION_FALLBACK,
-			modVersion: (raw.mod_version != null) ? raw.mod_version : '1.0.0',
+			// (versions, like V-Slice's metadata has them: `Version.toString(metadata.modVersion)`)
+			apiVersion: version((raw.api_version != null) ? Std.string(raw.api_version) : API_VERSION_FALLBACK),
+			modVersion: version((raw.mod_version != null) ? Std.string(raw.mod_version) : '1.0.0'),
 			license: raw.license,
 			dependencies: (raw.dependencies != null) ? raw.dependencies : {},
 			optionalDependencies: (raw.optionalDependencies != null) ? raw.optionalDependencies : {}
@@ -86,6 +87,17 @@ class ModFileSystem
 	}
 
 	static inline var API_VERSION_FALLBACK:String = '0.8.0';
+
+	// A version out of its text ("1.2.0"); one that isn't written right is 1.0.0
+	static function version(text:String):thx.semver.Version
+	{
+		try
+		{
+			return thx.semver.Version.stringToVersion(StringTools.trim(text));
+		}
+		catch(e:Dynamic) {}
+		return thx.semver.Version.stringToVersion('1.0.0');
+	}
 
 	/**
 	 * The same, by the id the mod gave itself.

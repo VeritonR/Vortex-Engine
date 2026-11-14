@@ -91,4 +91,39 @@ class PopUpStuff
 	}
 
 	public var zIndex:Int = 0;
+
+	// What V-Slice's PopUpStuff has of the group it is (scripts move the sprites that popped up out of it, or put their own in it)
+
+	public var length(get, never):Int;
+	function get_length():Int return (group != null) ? group.length : 0;
+
+	public function add(sprite:FlxSprite):FlxSprite
+	{
+		return (group != null && sprite != null) ? group.add(sprite) : sprite;
+	}
+
+	public function insert(position:Int, sprite:FlxSprite):FlxSprite
+	{
+		return (group != null && sprite != null) ? group.insert(position, sprite) : sprite;
+	}
+
+	public function remove(sprite:FlxSprite, splice:Bool = false):FlxSprite
+	{
+		return (group != null && sprite != null) ? group.remove(sprite, splice) : sprite;
+	}
+
+	public function forEach(callback:FlxSprite->Void, recurse:Bool = false):Void
+	{
+		if(group != null) group.forEach(callback, recurse);
+	}
+
+	public function forEachAlive(callback:FlxSprite->Void, recurse:Bool = false):Void
+	{
+		if(group != null) group.forEachAlive(callback, recurse);
+	}
+
+	public function clear():Void
+	{
+		if(group != null) group.clear();
+	}
 }

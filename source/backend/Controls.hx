@@ -142,6 +142,65 @@ class Controls
 		return result || _myGamepadJustReleased(gamepadBinds[key]) == true || TouchControls.justReleased(key);
 	}
 
+	// ------------------------------------------------------------------------------------------
+	// V-Slice's names of the controls (its PlayerSettings.player1.controls), for its classes and scripts: "_P" is just pressed and
+	// "_R" just released. Its own actions the engine has no bind for are on V-Slice's default keys.
+	// ------------------------------------------------------------------------------------------
+
+	public var ACCEPT_P(get, never):Bool; function get_ACCEPT_P():Bool return justPressed('accept');
+	public var ACCEPT_R(get, never):Bool; function get_ACCEPT_R():Bool return justReleased('accept');
+	public var BACK_P(get, never):Bool; function get_BACK_P():Bool return justPressed('back');
+	public var BACK_R(get, never):Bool; function get_BACK_R():Bool return justReleased('back');
+	public var PAUSE_P(get, never):Bool; function get_PAUSE_P():Bool return justPressed('pause');
+	public var PAUSE_R(get, never):Bool; function get_PAUSE_R():Bool return justReleased('pause');
+	public var RESET_P(get, never):Bool; function get_RESET_P():Bool return justPressed('reset');
+	public var RESET_R(get, never):Bool; function get_RESET_R():Bool return justReleased('reset');
+
+	public var VOLUME_UP(get, never):Bool; function get_VOLUME_UP():Bool return justPressed('volume_up');
+	public var VOLUME_DOWN(get, never):Bool; function get_VOLUME_DOWN():Bool return justPressed('volume_down');
+	public var VOLUME_MUTE(get, never):Bool; function get_VOLUME_MUTE():Bool return justPressed('volume_mute');
+
+	public var FREEPLAY_FAVORITE(get, never):Bool; function get_FREEPLAY_FAVORITE():Bool return FlxG.keys.justPressed.F;
+	public var FREEPLAY_LEFT(get, never):Bool; function get_FREEPLAY_LEFT():Bool return FlxG.keys.justPressed.Q;
+	public var FREEPLAY_RIGHT(get, never):Bool; function get_FREEPLAY_RIGHT():Bool return FlxG.keys.justPressed.E;
+	public var FREEPLAY_CHAR_SELECT(get, never):Bool; function get_FREEPLAY_CHAR_SELECT():Bool return FlxG.keys.justPressed.TAB;
+	public var FREEPLAY_JUMP_TO_TOP(get, never):Bool; function get_FREEPLAY_JUMP_TO_TOP():Bool return FlxG.keys.justPressed.HOME;
+	public var FREEPLAY_JUMP_TO_BOTTOM(get, never):Bool; function get_FREEPLAY_JUMP_TO_BOTTOM():Bool return FlxG.keys.justPressed.END;
+	public var WINDOW_FULLSCREEN(get, never):Bool; function get_WINDOW_FULLSCREEN():Bool return FlxG.keys.justPressed.F11;
+	public var WINDOW_SCREENSHOT(get, never):Bool; function get_WINDOW_SCREENSHOT():Bool return FlxG.keys.justPressed.F3;
+	public var DEBUG_MENU(get, never):Bool; function get_DEBUG_MENU():Bool return FlxG.keys.justPressed.GRAVEACCENT;
+	public var DEBUG_CHART(get, never):Bool; function get_DEBUG_CHART():Bool return false;
+	public var DEBUG_STAGE(get, never):Bool; function get_DEBUG_STAGE():Bool return false;
+	public var DEBUG_DISPLAY(get, never):Bool; function get_DEBUG_DISPLAY():Bool return FlxG.keys.justPressed.F6;
+
+	/**
+	 * V-Slice's way of asking about a control: one of its actions ("note_left", "ui_up", "accept"...), and how it's being pressed.
+	 */
+	public function check(action:Dynamic, ?state:flixel.input.FlxInput.FlxInputState, gamepadOnly:Bool = false):Bool
+	{
+		var key:String = (action != null) ? Std.string(action) : '';
+		if(key == 'cutscene_advance') key = 'accept';
+		if(state == null) state = JUST_PRESSED;
+		if(keyboardBinds == null || !keyboardBinds.exists(key)) return false;
+		if(gamepadOnly)
+		{
+			return switch(state)
+			{
+				case PRESSED: _myGamepadPressed(gamepadBinds[key]) == true;
+				case JUST_RELEASED: _myGamepadJustReleased(gamepadBinds[key]) == true;
+				case RELEASED: _myGamepadPressed(gamepadBinds[key]) != true;
+				default: _myGamepadJustPressed(gamepadBinds[key]) == true;
+			}
+		}
+		return switch(state)
+		{
+			case PRESSED: pressed(key);
+			case JUST_RELEASED: justReleased(key);
+			case RELEASED: !pressed(key);
+			default: justPressed(key);
+		}
+	}
+
 	public var controllerMode:Bool = false;
 	private function _myGamepadJustPressed(keys:Array<FlxGamepadInputID>):Bool
 	{

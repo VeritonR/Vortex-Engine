@@ -30,3 +30,21 @@ class Cursor
 		else show();
 	}
 }
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+enum CursorMode
+{
+	Default;
+	Cross;
+	Eraser;
+	Grabbing;
+	Hourglass;
+	Pointer;
+	Text;
+	TextVertical;
+	ZoomIn;
+	ZoomOut;
+	Crosshair;
+	Cell;
+	Scroll;
+}

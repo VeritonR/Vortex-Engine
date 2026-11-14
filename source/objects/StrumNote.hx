@@ -20,6 +20,19 @@ class StrumNote extends FlxSprite
 
 	public var rgbShader:RGBShaderReference;
 	public var resetAnim:Float = 0;
+
+	// (older versions' scripts: the colors were a hue/saturation/brightness shader over receptors already colored, see Note.colorSwap)
+	public var colorSwap(get, never):shaders.ColorSwap;
+	var _colorSwap:shaders.ColorSwap;
+	function get_colorSwap():shaders.ColorSwap
+	{
+		if(_colorSwap == null)
+		{
+			_colorSwap = new shaders.ColorSwap();
+			if(!useRGBShader) shader = _colorSwap.shader; //(a receptor with a skin of its own, colored like the old ones)
+		}
+		return _colorSwap;
+	}
 	private var noteData:Int = 0;
 
 	/**
@@ -47,10 +60,20 @@ class StrumNote extends FlxSprite
 	private function set_texture(value:String):String {
 		if(texture != value) {
 			texture = value;
+			// (a skin colored already, like the ones of 0.6 and older: the RGB shader would color it over its own colors when pressed)
+			var wasColored:Bool = coloredSkin;
+			coloredSkin = value != null && psychlua.LegacyCompat.isColoredSkin((PlayState.isPixelStage ? 'pixelUI/' : '') + value, null, PlayState.isPixelStage);
+			if(coloredSkin)
+			{
+				useRGBShader = false;
+				if(rgbShader != null) rgbShader.enabled = false;
+			}
+			else if(wasColored) useRGBShader = !(PlayState.SONG != null && PlayState.SONG.disableNoteRGB);
 			reloadNote();
 		}
 		return value;
 	}
+	var coloredSkin:Bool = false;
 
 	/**
 	 * The room a receptor takes on V-Slice (its note style's, see `funkin.play.notes.notestyle.NoteStyle.getStrumlineSize()`), for the
@@ -109,7 +132,12 @@ class StrumNote extends FlxSprite
 
 		var skin:String = null;
 		if(PlayState.SONG != null && PlayState.SONG.arrowSkin != null && PlayState.SONG.arrowSkin.length > 1) skin = PlayState.SONG.arrowSkin;
-		else skin = Note.defaultNoteSkin;
+		else
+		{
+			// (a mod for 0.6 or older with its skin where those had it: images/NOTE_assets.png)
+			var oldSkin:String = psychlua.LegacyCompat.oldNoteSkin(PlayState.isPixelStage);
+			skin = (oldSkin != null) ? oldSkin : Note.defaultNoteSkin;
+		}
 
 		var customSkin:String = skin + Note.getNoteSkinPostfix();
 		if(Paths.fileExists('images/$customSkin.png', IMAGE)) skin = customSkin;
@@ -284,7 +312,7 @@ class StrumNote extends FlxSprite
 			if(vsliceSize == null) vsliceSize = FlxPoint.get();
 			vsliceSize.copyFrom(baseRoom);
 		}
-		useRGBShader = !(PlayState.SONG != null && PlayState.SONG.disableNoteRGB);
+		useRGBShader = !(PlayState.SONG != null && PlayState.SONG.disableNoteRGB) && !coloredSkin;
 		antialiasing = ClientPrefs.data.antialiasing && !PlayState.isPixelStage;
 		reloadNote();
 		playAnim((animation.curAnim != null) ? animation.curAnim.name : 'static', true);

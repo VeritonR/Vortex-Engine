@@ -95,6 +95,54 @@ class SoundLoader
 		return false;
 	}
 
+	/**
+	 * Takes a sound out of flixel's list and groups, before it's destroyed: one destroyed while still in them crashed the game on
+	 * the next change of screen, or when flixel reused it for another sound ("Null Object Reference" in FlxSound).
+	 */
+	public static function forget(sound:FlxSound):Void
+	{
+		if(sound == null) return;
+		FlxG.sound.defaultSoundGroup.remove(sound);
+		FlxG.sound.defaultMusicGroup.remove(sound);
+		FlxG.sound.list.remove(sound, true);
+		if(FlxG.sound.music == sound) FlxG.sound.music = null;
+	}
+
+	/**
+	 * The sounds scripts destroyed themselves (`sound.destroy()`, which leaves them in flixel's list) are taken out of it every frame.
+	 */
+	public static function guardDestroyedSounds():Void
+	{
+		FlxG.signals.postUpdate.add(function()
+		{
+			var music:FlxSound = FlxG.sound.music;
+			if(music != null && destroyed(music)) FlxG.sound.music = null;
+			var gone:Array<FlxSound> = null;
+			for (sound in FlxG.sound.list.members)
+				if(sound != null && destroyed(sound))
+				{
+					if(gone == null) gone = [];
+					gone.push(sound);
+				}
+			if(gone != null)
+				for (sound in gone)
+				{
+					@:privateAccess FlxG.sound.defaultSoundGroup.sounds.remove(sound);
+					@:privateAccess FlxG.sound.defaultMusicGroup.sounds.remove(sound);
+					FlxG.sound.list.remove(sound, true);
+				}
+		});
+	}
+
+	static inline function destroyed(sound:FlxSound):Bool
+		return @:privateAccess sound._transform == null;
+
+	/**
+	 * If a sound was destroyed (by a script, `sound.destroy()`): it can't be used anymore.
+	 */
+	public static function isDestroyed(sound:FlxSound):Bool
+		return sound != null && destroyed(sound);
+
 	static function warnInvalid(file:String):Void
 		trace('The sound "$file" is empty or is not one that can be played: it was left out');
 

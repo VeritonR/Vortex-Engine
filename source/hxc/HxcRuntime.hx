@@ -58,7 +58,8 @@ class HxcRuntime
 	 */
 	public static var customImports:Map<String, Dynamic> = [
 		'flixel.math.FlxPoint' => 'flixel.math.FlxBasePoint',
-		'haxe.Json' => 'hxc.HxcJson'
+		'haxe.Json' => 'hxc.HxcJson',
+		'flixel.system.FlxAssets.FlxShader' => 'flixel.graphics.tile.FlxGraphicsShader'
 	];
 
 	/**
@@ -201,6 +202,13 @@ class HxcRuntime
 
 	static var importCache:Map<String, Dynamic> = [];
 
+	// Enums (and such) declared on the scripts, by their whole path ("funkin.play.character.NeneState"): other files import them
+	// like they would import the engine's
+	static var scriptTypes:Map<String, Dynamic> = [];
+
+	// Files that import something not found yet: it can be declared on a file that's loaded after them
+	static var waitingModules:Array<HxcModule> = [];
+
 	// What each script file was read into, by its path. Kept for as long as the file's text doesn't change
 	static var parseCache:Map<String, {code:String, decls:Array<ModuleDecl>, usings:Array<String>, moduleExprs:Array<Expr>}> = [];
 	static var attached:haxe.ds.ObjectMap<Dynamic, HxcInstance> = new haxe.ds.ObjectMap();
@@ -277,6 +285,8 @@ class HxcRuntime
 	public static function clear():Void
 	{
 		classes = [];
+		scriptTypes = [];
+		waitingModules = [];
 		attached = new haxe.ds.ObjectMap();
 		attachedCount = 0;
 		reportedErrors = [];
@@ -370,12 +380,19 @@ class HxcRuntime
 					var fullPath:String = path.join('.');
 					var name:String = (alias != null && alias.length > 0) ? alias : path[path.length - 1];
 					var value:Dynamic = resolveImport(fullPath);
+					if(value == null) value = scriptType(fullPath);
 					if(value != null) module.imports.set(name, value);
-					else if(isNameUsed(code, name)) module.missingImports.push(fullPath);
-					else module.unusedImports.push(fullPath); //lots of scripts import things they never touch, those can't break anything
+					else
+					{
+						if(isNameUsed(code, name)) module.missingImports.push(fullPath);
+						else module.unusedImports.push(fullPath); //lots of scripts import things they never touch, those can't break anything
+						if(!waitingModules.contains(module)) waitingModules.push(module);
+						module.importNames.set(fullPath, name);
+					}
 
 				case DPackage(path):
-					module.pack = (path != null && path.length > 0) ? path.join('.') : null;
+					// (the parser gives an empty one for each enum it put in `moduleExprs`: the file's package stays)
+					if(path != null && path.length > 0) module.pack = path.join('.');
 
 				case DClass(classDecl):
 					var cls:HxcClass = new HxcClass(classDecl, module);
@@ -397,9 +414,15 @@ class HxcRuntime
 				for (expr in parsed.moduleExprs)
 					interp.execute(expr);
 
+				var declared:Bool = false;
 				for (name => value in interp.variables)
 					if(!builtIn.contains(name))
+					{
 						module.imports.set(name, value);
+						scriptTypes.set((module.pack != null ? module.pack + '.' : '') + name, value);
+						declared = true;
+					}
+				if(declared) resolveWaiting();
 			}
 			catch(e:Dynamic)
 			{
@@ -407,6 +430,41 @@ class HxcRuntime
 			}
 		}
 		return module.classes.length;
+	}
+
+	// A type declared on a script, by the path another one imports it with (also "package.File.Type")
+	static function scriptType(path:String):Dynamic
+	{
+		if(scriptTypes.exists(path)) return scriptTypes.get(path);
+
+		var parts:Array<String> = path.split('.');
+		if(parts.length > 2)
+		{
+			var type:String = parts.pop();
+			parts.pop();
+			parts.push(type);
+			return scriptTypes.get(parts.join('.'));
+		}
+		return null;
+	}
+
+	// Gives the files loaded before a script that declares types what they import of it
+	static function resolveWaiting():Void
+	{
+		for (module in waitingModules.copy())
+		{
+			for (list in [module.missingImports, module.unusedImports])
+				for (path in list.copy())
+				{
+					var value:Dynamic = scriptType(path);
+					if(value == null) continue;
+
+					var name:String = module.importNames.exists(path) ? module.importNames.get(path) : path.split('.').pop();
+					module.imports.set(name, value);
+					list.remove(path);
+				}
+			if(module.missingImports.length == 0 && module.unusedImports.length == 0) waitingModules.remove(module);
+		}
 	}
 
 	/**
@@ -444,8 +502,41 @@ class HxcRuntime
 			}
 		}
 
+		// an abstract or a typedef (see hxc.ScriptTypesMacro), and V-Slice's typedefs the engine has nothing of its own for
+		if(result == null) result = builtType(path);
+
 		if(result != null) importCache.set(path, result);
 		return result;
+	}
+
+	// The abstracts and typedefs scripts can import, by their path: what each one is (see hxc.ScriptTypesMacro)
+	static var scriptTypeList:Map<String, String> = null;
+
+	static function builtType(path:String):Dynamic
+	{
+		if(scriptTypeList == null)
+		{
+			scriptTypeList = [];
+			var made:Class<Dynamic> = Type.resolveClass('hxc.ScriptTypes');
+			var list:Array<String> = (made != null) ? Reflect.callMethod(made, Reflect.field(made, 'list'), []) : null;
+			if(list != null)
+			{
+				var i:Int = 0;
+				while(i + 1 < list.length)
+				{
+					scriptTypeList.set(list[i], list[i + 1]);
+					i += 2;
+				}
+			}
+			for (name in VSliceTypes.TYPE_ONLY)
+				if(!scriptTypeList.exists(name)) scriptTypeList.set(name, 'type');
+		}
+
+		var found:String = scriptTypeList.get(path);
+		if(found == null) return null;
+		if(found.startsWith('class:')) return Type.resolveClass(found.substr(6));
+		if(found.startsWith('enum:')) return Type.resolveEnum(found.substr(5));
+		return TypeOnly;
 	}
 
 	static function resolveType(path:String):Dynamic
@@ -714,6 +805,8 @@ class HxcRuntime
 	public static function reportError(className:String, funcName:String, error:Dynamic):Void
 	{
 		var message:String = '$className.$funcName(): ' + describeError(error);
+		// (an error is reported once, but it happens every time: on phones each one is slow, see backend.FrameProfile)
+		backend.FrameProfile.count('script error: ' + message.substr(0, 140));
 		if(quietErrors)
 		{
 			trace('(not reported) ' + message);
@@ -736,6 +829,7 @@ class HxcModule
 	public var imports:Map<String, Dynamic> = [];
 	public var missingImports:Array<String> = [];
 	public var unusedImports:Array<String> = []; //missing as well, but the script never uses them
+	public var importNames:Map<String, String> = []; //the names the missing ones are imported as
 	public var usings:Array<String> = [];
 	public var classes:Array<HxcClass> = [];
 

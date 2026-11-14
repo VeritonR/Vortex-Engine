@@ -126,3 +126,33 @@ class PlayerFreeplayDJData
 		return (raw.charSelect != null) ? VSliceConvert.num(raw.charSelect.transitionDelay, 0.25) : 0.25;
 	}
 }
+
+// (V-Slice's, for its classes and scripts)
+class PlayerCharSelectData
+{
+  /**
+   * A zero-indexed number for the character's preferred position in the grid.
+   * 0 = top left, 4 = center, 8 = bottom right
+   * In the event of a conflict, the first character alphabetically gets it,
+   * and others get shifted over.
+   */
+  @:optional
+  public var position:Null<Int>;
+
+  /**
+   * The GF name to assign for this character.
+   */
+  @:optional
+  public var gf:PlayerCharSelectGFData;
+}
+
+// (V-Slice's, for its classes and scripts)
+typedef PlayerCharSelectGFData =
+{
+  @:optional
+  public var assetPath:String;
+  @:optional
+  public var animInfoPath:String;
+  @:optional @:default(false)
+  public var visualizer:Bool;
+}

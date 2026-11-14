@@ -51,6 +51,8 @@ class Stage extends funkin.modding.ScriptedBase
 	}
 
 	public var alive(default, null):Bool = true;
+	// (V-Slice's stage is a sprite group, which has flixel's `health`: stage scripts read it as theirs, IndieCross' Hall)
+	public var health:Float = 1;
 
 	// The sprites this stage made when it was built while a song was going on (the song's own stage has them made by PlayState)
 	var builtProps:Array<FlxBasic> = null;
@@ -638,9 +640,17 @@ class Stage extends funkin.modding.ScriptedBase
 	/**
 	 * Adds something to the stage. Things with a `zIndex` go behind what has a bigger one, like on V-Slice, the rest go in front of everything.
 	 */
+	/**
+	 * If something was put on the stage by a script (`add()`): it's under all of the HUD, whatever its layer (see hudStart()).
+	 */
+	public function owns(object:FlxBasic):Bool
+		return object != null && addedToStage.exists(object);
+	var addedToStage:haxe.ds.ObjectMap<FlxBasic, Bool> = new haxe.ds.ObjectMap();
+
 	public function add(object:FlxBasic):FlxBasic
 	{
 		if(game == null || object == null) return object;
+		addedToStage.set(object, true);
 		if(songTypeOf(object) != null)
 		{
 			backIntoGroup(object);
@@ -648,7 +658,8 @@ class Stage extends funkin.modding.ScriptedBase
 		}
 
 		var layer:Null<Float> = getLayer(object);
-		if(layer == null) return game.add(object);
+		var hud:Int = hudStart();
+		if(layer == null) return (hud > -1) ? game.insert(hud, object) : game.add(object);
 
 		if(layers == null) loadLayers();
 
@@ -674,9 +685,26 @@ class Stage extends funkin.modding.ScriptedBase
 		if(!listed) layers.push({object: object, zIndex: layer});
 		if(game.members.contains(object)) return object;
 
+		if(hud > -1 && (position < 0 || position > hud)) position = hud;
 		if(position > -1) game.insert(position, object);
 		else game.add(object);
 		return object;
+	}
+
+	/*
+	 * Where the song's HUD starts on the screen's list (the ratings, the health bar, the notes). V-Slice's stage is one group under all
+	 * of it: what's added to the stage is never drawn over the notes, whatever its layer, even on the HUD's camera. It went after
+	 * them here (QT Rewired's cutscene videos at the end of Obliterated Erect covered the notes, which are on top on V-Slice).
+	 */
+	function hudStart():Int
+	{
+		var first:Int = -1;
+		for (part in [game.comboGroup, game.uiGroup, game.noteGroup])
+		{
+			var index:Int = (part != null) ? game.members.indexOf(part) : -1;
+			if(index > -1 && (first < 0 || index < first)) first = index;
+		}
+		return first;
 	}
 
 	public function remove(object:FlxBasic, splice:Bool = false):FlxBasic
@@ -787,18 +815,24 @@ class Stage extends funkin.modding.ScriptedBase
 		}
 		if(sorted.length < 2) return;
 
-		var places:Array<Int> = [for (entry in sorted) entry.index];
-		places.sort((a, b) -> a - b);
-
-		// (the ones on the same layer keep the order they had)
-		sorted.sort(function(a, b)
+		// (what's under the HUD and what's over it are sorted apart: the stage is under all of the HUD on V-Slice, see hudStart())
+		var hud:Int = hudStart();
+		for (part in [[for (entry in sorted) if(hud < 0 || entry.index < hud) entry], [for (entry in sorted) if(hud > -1 && entry.index >= hud) entry]])
 		{
-			if(a.zIndex != b.zIndex) return (a.zIndex < b.zIndex) ? -1 : 1;
-			return a.index - b.index;
-		});
+			if(part.length < 2) continue;
+			var places:Array<Int> = [for (entry in part) entry.index];
+			places.sort((a, b) -> a - b);
 
-		for (i => entry in sorted)
-			game.members[places[i]] = entry.object;
+			// (the ones on the same layer keep the order they had)
+			part.sort(function(a, b)
+			{
+				if(a.zIndex != b.zIndex) return (a.zIndex < b.zIndex) ? -1 : 1;
+				return a.index - b.index;
+			});
+
+			for (i => entry in part)
+				game.members[places[i]] = entry.object;
+		}
 	}
 
 	/**

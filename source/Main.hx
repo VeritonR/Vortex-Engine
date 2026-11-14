@@ -166,10 +166,6 @@ class Main extends Sprite
 		#if mobile
 		// (the first time on a phone the game's files are copied to its folder before anything else)
 		if(backend.MobileStorage.needsCopy()) startState = backend.MobileStorage.CopyState;
-		#if android
-		// (and before that, the permission to use the phone's files, for the game's folder to be "Vortex Engine")
-		if(backend.MobileStorage.shouldAsk()) startState = backend.MobileStorage.StorageAccessState;
-		#end
 		#end
 		var flxGame:FlxGame = new FlxGame(game.width, game.height, startState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen);
 		addChild(flxGame);
@@ -183,6 +179,7 @@ class Main extends Sprite
 		if(FlxG.state != null) FlxG.scaleMode = new backend.GameScaleMode();
 		else FlxG.signals.postGameStart.addOnce(function() FlxG.scaleMode = new backend.GameScaleMode());
 		backend.TouchControls.init(); //(the menus taken by touching, see backend.TouchMenus)
+		backend.SoundLoader.guardDestroyedSounds();
 		backend.MobileGraphics.apply(); //(phones: the resolution the game is drawn at)
 		backend.RotatedCameras.install();
 		backend.WindowFocus.install();
@@ -218,7 +215,7 @@ class Main extends Sprite
 		FlxG.keys.preventDefaultKeys = [TAB];
 		
 		#if CRASH_HANDLER
-		Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onCrash);
+		backend.CrashHandler.init(); //(an error no longer closes the game: see states.CrashState)
 		#end
 
 		#if DISCORD_ALLOWED
@@ -246,53 +243,4 @@ class Main extends Sprite
 		}
 	}
 
-	// Code was entirely made by sqirra-rng for their fnf engine named "Izzy Engine", big props to them!!!
-	// very cool person for real they don't get enough credit for their work
-	#if CRASH_HANDLER
-	function onCrash(e:UncaughtErrorEvent):Void
-	{
-		var errMsg:String = "";
-		var path:String;
-		var callStack:Array<StackItem> = CallStack.exceptionStack(true);
-		var dateNow:String = Date.now().toString();
-
-		dateNow = dateNow.replace(" ", "_");
-		dateNow = dateNow.replace(":", "'");
-
-		path = "./crash/" + "PsychEngine_" + dateNow + ".txt";
-
-		for (stackItem in callStack)
-		{
-			switch (stackItem)
-			{
-				case FilePos(s, file, line, column):
-					errMsg += file + " (line " + line + ")\n";
-				default:
-					Sys.println(stackItem);
-			}
-		}
-
-		errMsg += "\nUncaught Error: " + e.error;
-		// remove if you're modding and want the crash log message to contain the link
-		// please remember to actually modify the link for the github page to report the issues to.
-		#if officialBuild
-		errMsg += "\nPlease report this error to the GitHub page: https://github.com/ShadowMario/FNF-PsychEngine";
-		#end
-		errMsg += "\n\n> Crash Handler written by: sqirra-rng";
-
-		if (!FileSystem.exists("./crash/"))
-			FileSystem.createDirectory("./crash/");
-
-		File.saveContent(path, errMsg + "\n");
-
-		Sys.println(errMsg);
-		Sys.println("Crash dump saved in " + Path.normalize(path));
-
-		Application.current.window.alert(errMsg, "Error!");
-		#if DISCORD_ALLOWED
-		DiscordClient.shutdown();
-		#end
-		Sys.exit(1);
-	}
-	#end
 }

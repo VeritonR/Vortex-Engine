@@ -90,6 +90,29 @@ class Bar extends FlxSpriteGroup
 		return this;
 	}
 
+	// FlxBar's gradient (older Psych versions' bars were FlxBars): each side with its colors, top to bottom like FlxBar does
+	public function createGradientBar(empty:Array<FlxColor>, fill:Array<FlxColor>, chunkSize:Int = 1, rotation:Int = 180, showBorder:Bool = false, ?border:FlxColor):Bar
+	{
+		var width:Int = Std.int(Math.max(1, bg.frameWidth));
+		var height:Int = Std.int(Math.max(1, bg.frameHeight));
+		if(empty != null && empty.length > 0)
+		{
+			leftBar.pixels = flixel.util.FlxGradient.createGradientBitmapData(width, height, empty, chunkSize, rotation);
+			leftBar.color = FlxColor.WHITE;
+		}
+		if(fill != null && fill.length > 0)
+		{
+			rightBar.pixels = flixel.util.FlxGradient.createGradientBitmapData(width, height, fill, chunkSize, rotation);
+			rightBar.color = FlxColor.WHITE;
+		}
+		colorsFromScript = true;
+		regenerateClips();
+		return this;
+	}
+
+	// (FlxBar's: how many steps the bar fills in. This one fills smoothly, the number is only kept)
+	public var numDivisions:Int = 100;
+
 	// One side at a time
 	public function createColoredEmptyBar(empty:FlxColor, showBorder:Bool = false, ?border:FlxColor):Bar
 	{
@@ -164,6 +187,9 @@ class Bar extends FlxSpriteGroup
 
 	override function get_height():Float
 		return bgApart ? barHeight : super.get_height();
+
+	// (V-Slice's health bar is flixel's FlxBar: scripts that change it ask it to draw itself again like that)
+	public function updateFilledBar():Void updateBar();
 
 	public function updateBar()
 	{

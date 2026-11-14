@@ -17,9 +17,12 @@ import java.lang.reflect.Field;
  */
 public class RenderScale
 {
+	private static int wantedLines = 0;
 	private static int fixedWidth = 0;
 	private static int fixedHeight = 0;
-	private static boolean listening = false;
+
+	// (the surface the listeners were put on: SDL makes a new one when its activity is made again)
+	private static SurfaceView listenedSurface = null;
 
 	/**
 	 * Draws the game at that many lines (0: the screen's own), keeping the screen's shape.
@@ -27,74 +30,117 @@ public class RenderScale
 	public static void setLines(final int lines)
 	{
 		final Activity activity = activity();
-		final SurfaceView surface = surface();
-		if (activity == null || surface == null) return;
+		if (activity == null) return;
+		wantedLines = lines;
 
 		activity.runOnUiThread(new Runnable()
 		{
 			@Override
 			public void run()
 			{
-				// (the view keeps covering the whole screen: given a fixed size, a SurfaceView makes itself that size unless its
-				// layout says otherwise, and the game would be drawn small in a corner instead of stretched)
-				ViewGroup.LayoutParams params = surface.getLayoutParams();
-				if (params != null && (params.width != ViewGroup.LayoutParams.MATCH_PARENT || params.height != ViewGroup.LayoutParams.MATCH_PARENT))
-				{
-					params.width = ViewGroup.LayoutParams.MATCH_PARENT;
-					params.height = ViewGroup.LayoutParams.MATCH_PARENT;
-					surface.setLayoutParams(params);
-				}
-
-				View parent = (View) surface.getParent();
-				int viewWidth = (parent != null && parent.getWidth() > 0) ? parent.getWidth() : surface.getWidth();
-				int viewHeight = (parent != null && parent.getHeight() > 0) ? parent.getHeight() : surface.getHeight();
-				if (viewWidth <= 0 || viewHeight <= 0) return;
-
-				SurfaceHolder holder = surface.getHolder();
-				if (lines <= 0 || lines >= viewHeight)
-				{
-					fixedWidth = 0;
-					fixedHeight = 0;
-					holder.setSizeFromLayout();
-				}
-				else
-				{
-					fixedHeight = lines;
-					fixedWidth = Math.round(viewWidth * (lines / (float) viewHeight));
-					holder.setFixedSize(fixedWidth, fixedHeight);
-				}
-				listenToTouches(surface);
+				SurfaceView surface = surface();
+				if (surface == null) return;
+				listenTo(surface);
+				fit(surface);
 			}
 		});
 	}
 
-	// SDL turns a touch into the game's coordinates dividing it by the size of what's drawn (its "mWidth" and "mHeight"), which
-	// isn't the screen's anymore: those are given back the screen's size after every time SDL sets them (when what's drawn changes
-	// size). A listener of the touches of its own wouldn't do: SDL sets its own again every time the game comes back to the front
-	private static void listenToTouches(final SurfaceView surface)
+	// The size the game is drawn at, from the size the view has now
+	private static void fit(SurfaceView surface)
 	{
-		if (!listening)
+		// (the view keeps covering the whole screen: given a fixed size, a SurfaceView makes itself that size unless its
+		// layout says otherwise, and the game would be drawn small in a corner instead of stretched)
+		ViewGroup.LayoutParams params = surface.getLayoutParams();
+		if (params != null && (params.width != ViewGroup.LayoutParams.MATCH_PARENT || params.height != ViewGroup.LayoutParams.MATCH_PARENT))
 		{
-			listening = true;
-			surface.getHolder().addCallback(new SurfaceHolder.Callback()
+			params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+			params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+			surface.setLayoutParams(params);
+		}
+
+		int viewWidth = viewWidth(surface);
+		int viewHeight = viewHeight(surface);
+		if (viewWidth <= 0 || viewHeight <= 0) return;
+
+		SurfaceHolder holder = surface.getHolder();
+		if (wantedLines <= 0 || wantedLines >= viewHeight)
+		{
+			if (fixedWidth != 0 || fixedHeight != 0) holder.setSizeFromLayout();
+			fixedWidth = 0;
+			fixedHeight = 0;
+		}
+		else
+		{
+			int width = Math.round(viewWidth * (wantedLines / (float) viewHeight));
+			if (width != fixedWidth || wantedLines != fixedHeight)
 			{
-				@Override public void surfaceCreated(SurfaceHolder holder) {}
-				@Override public void surfaceDestroyed(SurfaceHolder holder) {}
-				@Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
-				{
-					fixTouchSize(surface);
-				}
-			});
+				fixedWidth = width;
+				fixedHeight = wantedLines;
+				holder.setFixedSize(fixedWidth, fixedHeight);
+			}
 		}
 		fixTouchSize(surface);
+	}
+
+	/*
+	 * Kept up to date with what the view does. SDL turns a touch into the game's coordinates dividing it by the size of what's drawn
+	 * (its "mWidth" and "mHeight"), which isn't the screen's anymore: those are given back the screen's size every time SDL sets
+	 * them (when what's drawn changes size). And the view itself changes size after the game starts on a lot of phones: the
+	 * navigation bar goes away when the game takes the whole screen. The size it's drawn at was worked out from the narrower view,
+	 * so it was stretched to the wider one, and the touches were still divided by the narrower one: they landed to the right of the
+	 * finger, more the more to the right (a song's right arrow only answered when touched to its left)
+	 */
+	private static void listenTo(final SurfaceView surface)
+	{
+		if (listenedSurface == surface) return;
+		listenedSurface = surface;
+
+		surface.getHolder().addCallback(new SurfaceHolder.Callback()
+		{
+			@Override public void surfaceCreated(SurfaceHolder holder) {}
+			@Override public void surfaceDestroyed(SurfaceHolder holder) {}
+			@Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
+			{
+				fixTouchSize(surface);
+			}
+		});
+
+		View.OnLayoutChangeListener resized = new View.OnLayoutChangeListener()
+		{
+			@Override
+			public void onLayoutChange(View view, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom)
+			{
+				if (right - left == oldRight - oldLeft && bottom - top == oldBottom - oldTop) return;
+				if (listenedSurface != surface) return;
+				fit(surface);
+			}
+		};
+		surface.addOnLayoutChangeListener(resized);
+		View parent = (View) surface.getParent();
+		if (parent != null) parent.addOnLayoutChangeListener(resized);
+	}
+
+	// (the touches are given in the view's own pixels: what they're divided by is its size)
+	private static int viewWidth(SurfaceView surface)
+	{
+		if (surface.getWidth() > 0) return surface.getWidth();
+		View parent = (View) surface.getParent();
+		return (parent != null) ? parent.getWidth() : 0;
+	}
+
+	private static int viewHeight(SurfaceView surface)
+	{
+		if (surface.getHeight() > 0) return surface.getHeight();
+		View parent = (View) surface.getParent();
+		return (parent != null) ? parent.getHeight() : 0;
 	}
 
 	private static void fixTouchSize(SurfaceView surface)
 	{
 		if (fixedWidth <= 0 || fixedHeight <= 0) return;
-		View parent = (View) surface.getParent();
-		int width = (parent != null && parent.getWidth() > 0) ? parent.getWidth() : surface.getWidth();
-		int height = (parent != null && parent.getHeight() > 0) ? parent.getHeight() : surface.getHeight();
+		int width = viewWidth(surface);
+		int height = viewHeight(surface);
 		if (width <= 0 || height <= 0) return;
 		try
 		{

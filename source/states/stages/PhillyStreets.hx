@@ -981,6 +981,12 @@ class PhillyStreets extends BaseStage
 	function showPicoFade()
 	{
 		if(ClientPrefs.data.lowQuality) return;
+		// (a copy of what the player shows: only of a spritesheet that's still there. A texture atlas player has none to copy (SKYREBORN's Sky on
+		// 2Hot): the game crashed, drawing the image of nothing it was left with)
+		var sheet:flixel.graphics.FlxGraphic = (boyfriend.frames != null) ? boyfriend.frames.parent : null;
+		var shown:flixel.graphics.frames.FlxFrame = boyfriend.frame;
+		if(boyfriend.isAnimateAtlas || sheet == null || sheet.isDestroyed || shown == null || shown.parent == null || shown.parent.isDestroyed)
+			return;
 
 		picoFade.setPosition(boyfriend.x, boyfriend.y);
 		picoFade.frames = boyfriend.frames;

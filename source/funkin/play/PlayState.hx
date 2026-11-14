@@ -9,6 +9,12 @@ import funkin.play.song.Song;
 import funkin.play.stage.Stage;
 import objects.HealthIcon;
 
+
+/**
+ * What V-Slice opens a song with (`targetSong`, `targetDifficulty`, `targetVariation`...): see `PlayState.lastParams`.
+ */
+typedef PlayStateParams = Dynamic;
+
 /**
  * Psych's PlayState with the names V-Slice gives to things, this is what `PlayState.instance` is for V-Slice scripts.
  * It only exists while a song of a V-Slice mod is being played.
@@ -302,14 +308,28 @@ class PlayState
 	function get_isPracticeMode():Bool return game.practiceMode;
 	function set_isPracticeMode(value:Bool):Bool return game.practiceMode = value;
 
-	public var startingSong(get, never):Bool;
+	public var startingSong(get, set):Bool;
 	function get_startingSong():Bool return game.startingSong;
+	function set_startingSong(value:Bool):Bool return game.startingSong = value;
 
 	// (a variable scripts set on V-Slice, after a countdown of their own: what they set is what they read from then on)
 	public var isInCountdown(get, set):Bool;
 	var countdownSetTo:Null<Bool> = null;
-	function get_isInCountdown():Bool return (countdownSetTo != null) ? countdownSetTo : (game.startedCountdown && game.startingSong);
-	function set_isInCountdown(value:Bool):Bool return countdownSetTo = value;
+	function get_isInCountdown():Bool
+	{
+		if(!game.startingSong) return false; //(V-Slice's is put back to false when the song starts)
+		return (countdownSetTo != null) ? countdownSetTo : game.startedCountdown;
+	}
+	function set_isInCountdown(value:Bool):Bool
+	{
+		// (a script that stopped the countdown and says it's in it anyway: the song starts on the next frame, like on V-Slice)
+		if(value && game != null && game.startingSong && !game.startedCountdown)
+		{
+			var playing:states.PlayState = game;
+			FlxG.signals.preUpdate.addOnce(function() if(states.PlayState.instance == playing) playing.startWithoutCountdown());
+		}
+		return countdownSetTo = value;
+	}
 
 	public var isChartingMode(get, never):Bool;
 	function get_isChartingMode():Bool return states.PlayState.chartingMode;
@@ -378,8 +398,13 @@ class PlayState
 	public var currentStageId(get, never):String;
 	function get_currentStageId():String return states.PlayState.curStage;
 
-	public var currentDifficulty(get, never):String;
-	function get_currentDifficulty():String return Paths.formatToSongPath(Difficulty.getString(null, false));
+	// (scripts can set it, like V-Slice's: IndieCross sets "hard" for the songs that have one difficulty. What they set is what they read)
+	public var currentDifficulty(get, set):String;
+	var setDifficulty:String = null;
+	function get_currentDifficulty():String
+		return (setDifficulty != null) ? setDifficulty : Paths.formatToSongPath(Difficulty.getString(null, false));
+	function set_currentDifficulty(value:String):String
+		return setDifficulty = value;
 
 	// Cameras V-Slice has for what goes over the HUD, Psych has one for all of it
 	public var camPause(get, never):FlxCamera;
@@ -685,6 +710,16 @@ class PlayState
 	public var cutoutSize:Float = 0;
 
 	/**
+	 * A rating popping up with no note hit: what scripts show for a hit of their own ("dodged" of a mechanic). V-Slice also shows the
+	 * combo with it; here the numbers only come with the hits of notes.
+	 */
+	public function popUpScore(daRating:String, ?combo:Int):Void
+	{
+		if(daRating == null || daRating == 'miss') return;
+		if(comboPopUps != null) comboPopUps.displayRating(daRating);
+	}
+
+	/**
 	 * Hits a note the way the player does (scripts do it for notes of keys of their own).
 	 */
 	public function goodNoteHit(note:Dynamic, ?input:Dynamic):Void
@@ -715,6 +750,8 @@ class PlayState
 		for (index => member in game.members)
 		{
 			if(member == null || hudLayerOf(member) == null || (member.cameras.contains(game.camGame) && !addedByScripts.exists(member))) continue;
+			// (what's on the stage is in the stage's group on V-Slice, under all of the HUD: a video on its HUD camera at layer 9999 too)
+			if(currentStage != null && currentStage.owns(member)) continue;
 			places.push(index);
 			sorted.push(member);
 		}
@@ -795,6 +832,9 @@ class PlayState
 		#if HSCRIPT_ALLOWED
 		if(rightGoddamnNow) backend.VSliceScripts.skipSongEnd = true;
 		#end
+		// (ended by a script, for a cutscene: the notes left aren't skipped ones that cost health, like Psych's check has them.
+		// SKYREBORN's Tutorial ends the song when Sky is taken out, and that was a game over)
+		game.endedByScript = true;
 		game.endSong();
 	}
 

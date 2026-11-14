@@ -14,3 +14,25 @@ class HapticUtil
 	public static function increasingVibrate(startAmplitude:Float, targetAmplitude:Float, tweenDuration:Float = 1):Void {}
 	public static function stopVibration():Void {}
 }
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+/**
+ * An abstract for vibrations preference.
+ */
+enum abstract HapticsMode(Int) from Int to Int
+{
+	/**
+	 * Haptics are completely disabled.
+	 */
+	public var NONE:Int = 0;
+
+	/**
+	 * Only note haptics are enabled.
+	 */
+	public var NOTES_ONLY:Int = 1;
+
+	/**
+	 * All the haptics are enabled.
+	 */
+	public var ALL:Int = 2;
+}

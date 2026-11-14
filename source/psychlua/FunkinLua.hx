@@ -43,6 +43,23 @@ import flixel.input.gamepad.FlxGamepadInputID;
 
 import haxe.Json;
 
+// On Android the video player's library (libvlc.so) has a Lua of its own with the same function names: the linker took some of them
+// from it instead of from LuaJIT (luaL_newstate, luaL_openlibs...), and a state made by one Lua read by the other crashed the game with
+// any script. All of LuaJIT is put in the game itself, so nothing of it is looked for anywhere else (linc_luajit lists the same file
+// too: its copy is the same code, the duplicate is let through).
+@:buildXml('
+<target id="haxe">
+	<section if="android">
+		<lib name="-Wl,--allow-multiple-definition" />
+		<lib name="-Wl,--whole-archive" />
+		<lib name="${haxelib:linc_luajit}/lib/lua/lib/Android/libluajit-64.a" if="HXCPP_ARM64" />
+		<lib name="${haxelib:linc_luajit}/lib/lua/lib/Android/libluajit-v7.a" if="HXCPP_ARMV7" />
+		<lib name="${haxelib:linc_luajit}/lib/lua/lib/Android/libluajit-x86.a" if="HXCPP_X86" />
+		<lib name="${haxelib:linc_luajit}/lib/lua/lib/Android/libluajit-x86_64.a" if="HXCPP_X86_64" />
+		<lib name="-Wl,--no-whole-archive" />
+	</section>
+</target>
+')
 class FunkinLua {
 	public var lua:State = null;
 	public var camTarget:FlxCamera;
@@ -87,6 +104,13 @@ class FunkinLua {
 		set('version', MainMenuState.psychEngineVersion.trim());
 		set('VortexEngine', true);
 		set('modFolder', this.modFolder);
+
+		// (variables of older versions: cameraX, cameraY and ghostMisses are kept up to date by PlayState)
+		set('inChartEditor', false);
+		set('cameraX', 0);
+		set('cameraY', 0);
+		set('ghostMisses', 0);
+		set('hideTime', ClientPrefs.data.timeBarType == 'Disabled');
 
 		// Song/Week shit
 		set('curBpm', Conductor.bpm);
@@ -469,7 +493,9 @@ class FunkinLua {
 			luaTrace('getObjectOrder: Object $obj doesn\'t exist!', false, false, FlxColor.RED);
 			return -1;
 		});
-		Lua_helper.add_callback(lua, "setObjectOrder", function(obj:String, position:Int, ?group:String = null) {
+		Lua_helper.add_callback(lua, "setObjectOrder", function(obj:String, position:Int, ?groupArg:Dynamic = null) {
+			// (a group's name: older versions took no third value, and scripts made for them pass anything there, like false)
+			var group:String = Std.isOfType(groupArg, String) ? groupArg : null;
 			var leObj:FlxBasic = LuaUtils.getObjectDirectly(obj);
 			if(leObj != null)
 			{
@@ -994,7 +1020,14 @@ class FunkinLua {
 
 		Lua_helper.add_callback(lua, "playAnim", function(obj:String, name:String, ?forced:Bool = false, ?reverse:Bool = false, ?startFrame:Int = 0)
 		{
+			var tag:String = obj;
 			var obj:Dynamic = LuaUtils.getObjectDirectly(obj);
+			if(obj == null)
+			{
+				// (an object the song doesn't have: an error here is slow on phones, and scripts ask for it on every frame)
+				luaTrace('playAnim: Couldnt find object: ' + tag, false, false, FlxColor.RED);
+				return false;
+			}
 			if(obj.playAnim != null)
 			{
 				obj.playAnim(name, forced, reverse, startFrame);
@@ -1359,6 +1392,7 @@ class FunkinLua {
 				if(oldSnd != null)
 				{
 					oldSnd.stop();
+					backend.SoundLoader.forget(oldSnd);
 					oldSnd.destroy();
 				}
 
@@ -1582,7 +1616,12 @@ class FunkinLua {
 		});
 		//
 
-		Lua_helper.add_callback(lua, "debugPrint", function(text:Dynamic = '', color:String = 'WHITE') PlayState.instance.addTextToDebug(text, CoolUtil.colorFromString(color)));
+		// (up to 0.6 it took up to five texts and put them together, debugPrint('score: ', score): the second is a color only when it's one)
+		Lua_helper.add_callback(lua, "debugPrint", function(text:Dynamic = '', color:Dynamic = 'WHITE', ?text3:Dynamic, ?text4:Dynamic, ?text5:Dynamic) {
+			var isColor:Bool = Std.isOfType(color, String) && text3 == null && text4 == null && text5 == null && FlxColor.fromString(color) != null;
+			if(isColor || color == null) PlayState.instance.addTextToDebug(text, CoolUtil.colorFromString(isColor ? color : 'WHITE'));
+			else PlayState.instance.addTextToDebug([for (part in [text, color, text3, text4, text5]) if(part != null) Std.string(part)].join(''), FlxColor.WHITE);
+		});
 
 		addLocalCallback("close", function() {
 			closed = true;
@@ -1643,6 +1682,9 @@ class FunkinLua {
 	public static var lastCalledScript:FunkinLua = null;
 	public function call(func:String, args:Array<Dynamic>):Dynamic {
 		if(closed) return LuaUtils.Function_Continue;
+		#if mobile
+		if(failingFunctions != null && failingFunctions.get(func) == FAIL_LIMIT) return LuaUtils.Function_Continue;
+		#end
 
 		lastCalledFunction = func;
 		lastCalledScript = this;
@@ -1666,9 +1708,17 @@ class FunkinLua {
 			// Checks if it's not successful, then show a error.
 			if (status != Lua.LUA_OK) {
 				var error:String = getErrorMessage(status);
+				// (an error is slow on phones: one every frame takes the game down, see backend.FrameProfile)
+				backend.FrameProfile.count('lua error in ' + func + ': ' + (error != null ? error.substr(0, 140) : ''));
 				luaTrace("ERROR (" + func + "): " + error, false, false, FlxColor.RED);
+				#if mobile
+				countFailure(func);
+				#end
 				return LuaUtils.Function_Continue;
 			}
+			#if mobile
+			if(failingFunctions != null && failingFunctions.exists(func)) failingFunctions.remove(func); //(only the ones that fail every time in a row)
+			#end
 
 			// If successful, pass and then return the result.
 			var result:Dynamic = cast Convert.fromLua(lua, -1);
@@ -1683,6 +1733,26 @@ class FunkinLua {
 		}
 		return LuaUtils.Function_Continue;
 	}
+
+	#if mobile
+	/*
+	 * On phones an error is slow (unwinding it takes a lot longer than on computers), and a function of a script that fails every frame
+	 * (`onUpdatePost()` doing arithmetic with a property of an object the song doesn't have) takes the game down to a few frames per
+	 * second. One that failed this many times in a row stops being called for the rest of the song, and that's said in the script's log.
+	 * Computers keep calling it, like Psych does.
+	 */
+	static inline final FAIL_LIMIT:Int = 30;
+	var failingFunctions:Map<String, Int> = null;
+
+	function countFailure(func:String):Void
+	{
+		if(failingFunctions == null) failingFunctions = [];
+		var times:Int = (failingFunctions.exists(func) ? failingFunctions.get(func) : 0) + 1;
+		failingFunctions.set(func, times);
+		if(times == FAIL_LIMIT)
+			luaTrace('$scriptName: $func() failed every time it was called, it was stopped for the rest of the song (on phones each error is slow)', true, false, FlxColor.ORANGE);
+	}
+	#end
 
 	public function set(variable:String, data:Dynamic) {
 		if(lua == null) {
@@ -1763,6 +1833,10 @@ class FunkinLua {
 	}
 
 	public static function luaTrace(text:String, ignoreCheck:Bool = false, deprecated:Bool = false, color:FlxColor = FlxColor.WHITE) {
+		#if sys
+		if(!deprecated && backend.DirectPlay.scriptLog)
+			Sys.println('LUA [' + (lastCalledScript != null ? lastCalledScript.scriptName : '?') + '] ' + text);
+		#end
 		if(ignoreCheck || getBool('luaDebugMode')) {
 			if(deprecated && !getBool('luaDeprecatedWarnings')) {
 				return;

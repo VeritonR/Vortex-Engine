@@ -150,3 +150,14 @@ enum abstract SubtitlesAlignment(String) from String to String
 	public var SUBTITLES_TOP:String = 'top';
 	public var SUBTITLES_BOTTOM:String = 'bottom';
 }
+
+/**
+ * `SubtitlesAlignment` for scripts (`import funkin.play.components.SubtitlesAlignment;`): it's an abstract, which scripts can't
+ * import as it is, these are its values.
+ */
+@:keep
+class ScriptSubtitlesAlignment
+{
+	public static var SUBTITLES_TOP:String = SubtitlesAlignment.SUBTITLES_TOP;
+	public static var SUBTITLES_BOTTOM:String = SubtitlesAlignment.SUBTITLES_BOTTOM;
+}

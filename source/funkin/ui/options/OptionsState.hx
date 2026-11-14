@@ -13,24 +13,33 @@ import flixel.util.FlxSignal;
  * and what they ask for is written down in its pages. The "Mods" tab of the options shows them, and calls the mods' own functions
  * when they're changed, like V-Slice does (the mods keep their values themselves, usually in `Save.instance.modOptions`).
  */
-class OptionsState
+class OptionsState extends flixel.FlxState
 {
 	public var optionsCodex:OptionsCodex;
 
+	// (a state like V-Slice's, which scripts can find as `FlxG.state` while their options are asked for: it's never really opened)
 	public function new()
 	{
+		super();
 		optionsCodex = new OptionsCodex();
 	}
 
+	// (a mod that opens V-Slice's options menu, `FlxG.switchState(new OptionsState())`, gets the engine's)
+	override public function create():Void
+	{
+		super.create();
+		MusicBeatState.switchState(new options.OptionsState());
+	}
+
 	// (V-Slice's is a state: mods open their own menus over it. Here they go over whatever is open when they ask)
-	public function openSubState(subState:flixel.FlxSubState):Void
+	override public function openSubState(subState:flixel.FlxSubState):Void
 	{
 		var over:flixel.FlxState = FlxG.state;
 		while(over != null && over.subState != null) over = over.subState;
 		if(over != null) over.openSubState(subState);
 	}
 
-	public function closeSubState():Void
+	override public function closeSubState():Void
 	{
 		var over:flixel.FlxState = FlxG.state;
 		while(over != null && over.subState != null && over.subState.subState != null) over = over.subState;
@@ -289,4 +298,16 @@ class ControlsMenu extends FlxTypedGroup<FlxBasic>
 	{
 		super();
 	}
+}
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+enum abstract OptionsMenuPageName(String) to funkin.ui.Page.PageName
+{
+	public var Options = 'options';
+	public var Controls = 'controls';
+	public var Colors = 'colors';
+	public var Mods = 'mods';
+	public var Preferences = 'preferences';
+	public var Offsets = 'offsets';
+	public var SaveData = 'saveData';
 }

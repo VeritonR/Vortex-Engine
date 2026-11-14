@@ -79,7 +79,7 @@ class NoteSplash extends FlxSprite
 
 		if(splash == null)
 		{
-			splash = defaultNoteSplash + getSplashSkinPostfix();
+			splash = defaultSplashTexture();
 			if (PlayState.SONG != null && PlayState.SONG.splashSkin != null && PlayState.SONG.splashSkin.length > 0) splash = PlayState.SONG.splashSkin;
 		}
 
@@ -172,6 +172,10 @@ class NoteSplash extends FlxSprite
 			}
 		}
 
+		// (splashes colored already, like the ones of 0.6 and older: the RGB shader would color them over their own colors)
+		if (psychlua.LegacyCompat.isColoredSkin(texture, [for (color in Note.colArray) '$anim $color 1']))
+			tempConfig.allowRGB = false;
+
 		var failedToFind:Bool = false;
 		while (true)
 		{
@@ -211,8 +215,8 @@ class NoteSplash extends FlxSprite
 
 		if (!inEditor)
 		{
-			var loadedTexture:String = defaultNoteSplash + getSplashSkinPostfix();
-			if (note != null && note.noteSplashData.texture != null) loadedTexture = note.noteSplashData.texture;
+			var loadedTexture:String = defaultSplashTexture();
+			if (note != null && note.noteSplashData.texture != null && note.noteSplashData.texture.length > 0) loadedTexture = note.noteSplashData.texture;
 			else if (PlayState.SONG != null && PlayState.SONG.splashSkin != null && PlayState.SONG.splashSkin.length > 0) loadedTexture = PlayState.SONG.splashSkin;
 			if (splashTexture != null) loadedTexture = splashTexture;
 
@@ -404,6 +408,13 @@ class NoteSplash extends FlxSprite
 		if (ClientPrefs.data.splashSkin != ClientPrefs.defaultData.splashSkin)
 			skin = '-' + ClientPrefs.data.splashSkin.trim().toLowerCase().replace(' ', '-');
 		return skin;
+	}
+
+	// The splashes' skin when nothing asks for another: a mod for 0.6 or older can have it where those had it (images/noteSplashes.png)
+	static function defaultSplashTexture():String
+	{
+		var oldSplash:String = psychlua.LegacyCompat.oldNoteSplash();
+		return (oldSplash != null) ? oldSplash : defaultNoteSplash + getSplashSkinPostfix();
 	}
 
 	public static function createConfig():NoteSplashConfig

@@ -13,9 +13,8 @@ import objects.NoteSplash;
  * "More": note colors, controls, delay and combo, language), the settings of the tab as "Name: < value >" lines, and what the
  * selected one does at the bottom.
  *
- * It's a substate so it can be opened right on top of the main menu, which it slides in over (and back out from) with the gear
- * rolling along its edge, the main menu staying where it is underneath. `OptionsState` opens it too, when the options are opened
- * from a song or come back from "Adjust Delay and Combo".
+ * It's a substate so it can be opened right on top of the main menu, the main menu staying where it is underneath. `OptionsState`
+ * opens it too, when the options are opened from a song or come back from "Adjust Delay and Combo".
  *
  * The settings themselves are the ones of the menus each tab used to open (GraphicsSettingsSubState...): they're made to read their
  * list, and changing a value works the same way it did there.
@@ -38,19 +37,10 @@ class OptionsMenu extends MusicBeatSubstate
 	static final TABS:Array<String> = ['Gameplay', 'Graphics', 'Visuals', 'V-Slice', 'Vortex Engine', 'Mods', 'More'];
 	static final MORE:Array<String> = ['Note Colors', 'Controls', 'Extra Keys', 'Adjust Delay and Combo' #if TRANSLATIONS_ALLOWED , 'Language' #end];
 
-	public static inline final SLIDE_TIME:Float = 0.8;
-
 	/**
-	 * How the menu shows up: right away, sliding in, or already there and sliding out at once (back from `OptionsState` to the main menu).
+	 * Called once it's closed, to the main menu (which it was opened over).
 	 */
-	public static inline final APPEAR:Int = 0;
-	public static inline final SLIDE_IN:Int = 1;
-	public static inline final SLIDE_OUT:Int = -1;
-
-	/**
-	 * Called once it slid out, to the main menu (which it was opened over).
-	 */
-	public var onSlidOut:Void->Void = null;
+	public var onClosed:Void->Void = null;
 
 	// Where it was the last time (it opens on the same tab and line)
 	static var lastTab:Int = 0;
@@ -75,11 +65,9 @@ class OptionsMenu extends MusicBeatSubstate
 
 	var onPlayState:Bool;
 	var inMainMenu:Bool;
-	var startMode:Int;
 
 	var bfBackdrop:FlxBackdrop;
-	var gear:FlxSprite;
-	var content:FlxSpriteGroup; //(everything of the panel: it's what slides)
+	var content:FlxSpriteGroup; //(everything of the panel)
 
 	var tabBacks:Array<FlxSprite> = [];
 	var tabTexts:Array<FlxText> = [];
@@ -101,7 +89,6 @@ class OptionsMenu extends MusicBeatSubstate
 	var holdTime:Float = 0;
 	var holdValue:Float = 0;
 
-	// (while sliding, the menu is on a camera of its own that moves, and the gear on one above it)
 	// The receptors and splashes of the Visuals tab (its own, so a change of skin shows on them), shown by the note and splash settings
 	var previewNotes:FlxTypedGroup<StrumNote> = null;
 	var previewSplashes:FlxTypedGroup<NoteSplash> = null;
@@ -109,21 +96,17 @@ class OptionsMenu extends MusicBeatSubstate
 	var previewWanted:Bool = false;
 	var splashesPending:Bool = false;
 
-	var slideCam:FlxCamera = null;
-	var gearCam:FlxCamera = null;
-	var sliding:Bool = false;
 	var exiting:Bool = false;
 
 	/**
-	 * @param onPlayState 	Opened from a song: going back goes back to it, and there's no gear.
-	 * @param inMainMenu 	Opened over the main menu, which going back slides it off of.
+	 * @param onPlayState 	Opened from a song: going back goes back to it.
+	 * @param inMainMenu 	Opened over the main menu, which going back closes it to.
 	 */
-	public function new(onPlayState:Bool, inMainMenu:Bool, startMode:Int = APPEAR)
+	public function new(onPlayState:Bool, inMainMenu:Bool)
 	{
 		super();
 		this.onPlayState = onPlayState;
 		this.inMainMenu = inMainMenu;
-		this.startMode = startMode;
 	}
 
 	override function create()
@@ -145,36 +128,20 @@ class OptionsMenu extends MusicBeatSubstate
 		bfBackdrop.velocity.set(35, 35);
 		bfBackdrop.spacing.set(50, 50);
 		bfBackdrop.scrollFactor.set();
-		bfBackdrop.alpha = (startMode == SLIDE_OUT) ? 0.125 : 0;
+		bfBackdrop.alpha = 0;
 		add(bfBackdrop);
-		if(startMode != SLIDE_OUT) FlxTween.tween(bfBackdrop, {alpha: 0.125}, 1.2, {ease: FlxEase.quadOut});
+		FlxTween.tween(bfBackdrop, {alpha: 0.125}, 1.2, {ease: FlxEase.quadOut});
 
 		content = new FlxSpriteGroup();
 		content.scrollFactor.set();
 		add(content);
 		makePanel();
 
-		if(!onPlayState)
-		{
-			gear = new FlxSprite(0, 10).loadGraphic(Paths.image('mainmenu/menu_options'));
-			gear.antialiasing = ClientPrefs.data.antialiasing;
-			gear.scrollFactor.set();
-			gear.x = -(gear.width / 2);
-			add(gear);
-		}
-
 		curTab = FlxMath.wrap(lastTab, 0, TABS.length - 1);
 		showTab(curTab, false);
 		ClientPrefs.saveSettings();
 
 		super.create();
-
-		switch(startMode)
-		{
-			case SLIDE_IN: slide(true);
-			case SLIDE_OUT: slide(false);
-			default:
-		}
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -594,76 +561,6 @@ class OptionsMenu extends MusicBeatSubstate
 	}
 
 	// ------------------------------------------------------------------------------------------
-	// Sliding over the main menu
-	// ------------------------------------------------------------------------------------------
-
-	function setCameras(cameras:Array<FlxCamera>, gearCameras:Array<FlxCamera>):Void
-	{
-		for (member in members)
-		{
-			if(member == null) continue;
-			member.cameras = (member == gear) ? gearCameras : cameras;
-		}
-	}
-
-	function makeCamera():FlxCamera
-	{
-		var camera:FlxCamera = new FlxCamera();
-		camera.bgColor = 0;
-		FlxG.cameras.add(camera, false);
-		return camera;
-	}
-
-	/**
-	 * Slides the menu in from the right (or out to it), the gear rolling along its left edge. In, it's then on the game's camera
-	 * like any menu (the menus it opens go on top of it there).
-	 */
-	function slide(goingIn:Bool):Void
-	{
-		sliding = true;
-		FlxG.camera.scroll.y = 0;
-
-		slideCam = makeCamera();
-		if(gear != null) gearCam = makeCamera();
-		setCameras([slideCam], (gearCam != null) ? [gearCam] : [slideCam]);
-
-		var width:Float = FlxG.width;
-		slideCam.x = goingIn ? width : 0;
-		FlxTween.tween(slideCam, {x: goingIn ? 0 : width}, SLIDE_TIME, {ease: goingIn ? FlxEase.cubeOut : FlxEase.cubeInOut, onComplete: function(_)
-		{
-			sliding = false;
-			if(goingIn)
-			{
-				setCameras([FlxG.camera], [FlxG.camera]);
-				removeSlideCameras();
-			}
-			else
-			{
-				// (the main menu's own gear is back where this one ended up)
-				removeSlideCameras();
-				close();
-				if(onSlidOut != null) onSlidOut();
-			}
-		}});
-
-		if(gear != null)
-		{
-			gear.x = goingIn ? width - (gear.width / 2) : -(gear.width / 2);
-			gear.angle = goingIn ? 0 : -360;
-			FlxTween.tween(gear, {x: goingIn ? -(gear.width / 2) : width - (gear.width / 2), angle: goingIn ? -360 : 0}, SLIDE_TIME,
-				{ease: goingIn ? FlxEase.cubeOut : FlxEase.cubeInOut});
-		}
-	}
-
-	function removeSlideCameras():Void
-	{
-		for (camera in [slideCam, gearCam])
-			if(camera != null && FlxG.cameras.list.contains(camera))
-				FlxG.cameras.remove(camera);
-		slideCam = gearCam = null;
-	}
-
-	// ------------------------------------------------------------------------------------------
 
 	function openSelectedSubstate(label:String)
 	{
@@ -716,14 +613,7 @@ class OptionsMenu extends MusicBeatSubstate
 		super.update(elapsed);
 		placeRows(elapsed);
 		updatePreview(elapsed);
-		if(sliding || exiting || subState != null) return;
-
-		// (the gear is only there when the menu wasn't opened from a song)
-		if(gear != null && FlxG.mouse.justPressed && FlxG.mouse.overlaps(gear))
-		{
-			goBack();
-			return;
-		}
+		if(exiting || subState != null) return;
 
 		// tabs: Q/E, TAB (SHIFT+TAB back), or a click on them
 		if(FlxG.keys.justPressed.E || (FlxG.keys.justPressed.TAB && !FlxG.keys.pressed.SHIFT)) showTab(curTab + 1);
@@ -854,24 +744,22 @@ class OptionsMenu extends MusicBeatSubstate
 			return;
 		}
 
-		FlxG.sound.play(Paths.sound('chains'));
+		FlxG.sound.play(Paths.sound('cancelMenu'));
 		if(inMainMenu)
 		{
-			slide(false);
+			exiting = true;
+			close();
+			if(onClosed != null) onClosed();
 			return;
 		}
 
-		// (opened by OptionsState: the main menu opens it again over itself and slides it out from there)
+		// (opened by OptionsState: back to the main menu)
 		exiting = true;
-		states.MainMenuState.returningFromOptions = true;
-		FlxTransitionableState.skipNextTransIn = true;
-		FlxTransitionableState.skipNextTransOut = true;
 		MusicBeatState.switchState(new states.MainMenuState());
 	}
 
 	override function destroy()
 	{
-		removeSlideCameras();
 		lastRows[curTab] = curRow;
 		// (the preview is the Visuals menu's own: it goes with it)
 		if(previewNotes != null) remove(previewNotes, true);

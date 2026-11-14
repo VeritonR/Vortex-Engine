@@ -1,6 +1,7 @@
 package funkin.modding;
 
 import funkin.modding.events.ScriptEvent;
+import funkin.modding.IScriptedClass;
 
 #if HSCRIPT_ALLOWED
 import hxc.HxcInstance;
@@ -11,7 +12,8 @@ import hxc.HxcRuntime.IHxcScripted;
  * What every class V-Slice scripts can extend has in common here: a place for the script and the functions that receive events,
  * which do nothing until a script overrides them (and are what `super.onSomething(event)` runs).
  */
-class ScriptedBase #if HSCRIPT_ALLOWED implements IHxcScripted #end
+class ScriptedBase implements IPlayStateScriptedClass implements IStateChangingScriptedClass implements IFreeplayScriptedClass
+	implements ICharacterSelectScriptedClass #if HSCRIPT_ALLOWED implements IHxcScripted #end
 {
 	#if HSCRIPT_ALLOWED
 	public var __hxc:HxcInstance = null;

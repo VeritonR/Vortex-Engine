@@ -111,6 +111,7 @@ class HScript extends Iris
 		if (scriptName == null && parent != null)
 			scriptName = parent.scriptName;
 		#end
+		LegacyCompat.addHScriptImports(); //(the classes of older Psych versions by their old names)
 		super(scriptThing, new IrisConfig(scriptName, false, false));
 		var customInterp:CustomInterp = new CustomInterp();
 		customInterp.parentInstance = FlxG.state;
@@ -328,7 +329,10 @@ class HScript extends Iris
 				if(libPackage.length > 0)
 					str = libPackage + '.';
 
-				set(libName, Type.resolveClass(str + libName));
+				// (by the names of older versions too: addHaxeLibrary('FlxSound', 'flixel.system'), addHaxeLibrary('ClientPrefs'))
+				var found:Dynamic = LegacyCompat.resolveClass(str + libName);
+				if(found == null && libPackage.length > 0) found = LegacyCompat.resolveClass(libName);
+				set(libName, found);
 			}
 			catch (e:IrisError) {
 				Iris.error(Printer.errorToString(e, false), this.interp.posInfos());
@@ -398,9 +402,12 @@ class HScript extends Iris
 			else if (libName == null)
 				libName = '';
 
-			var c:Dynamic = Type.resolveClass(str + libName);
+			// (by the names of older versions too: addHaxeLibrary('FlxSound', 'flixel.system'), addHaxeLibrary('ClientPrefs'))
+			var c:Dynamic = LegacyCompat.resolveClass(str + libName);
 			if (c == null)
 				c = Type.resolveEnum(str + libName);
+			if (c == null && libPackage.length > 0)
+				c = LegacyCompat.resolveClass(libName);
 
 			if (funk.hscript == null)
 				initHaxeModule(funk);
@@ -431,10 +438,16 @@ class HScript extends Iris
 			Iris.error('No function named: $funcToRun', this.interp.posInfos());
 			return null;
 		}
+		#if mobile
+		if (failingFunctions != null && failingFunctions.get(funcToRun) == FAIL_LIMIT) return null;
+		#end
 
 		try {
 			var func:Dynamic = interp.variables.get(funcToRun); // function signature
 			final ret = Reflect.callMethod(null, func, args ?? []);
+			#if mobile
+			if (failingFunctions != null && failingFunctions.exists(funcToRun)) failingFunctions.remove(funcToRun); //(only the ones that fail every time in a row)
+			#end
 			return {funName: funcToRun, signature: func, returnValue: ret};
 		}
 		catch(e:IrisError) {
@@ -461,8 +474,31 @@ class HScript extends Iris
 			#end
 			Iris.error('$e', pos);
 		}
+		backend.FrameProfile.count('hscript error in ' + funcToRun + ' (' + origin + ')');
+		#if mobile
+		countFailure(funcToRun);
+		#end
 		return null;
 	}
+
+	#if mobile
+	/*
+	 * On phones an error is slow (unwinding it takes a lot longer than on computers), and a function of a script that fails every frame
+	 * takes the game down to a few frames per second. One that failed this many times in a row stops being called for the rest of the
+	 * song, and that's said in the log. Computers keep calling it, like Psych does. (The same as the Lua scripts, in FunkinLua.)
+	 */
+	static inline final FAIL_LIMIT:Int = 30;
+	var failingFunctions:Map<String, Int> = null;
+
+	function countFailure(func:String):Void
+	{
+		if (failingFunctions == null) failingFunctions = [];
+		var times:Int = (failingFunctions.exists(func) ? failingFunctions.get(func) : 0) + 1;
+		failingFunctions.set(func, times);
+		if (times == FAIL_LIMIT)
+			Iris.warn('$origin: $func() failed every time it was called, it was stopped for the rest of the song (on phones each error is slow)', this.interp.posInfos());
+	}
+	#end
 
 	override public function destroy()
 	{
@@ -574,7 +610,7 @@ class CustomFlxColor {
 		return cast FlxColor.subtract(lhs, rhs);
 }
 
-class CustomInterp extends crowplexus.hscript.Interp
+class CustomInterp extends hxc.FlowInterp
 {
 	public var parentInstance(default, set):Dynamic = [];
 	private var _instanceFields:Array<String>;
@@ -595,13 +631,55 @@ class CustomInterp extends crowplexus.hscript.Interp
 		super();
 	}
 
+	/**
+	 * A function a script makes without a name and gives to the game (`animation.finishCallback = function(name) {...}`, a tween's
+	 * or a timer's end) is called by the game later, outside of the script: an error in it went up to the game and closed it. It's
+	 * told like the script's other errors instead, and the script goes on.
+	 */
+	override public function expr(e:crowplexus.hscript.Expr):Dynamic
+	{
+		var result:Dynamic = super.expr(e);
+		switch(e.e)
+		{
+			case EFunction(_, _, name, _) if(name == null && result != null && Reflect.isFunction(result)):
+				return guarded(result);
+			default:
+		}
+		return result;
+	}
+
+	function guarded(f:Dynamic):Dynamic
+	{
+		var me = this;
+		return Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic {
+			var oldLocals = me.locals;
+			var oldDepth:Int = me.depth;
+			var oldDeclared:Int = me.declared.length;
+			try
+			{
+				return Reflect.callMethod(null, f, args);
+			}
+			catch(error:Dynamic)
+			{
+				if(me.inTry) throw error; //(called in a "try" of the script's own: the script catches it)
+				// (put back as it was before the call: the function's own variables are left there when it fails)
+				while(me.declared.length > oldDeclared) me.declared.pop();
+				me.locals = oldLocals;
+				me.depth = oldDepth;
+				var message:String = Std.isOfType(error, IrisError) ? Printer.errorToString(error, false) : Std.string(error);
+				Iris.error(message, posInfos());
+			}
+			return null;
+		});
+	}
+
 	override function get(o:Dynamic, f:String):Dynamic {
-		if(o != null && Std.isOfType(o, flixel.input.FlxBaseKeyList)) backend.TouchControls.askedKey(f);
+		if(backend.TouchControls.watchingKeys && o != null && Std.isOfType(o, flixel.input.FlxBaseKeyList)) backend.TouchControls.askedKey(f);
 		return super.get(o, f);
 	}
 
 	override function fcall(o:Dynamic, funcToRun:String, args:Array<Dynamic>):Dynamic {
-		if(o != null && args != null && args.length > 0 && Std.isOfType(o, flixel.input.keyboard.FlxKeyboard) && Std.isOfType(args[0], Array))
+		if(backend.TouchControls.watchingKeys && o != null && args != null && args.length > 0 && Std.isOfType(o, flixel.input.keyboard.FlxKeyboard) && Std.isOfType(args[0], Array))
 			for (key in (args[0]:Array<Dynamic>)) backend.TouchControls.askedKey(key);
 		for (_using in usings) {
 			var v = _using.call(o, funcToRun, args);

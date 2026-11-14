@@ -77,6 +77,25 @@ class FunkinSound extends FlxSound
 		if(Std.isOfType(asset, Sound)) return asset;
 
 		var key:String = Std.string(asset);
+
+		// A whole path of the file ("sounds/thing/name.ogg", "assets/shared/music/x.ogg", "shared:assets/shared/sounds/x.ogg"),
+		// like V-Slice's FunkinSound.load takes: the sound's own name in its folder
+		var ext:String = '.' + backend.Paths.SOUND_EXT;
+		if(key.endsWith(ext))
+		{
+			var path:String = key.substr(key.indexOf(':') + 1);
+			path = path.substr(0, path.length - ext.length);
+			for (folder in ['sounds/', 'music/'])
+			{
+				var index:Int = path.indexOf(folder);
+				if(index == 0 || (index > 0 && path.charAt(index - 1) == '/'))
+				{
+					var name:String = path.substr(index + folder.length);
+					return folder == 'music/' ? funkin.Paths.music(name) : funkin.Paths.sound(name);
+				}
+			}
+			key = path;
+		}
 		return music ? funkin.Paths.music(key) : funkin.Paths.sound(key);
 	}
 
@@ -94,7 +113,7 @@ class FunkinSound extends FlxSound
 	}
 
 	public static function load(asset:Dynamic, volume:Float = 1, looped:Bool = false, autoDestroy:Bool = false, autoPlay:Bool = false, persist:Bool = false,
-			?onComplete:Void->Void, ?onLoad:Void->Void):FlxSound
+			?onComplete:Void->Void, ?onLoad:Void->Void):FunkinSound
 	{
 		var sound:Sound = resolve(asset);
 		if(sound == null) return null;
@@ -107,6 +126,20 @@ class FunkinSound extends FlxSound
 		if(autoPlay) result.play();
 		if(onLoad != null) onLoad();
 		return result;
+	}
+
+	/**
+	 * V-Slice's way of playing a part of a sound (Freeplay's previews): from `start` to `end`, each from 0 to 1 of its length. Here the
+	 * whole sound is loaded, and starts at `start`. Gives a promise of the sound, like V-Slice's.
+	 */
+	public static function loadPartial(path:String, start:Float = 0, end:Float = 1, volume:Float = 1, looped:Bool = false, autoDestroy:Bool = false,
+			autoPlay:Bool = true, ?onComplete:Void->Void, ?onLoad:Void->Void):lime.app.Promise<FunkinSound>
+	{
+		var promise:lime.app.Promise<FunkinSound> = new lime.app.Promise<FunkinSound>();
+		var sound:FunkinSound = load(path, volume, looped, autoDestroy, false, false, onComplete, onLoad);
+		if(sound != null && autoPlay) sound.play(false, Math.max(0, Math.min(1, start)) * sound.length);
+		promise.complete(sound);
+		return promise;
 	}
 
 	/**

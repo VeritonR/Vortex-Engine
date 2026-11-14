@@ -42,6 +42,7 @@ class GameScaleMode extends RatioScaleMode
 			fitWideCamera();
 			fitMenuCamera();
 		});
+		FlxG.signals.postUpdate.add(openZoomedCameras);
 		Supersampling.listen(); //(where the bars are filled)
 	}
 
@@ -80,11 +81,67 @@ class GameScaleMode extends RatioScaleMode
 		padY = on ? Math.max(0, Math.ceil((FlxG.stage.stageHeight / scale.y - FlxG.height) / 2)) : 0;
 
 		// (where it's looking stays the same: the camera follows its target from its middle, and that's where it was)
-		camera.setPosition(-padX, -padY);
+		// Its position stays where scripts put it, 0 when they don't: the part past the game on the left is only where it's shown,
+		// see `shownOffset()`. Mods move the stage's camera around 0 (a sway on the beat, `camGame.x = 0` when it ends), and with
+		// the camera's own position at the left edge of the window that took the stage off the left side of the screen
 		camera.setSize(Std.int(FlxG.width + padX * 2), Std.int(FlxG.height + padY * 2));
+		@:privateAccess camera.updateFlashSpritePosition();
 
 		// (the area it keeps its target in is worked out from its size when it starts following it)
 		if(camera.target != null) camera.follow(camera.target, camera.style, camera.followLerp);
+	}
+
+	/**
+	 * How far left (x) and up (y) of its position a camera is shown, in the game's pixels: the song's world camera, with the
+	 * Widescreen option, is wider than the game on both sides. 0 for every other one.
+	 */
+	public static function shownOffset(camera:FlxCamera, vertical:Bool):Float
+	{
+		if(camera == null || camera != wideCamera) return 0;
+		return vertical ? padY : padX;
+	}
+
+	/**
+	 * The other cameras of the song (the HUD's, the ones of the scripts) stay the game's size, in the middle. When one is zoomed in
+	 * (the HUD on the beat), what's near its edges is pushed out past them and was cut there: with the window wider than the game,
+	 * it's shown on the sides too. Only what was already inside the game's 1280x720 is shown that way: what a mod keeps outside of
+	 * it to hide stays hidden.
+	 */
+	@:access(flixel.FlxCamera)
+	static function openZoomedCameras():Void
+	{
+		var wide:FlxCamera = wideCamera;
+		if(wide == null || !FlxG.cameras.list.contains(wide)) return;
+
+		var scale = FlxG.scaleMode.scale;
+		for (camera in FlxG.cameras.list)
+		{
+			if(camera == null || camera == wide || camera.width != FlxG.width || camera.height != FlxG.height) continue;
+			var rect = (camera._scrollRect != null) ? camera._scrollRect.scrollRect : null;
+			if(rect == null || camera.initialZoom <= 0 || camera.scaleX <= 0 || camera.scaleY <= 0) continue;
+
+			// (how far the zoom pushes the game's edges out, in the game's pixels, as far as the window goes)
+			var zoomX:Float = camera.scaleX / camera.initialZoom;
+			var zoomY:Float = camera.scaleY / camera.initialZoom;
+			var extraX:Float = (zoomX > 1) ? Math.min(padX, 0.5 * camera.width * (zoomX - 1)) : 0;
+			var extraY:Float = (zoomY > 1) ? Math.min(padY, 0.5 * camera.height * (zoomY - 1)) : 0;
+
+			var width:Float = (camera.width + extraX * 2) * camera.initialZoom * scale.x;
+			var height:Float = (camera.height + extraY * 2) * camera.initialZoom * scale.y;
+			var left:Float = -extraX * camera.initialZoom * scale.x;
+			var top:Float = -extraY * camera.initialZoom * scale.y;
+			if(rect.x != left || rect.y != top || rect.width != width || rect.height != height)
+			{
+				// (flixel sets it back to the game's size every time the zoom changes)
+				rect.setTo(left, top, width, height);
+				camera._scrollRect.scrollRect = rect;
+				camera._scrollRect.x = -0.5 * width;
+				camera._scrollRect.y = -0.5 * height;
+			}
+			// and what's there is drawn (flixel skips what's outside of what the camera shows)
+			camera.viewMarginX = 0.5 * camera.width * (camera.scaleX - camera.initialZoom) / camera.scaleX - extraX * camera.initialZoom / camera.scaleX;
+			camera.viewMarginY = 0.5 * camera.height * (camera.scaleY - camera.initialZoom) / camera.scaleY - extraY * camera.initialZoom / camera.scaleY;
+		}
 	}
 
 	/**

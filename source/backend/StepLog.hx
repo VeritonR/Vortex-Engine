@@ -15,6 +15,11 @@ class StepLog
 {
 	public static inline var PATH:String = 'last_steps.txt';
 
+	/**
+	 * The last lines written, newest last, for the crash report (see CrashHandler).
+	 */
+	public static var recent(default, null):Array<String> = [];
+
 	static var started:Bool = false;
 	static var lines:Int = 0;
 	#if sys
@@ -26,6 +31,8 @@ class StepLog
 	{
 		#if sys
 		lock.acquire();
+		recent.push(text);
+		if(recent.length > 12) recent.shift();
 		try
 		{
 			// starts over every time the game is opened, and when it's getting too big to be of use

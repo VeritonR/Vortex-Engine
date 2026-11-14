@@ -6,6 +6,27 @@ package funkin.play.scoring;
  */
 class Scoring
 {
+	// (V-Slice's values of its older scoring systems)
+	public static final LEGACY_HIT_WINDOW:Float = (10 / 60) * 1000; // 166.67 ms hit window (10 frames at 60fps)
+	public static final LEGACY_SICK_THRESHOLD:Float = 0.2;
+	public static final LEGACY_GOOD_THRESHOLD:Float = 0.75;
+	public static final LEGACY_BAD_THRESHOLD:Float = 0.9;
+	public static final LEGACY_SHIT_THRESHOLD:Float = 1.0;
+	public static final LEGACY_SICK_SCORE:Int = 350;
+	public static final LEGACY_GOOD_SCORE:Int = 200;
+	public static final LEGACY_BAD_SCORE:Int = 100;
+	public static final LEGACY_SHIT_SCORE:Int = 50;
+	public static final LEGACY_MISS_SCORE:Int = -10;
+	public static final WEEK7_HIT_WINDOW:Float = LEGACY_HIT_WINDOW;
+	public static final WEEK7_BAD_THRESHOLD:Float = 0.8; // 80% of the hit window, or ~125ms
+	public static final WEEK7_GOOD_THRESHOLD:Float = 0.55; // 55% of the hit window, or ~91ms
+	public static final WEEK7_SICK_THRESHOLD:Float = 0.2; // 20% of the hit window, or ~33ms
+	public static final WEEK7_MISS_SCORE:Int = -10;
+	public static final WEEK7_SHIT_SCORE:Int = 50;
+	public static final WEEK7_BAD_SCORE:Int = 100;
+	public static final WEEK7_GOOD_SCORE:Int = 200;
+	public static final WEEK7_SICK_SCORE:Int = 350;
+
 	public static var PBOT1_MAX_SCORE:Int = 500;
 	public static var PBOT1_SCORING_OFFSET:Float = 54.99;
 	public static var PBOT1_SCORING_SLOPE:Float = 0.080;
@@ -99,4 +120,29 @@ class ScoringRank
 	public static var GREAT:String = 'GREAT';
 	public static var GOOD:String = 'GOOD';
 	public static var SHIT:String = 'SHIT';
+}
+
+// (V-Slice's, for scripts: see the import of it on V-Slice)
+/**
+ * Which system to use when scoring and judging notes.
+ */
+enum abstract ScoringSystem(String)
+{
+	/**
+	 * The scoring system used in versions of the game Week 6 and older.
+	 * Scores the player based on judgement, represented by a step function.
+	 */
+	public var LEGACY;
+
+	/**
+	 * The scoring system used in Week 7. It has tighter scoring windows than Legacy.
+	 * Scores the player based on judgement, represented by a step function.
+	 */
+	public var WEEK7;
+
+	/**
+	 * Points Based On Timing scoring system, version 1
+	 * Scores the player based on the offset based on timing, represented by a sigmoid function.
+	 */
+	public var PBOT1;
 }

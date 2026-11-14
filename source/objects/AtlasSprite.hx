@@ -14,7 +14,16 @@ class AtlasSignal
 	var handlers:Array<Dynamic> = [];
 	var once:Array<Dynamic> = [];
 
-	public function new() {}
+	/**
+	 * Calls them all with these values, the way V-Slice's signals are told something happened (`onFinish.dispatch('end')`
+	 * in QT Rewired's Blissful Erect): scripts call it with the values themselves, any number of them. See `dispatchArgs()`.
+	 */
+	public var dispatch(default, null):Dynamic;
+
+	public function new()
+	{
+		dispatch = Reflect.makeVarArgs(dispatchArgs);
+	}
 
 	public function add(handler:Dynamic):Void
 	{
@@ -47,7 +56,7 @@ class AtlasSignal
 		once = [];
 	}
 
-	public function dispatch(args:Array<Dynamic>):Void
+	public function dispatchArgs(args:Array<Dynamic>):Dynamic
 	{
 		for (handler in handlers.copy())
 		{
@@ -55,6 +64,7 @@ class AtlasSignal
 			if(once.remove(handler)) handlers.remove(handler);
 			Reflect.callMethod(null, handler, args);
 		}
+		return null;
 	}
 }
 
@@ -213,6 +223,44 @@ class AtlasSprite extends FlxAnimate
 	function placeByBounds():Void
 	{
 		computeBounds();
+		mainBox = [boundsX, boundsY, boundsWidth, boundsHeight];
+		placeOnBox();
+	}
+
+	/*
+	 * Where the sprite is on the art when it plays one of the atlas' symbols by itself: V-Slice's library places the box of the
+	 * timeline that's playing (the symbol's own, not the main one's) at the sprite's position. QT Rewired's saw, which plays its
+	 * symbols, was put where the main timeline's box is: lower and in front of where V-Slice has it.
+	 * The main timeline and its frame labels keep its box.
+	 */
+	function placeFor(symbolName:String):Void
+	{
+		if(applyStageMatrix || mainBox == null) return; //(placed by its file's stage, whatever plays)
+		var box:Array<Float> = mainBox;
+		if(symbolName != null && symbolName != mainName && anim.symbolDictionary != null && anim.symbolDictionary.exists(symbolName))
+		{
+			box = symbolBoxes.get(symbolName);
+			if(box == null)
+			{
+				var bounds:Array<Float> = [Math.POSITIVE_INFINITY, Math.POSITIVE_INFINITY, Math.NEGATIVE_INFINITY, Math.NEGATIVE_INFINITY];
+				var length:Int = anim.symbolDictionary.get(symbolName).length;
+				for (frame in 0...length) addFrameBounds(symbolName, frame, new FlxMatrix(), bounds, 0);
+				box = (bounds[0] > bounds[2] || bounds[1] > bounds[3]) ? mainBox : [bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1]];
+				symbolBoxes.set(symbolName, box);
+			}
+		}
+		if(box[0] == boundsX && box[1] == boundsY && box[2] == boundsWidth && box[3] == boundsHeight) return;
+		boundsX = box[0];
+		boundsY = box[1];
+		boundsWidth = box[2];
+		boundsHeight = box[3];
+		placeOnBox();
+	}
+	var mainBox:Array<Float> = null;
+	var symbolBoxes:Map<String, Array<Float>> = [];
+
+	function placeOnBox():Void
+	{
 		if(applyStageMatrix)
 		{
 			// scaled and rotated around the file's corner, which is where the sprite is
@@ -435,9 +483,19 @@ class AtlasPlayer
 	public var numFrames(get, never):Int;
 	function get_numFrames():Int return (sprite.loaded && started) ? sprite.anim.length : 0;
 
-	// Frame of the main timeline that's being shown
-	public var frameIndex(get, never):Int;
+	// Frame of the main timeline that's being shown (set like flixel's: `animation.frameIndex = 0`)
+	public var frameIndex(get, set):Int;
 	function get_frameIndex():Int return startFrame + curFrame;
+	function set_frameIndex(value:Int):Int
+	{
+		curFrame = Std.int(Math.max(0, value - startFrame));
+		return value;
+	}
+
+	/**
+	 * Called with the animation's name when it ends, like flixel's `animation.finishCallback` (`onFinish` is V-Slice's way).
+	 */
+	public var finishCallback:String->Void = null;
 
 	public var hasAnimateAtlas(get, never):Bool;
 	function get_hasAnimateAtlas():Bool return sprite.loaded;
@@ -471,9 +529,30 @@ class AtlasPlayer
 	public function exists(animName:String):Bool
 	{
 		if(!sprite.loaded) return false;
-		return animName == null || animName == '' || animName == sprite.mainName || added.exists(animName) || sprite.labelStarts.exists(animName)
-			|| sprite.anim.symbolDictionary.exists(animName);
+		if(animName == null || animName == '' || animName == sprite.mainName || added.exists(animName)) return true;
+		if(sprite.labelStarts.exists(animName) || sprite.anim.symbolDictionary.exists(animName))
+		{
+			known.set(animName, true); //(V-Slice's `hasAnimation()` adds the frame label or the symbol as an animation, see playByScript())
+			return true;
+		}
+		return false;
 	}
+
+	/*
+	 * `animation.play()` as scripts call it, like V-Slice's (`FunkinAnimationController.play()`): what the sprite doesn't have as an
+	 * animation, a frame label or a symbol isn't played, the sprite stays as it was (a frame label or a symbol is added as an animation
+	 * by `hasAnimation()` there, and played).
+	 */
+	public function playByScript(animName:String = '', force:Bool = false, reversed:Bool = false, frame:Int = 0):Void
+	{
+		if(!exists(animName))
+		{
+			trace('Animation $animName does not exist!');
+			return;
+		}
+		play(animName, force, reversed, frame);
+	}
+	var known:Map<String, Bool> = [];
 
 	// ------------------------------------------------------------------------------------------
 	// Animations added by name, like V-Slice's sprites do. They're played at the atlas' own speed.
@@ -535,6 +614,51 @@ class AtlasPlayer
 
 		var start:Int = sprite.labelStarts.get(label);
 		addBySymbolIndices(animName, sprite.mainName, [for (index in indices) start + index], frameRate, looped, flipX, flipY);
+	}
+
+	/**
+	 * Adds a frame label or a symbol of the atlas as an animation, by how its name starts (flixel's `addByPrefix()`, which V-Slice
+	 * scripts use with texture atlases too): a frame label first, then a symbol. The one named just like that comes before the rest.
+	 */
+	public function addByPrefix(animName:String, prefix:String, frameRate:Float = 0, looped:Bool = false, flipX:Bool = false, flipY:Bool = false):Void
+	{
+		if(!sprite.loaded || animName == null || prefix == null) return;
+
+		var label:String = byPrefix([for (name in sprite.labelStarts.keys()) name], prefix);
+		if(label != null)
+		{
+			addByFrameLabel(animName, label, frameRate, looped, flipX, flipY);
+			return;
+		}
+		var symbol:String = byPrefix([for (name in sprite.anim.symbolDictionary.keys()) name], prefix);
+		if(symbol != null) addBySymbol(animName, symbol, frameRate, looped, flipX, flipY);
+	}
+
+	/**
+	 * Some of the frames of a frame label or a symbol, found by how its name starts (see `addByPrefix()`).
+	 */
+	public function addByIndices(animName:String, prefix:String, indices:Array<Int>, postfix:String = '', frameRate:Float = 0, looped:Bool = false,
+		flipX:Bool = false, flipY:Bool = false):Void
+	{
+		if(!sprite.loaded || animName == null || prefix == null) return;
+
+		var label:String = byPrefix([for (name in sprite.labelStarts.keys()) name], prefix);
+		if(label != null)
+		{
+			addByFrameLabelIndices(animName, label, indices, frameRate, looped, flipX, flipY);
+			return;
+		}
+		var symbol:String = byPrefix([for (name in sprite.anim.symbolDictionary.keys()) name], prefix);
+		if(symbol != null) addBySymbolIndices(animName, symbol, indices, frameRate, looped, flipX, flipY);
+	}
+
+	static function byPrefix(names:Array<String>, prefix:String):String
+	{
+		if(names.contains(prefix)) return prefix;
+		names.sort(Reflect.compare);
+		for (name in names)
+			if(name.startsWith(prefix)) return name;
+		return null;
 	}
 
 	// The library's animation for a frame label of the main timeline, made the first time it's needed
@@ -604,12 +728,19 @@ class AtlasPlayer
 		}
 		else if(animName != '')
 		{
-			// better the whole thing than nothing at all
-			trace('The atlas has no frame label or symbol called "$animName", playing its whole timeline');
-			animName = '';
+			// like flixel's (V-Slice's): an animation it doesn't have isn't played, the sprite stays as it was. It played its whole
+			// timeline: QT Rewired's saw, whose animations its script never adds (it gives their arguments in another order), went
+			// through its whole attack in front of everyone instead of staying on its first frame behind them
+			trace('The atlas has no frame label or symbol called "$animName", nothing was played');
+			return;
 		}
 
 		sprite.anim.play(realName, true, false, 0);
+		@:privateAccess
+		{
+			var playing = sprite.anim.animsMap.get(realName);
+			sprite.placeFor((playing != null && playing.instance != null && playing.instance.symbol != null) ? playing.instance.symbol.name : null);
+		}
 		sprite.anim.loopType = PlayOnce;
 		if(frame > 0) sprite.anim.curFrame = frame;
 
@@ -681,14 +812,14 @@ class AtlasPlayer
 			lastFrame = frame;
 			if(wentAround)
 			{
-				onLoop.dispatch([name]);
+				onLoop.dispatchArgs([name]);
 				if(plays != playing) return;
 			}
-			onFrameChange.dispatch([name, frame, startFrame + frame]); //its number on the animation, and on everything the atlas has
+			onFrameChange.dispatchArgs([name, frame, startFrame + frame]); //its number on the animation, and on everything the atlas has
 			if(plays != playing) return; //something else was played by who was listening
 
 			var label:String = sprite.labelsAt.get(startFrame + frame);
-			if(label != null) onFrameLabel.dispatch([label]);
+			if(label != null) onFrameLabel.dispatchArgs([label]);
 			if(plays != playing) return;
 		}
 
@@ -701,7 +832,8 @@ class AtlasPlayer
 		if(finishTimer <= 0)
 		{
 			finished = true;
-			onFinish.dispatch([name]);
+			onFinish.dispatchArgs([name]);
+			if(finishCallback != null) finishCallback(name);
 		}
 	}
 

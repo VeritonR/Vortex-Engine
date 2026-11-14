@@ -51,7 +51,12 @@ class FunkinMemory
 	}
 
 	public static function isTextureCached(key:String):Bool return true;
+	// (what was loaded for a song is let go by the engine when it's left: there's nothing for scripts to empty)
 	public static function purgeCache(?callGarbageCollector:Bool):Void {}
+	public static function preparePurgeTextureCache():Void {}
+	public static function purgeTextureCache():Void {}
+	public static function preparePurgeSoundCache():Void {}
+	public static function purgeSoundCache():Void {}
 	public static function clearFreeplay():Void {}
 	public static function clearStickers():Void {}
 

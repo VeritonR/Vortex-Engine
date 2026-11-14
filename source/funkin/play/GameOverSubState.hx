@@ -26,7 +26,11 @@ class GameOverSubState
 			facade = null;
 			return null;
 		}
-		if(facade == null || facade.real != real) facade = new GameOverSubState(real);
+		if(facade == null || facade.real != real)
+		{
+			facade = new GameOverSubState(real);
+			blueballed = true;
+		}
 		return facade;
 	}
 
@@ -159,6 +163,36 @@ class GameOverSubState
 	{
 		hasPlayedDeathQuote = true;
 		real.playDeathQuote();
+	}
+
+	/**
+	 * If the player died and hasn't left or retried yet (V-Slice's).
+	 */
+	public static var blueballed:Bool = false;
+
+	public var isEnding(get, set):Bool;
+	function get_isEnding():Bool return real.isEnding;
+	function set_isEnding(value:Bool):Bool return real.isEnding = value;
+
+	public var canInput(get, never):Bool;
+	function get_canInput():Bool return !real.isEnding;
+
+	public var controls(get, never):Dynamic;
+	function get_controls():Dynamic return @:privateAccess real.controls;
+
+	// (the engine's game over plays the death line itself, see playDeathQuote(); there's no button for phones here)
+	public var deathQuoteSound:Dynamic = null;
+	public var backButton:Dynamic = null;
+
+	/**
+	 * Leaves the game over for the menu the song was picked on (V-Slice's, which scripts call for deaths that wait on them:
+	 * QT Rewired's saw). Once, with the engine's own BACK.
+	 */
+	public function goBack():Void
+	{
+		if(mustNotExit) return;
+		blueballed = false;
+		real.leaveToMenu();
 	}
 
 	public function resetCameraZoom():Void

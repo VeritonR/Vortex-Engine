@@ -242,11 +242,30 @@ class HxcInstance
 			baseFieldsKnown = false;
 			var baseClass:Class<Dynamic> = Type.getClass(base);
 			if(baseClass != null)
+			{
 				for (field in Type.getInstanceFields(baseClass))
 				{
 					baseFields.set(field, true);
 					baseFieldsKnown = true;
 				}
+
+				// (and what the engine gives objects of its class that they don't have, see `HxcRuntime.memberGetters`: a script
+				// asks for it by its name alone too, `_data` of a character)
+				var names:Array<String> = [];
+				var cls:Class<Dynamic> = baseClass;
+				while(cls != null)
+				{
+					names.push(Type.getClassName(cls));
+					cls = Type.getSuperClass(cls);
+				}
+				for (name => byClass in HxcRuntime.memberGetters)
+					for (className in names)
+						if(byClass.exists(className))
+						{
+							baseFields.set(name, true);
+							break;
+						}
+			}
 		}
 
 		// properties without a variable of their own only have their getter
@@ -379,30 +398,76 @@ class HxcInstance
 	public function call(name:String, ?args:Array<Dynamic>):Dynamic
 	{
 		if(args == null) args = [];
+		#if mobile
+		if(failing != null && failing.get(name) == FAIL_LIMIT)
+		{
+			// (it fails every time on this screen: left alone until the next one, see below)
+			if(FlxG.state == failingOn) return null;
+			failing.remove(name);
+		}
+		#end
 
+		var result:Dynamic = null;
 		try
 		{
 			var method:Dynamic = findMethod(name);
-			if(method != null) return Reflect.callMethod(null, method, args);
-
-			if(base != null)
+			if(method != null) result = Reflect.callMethod(null, method, args);
+			else
 			{
-				var func:Dynamic = Reflect.field(base, name);
-				if(Reflect.isFunction(func)) return Reflect.callMethod(base, func, args);
-			}
-
-			if(mixin != null)
-			{
-				var func:Dynamic = Reflect.field(mixin, name);
-				if(Reflect.isFunction(func)) return Reflect.callMethod(mixin, func, args);
+				var func:Dynamic = (base != null) ? Reflect.field(base, name) : null;
+				if(Reflect.isFunction(func)) result = Reflect.callMethod(base, func, args);
+				else
+				{
+					func = (mixin != null) ? Reflect.field(mixin, name) : null;
+					if(Reflect.isFunction(func)) result = Reflect.callMethod(mixin, func, args);
+				}
 			}
 		}
 		catch(e:Dynamic)
 		{
 			HxcRuntime.reportError(cls.name, name, e);
+			#if mobile
+			countFailure(name);
+			#end
+			return null;
 		}
-		return null;
+		#if mobile
+		if(failing != null && failing.exists(name)) failing.remove(name); //(only the ones that fail every time in a row)
+		#end
+		return result;
 	}
+
+	#if mobile
+	/*
+	 * On phones an error is slow (the C++ exception behind it takes hundreds of ms to go through the interpreter), and a function of a
+	 * script that fails every frame (a menu module's `onUpdate()` reading something the engine's screen doesn't have) takes the game down
+	 * to a few frames per second. One that failed this many times in a row is not called again until the screen changes, and that's
+	 * written down among the warnings. Computers aren't slowed down by it: there it keeps being called, like on V-Slice.
+	 */
+	static inline final FAIL_LIMIT:Int = 30;
+	var failing:Map<String, Int> = null;
+	var failingOn:flixel.FlxState = null;
+
+	function countFailure(name:String):Void
+	{
+		if(failing == null) failing = [];
+		if(failingOn != FlxG.state)
+		{
+			failingOn = FlxG.state;
+			failing.clear();
+		}
+		var times:Int = (failing.exists(name) ? failing.get(name) : 0) + 1;
+		failing.set(name, times);
+		if(times == FAIL_LIMIT)
+		{
+			var message:String = '${cls.name}.$name() failed on every frame, it was stopped until the next screen (on phones each error is slow)';
+			trace(message);
+			#if HSCRIPT_ALLOWED
+			backend.VSliceScripts.warn(message);
+			#end
+		}
+	}
+	#end
 
 	public function toString():String
 	{

@@ -7,6 +7,21 @@ package psychlua;
 
 class DeprecatedFunctions
 {
+	// One of the song's Lua scripts by its file ("scripts/thing" or "scripts/thing.lua")
+	@:access(psychlua.FunkinLua)
+	static function runningScript(funk:FunkinLua, luaFile:String):FunkinLua
+	{
+		if(luaFile == null || PlayState.instance == null) return null;
+		var path:String = funk.findScript(luaFile);
+		var name:String = luaFile.endsWith('.lua') ? luaFile : luaFile + '.lua';
+		for (script in PlayState.instance.luaArray)
+		{
+			if(script == null || script.closed) continue;
+			if(script.scriptName == path || script.scriptName.endsWith('/' + name) || script.scriptName == name) return script;
+		}
+		return null;
+	}
+
 	public static function implement(funk:FunkinLua)
 	{
 		var lua:State = funk.lua;
@@ -149,6 +164,36 @@ class DeprecatedFunctions
 			FlxG.sound.music.fadeOut(duration, toValue);
 			FunkinLua.luaTrace('musicFadeOut is deprecated! Use soundFadeOut instead.', false, true);
 		});
+		// (functions of older versions, 0.4 to 0.7.3)
+		Lua_helper.add_callback(lua, "getScore", function() return PlayState.instance.songScore);
+		Lua_helper.add_callback(lua, "getMisses", function() return PlayState.instance.songMisses);
+		Lua_helper.add_callback(lua, "getHits", function() return PlayState.instance.songHits);
+		Lua_helper.add_callback(lua, "setRatingString", function(value:String) {
+			PlayState.instance.ratingName = value;
+		});
+		Lua_helper.add_callback(lua, "clearUnusedMemory", function() {
+			Paths.clearUnusedMemory();
+			return true;
+		});
+		Lua_helper.add_callback(lua, "changePresence", function(details:String, ?state:String, ?smallImageKey:String, ?hasStartTimestamp:Bool, ?endTimestamp:Float) {
+			#if DISCORD_ALLOWED
+			DiscordClient.changePresence(details, state, smallImageKey, hasStartTimestamp, endTimestamp);
+			#end
+		});
+		// A global of another script that's running (a value: a number, text, true/false or a table)
+		Lua_helper.add_callback(lua, "getGlobalFromScript", function(luaFile:String, global:String):Dynamic {
+			var script:FunkinLua = runningScript(funk, luaFile);
+			if(script == null || script.lua == null || global == null) return null;
+			Lua.getglobal(script.lua, global);
+			var value:Dynamic = Convert.fromLua(script.lua, -1);
+			Lua.pop(script.lua, 1);
+			return value;
+		});
+		Lua_helper.add_callback(lua, "setGlobalFromScript", function(luaFile:String, global:String, value:Dynamic) {
+			var script:FunkinLua = runningScript(funk, luaFile);
+			if(script != null && global != null) script.set(global, value);
+		});
+
 		Lua_helper.add_callback(lua, "updateHitboxFromGroup", function(group:String, index:Int) {
 			if(Std.isOfType(Reflect.getProperty(LuaUtils.getTargetInstance(), group), FlxTypedGroup)) {
 				Reflect.getProperty(LuaUtils.getTargetInstance(), group).members[index].updateHitbox();

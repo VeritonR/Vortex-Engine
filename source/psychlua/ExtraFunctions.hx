@@ -16,15 +16,15 @@ class ExtraFunctions
 		// Keyboard & Gamepads
 		// (the keys asked for get a button with the touch controls, see TouchControls.askedKey())
 		Lua_helper.add_callback(lua, "keyboardJustPressed", function(name:String) {
-			backend.TouchControls.askedKey(name);
+			if(name != null && name == name.toUpperCase()) backend.TouchControls.askedKey(name); //(the keys have upper case names: "space" is no key)
 			return Reflect.getProperty(FlxG.keys.justPressed, name);
 		});
 		Lua_helper.add_callback(lua, "keyboardPressed", function(name:String) {
-			backend.TouchControls.askedKey(name);
+			if(name != null && name == name.toUpperCase()) backend.TouchControls.askedKey(name); //(the keys have upper case names: "space" is no key)
 			return Reflect.getProperty(FlxG.keys.pressed, name);
 		});
 		Lua_helper.add_callback(lua, "keyboardReleased", function(name:String) {
-			backend.TouchControls.askedKey(name);
+			if(name != null && name == name.toUpperCase()) backend.TouchControls.askedKey(name); //(the keys have upper case names: "space" is no key)
 			return Reflect.getProperty(FlxG.keys.justReleased, name);
 		});
 
