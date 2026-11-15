@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.4
+## v1.5
 
 ### Highlights
 
