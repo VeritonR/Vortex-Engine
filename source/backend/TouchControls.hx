@@ -87,15 +87,20 @@ class TouchControls
 	public static function touchLayout():Bool return ClientPrefs.data.touchControls != 'Off';
 
 	/**
-	 * The player's own Downscroll while a song is played with the touch layout, which turns it on (null otherwise).
+	 * The player's own Downscroll while a song is played with the touch layout, which sets it (null otherwise): the arrows at the
+	 * bottom, or at the top with the Touch Upscroll option (Mobile Options).
 	 */
 	public static var realDownScroll(default, null):Null<Bool> = null;
 
 	public static function forceDownScroll():Void
 	{
 		if(realDownScroll == null) realDownScroll = ClientPrefs.data.downScroll;
-		ClientPrefs.data.downScroll = true;
+		ClientPrefs.data.downScroll = !ClientPrefs.data.touchUpscroll;
 	}
+
+	// How big the player's arrows are with the touch layout: V-Slice's size times the Arrow Size option (Mobile Options)
+	static function playerScale():Float
+		return PLAYER_SCALE * FlxMath.bound(ClientPrefs.data.touchArrowSize, 0.5, 2);
 
 	public static function restoreDownScroll():Void
 	{
@@ -113,9 +118,19 @@ class TouchControls
 		var count:Int = group.length;
 		if(count == 0) return;
 
-		var scale:Float = played ? PLAYER_SCALE : OPPONENT_SCALE;
-		var step:Float = objects.Note.swagWidth * (played ? PLAYER_SPACING * PLAYER_SCALE : OPPONENT_SCALE);
-		var left:Float = played ? (FlxG.width - count * step) / 2 + 48 : 18;
+		var scale:Float = played ? playerScale() : OPPONENT_SCALE;
+		var step:Float = objects.Note.swagWidth * (played ? PLAYER_SPACING * scale : OPPONENT_SCALE);
+		var gap:Float = played ? THUMB_GAP : 0;
+		// (bigger arrows come closer together rather than going off the screen)
+		if(played)
+		{
+			var arrowWidth:Float = objects.Note.swagWidth * scale;
+			var room:Float = FlxG.width - 24 - gap * 3 - arrowWidth;
+			if(count > 1 && step * (count - 1) > room) step = Math.max(arrowWidth * 0.8, room / (count - 1));
+			if(step * (count - 1) + arrowWidth + gap * 3 > FlxG.width - 24) gap = 0;
+		}
+		var left:Float = played ? Math.max(12 + gap * 2, (FlxG.width - count * step) / 2 + 48) : 18;
+		if(played) left = Math.min(left, FlxG.width - 12 - gap - step * (count - 1) - objects.Note.swagWidth * scale);
 		var middleY:Null<Float> = null;
 		// (the opponent's next to the health bar, on its left and as high as it is, like V-Slice on phones)
 		var bar = game.healthBar;
@@ -130,9 +145,12 @@ class TouchControls
 			strum.scale.set(strum.scale.x * scale, strum.scale.y * scale);
 			strum.updateHitbox();
 			// (V-Slice moves the first half to the left twice as much as the second half to the right)
-			var shift:Float = played ? ((i < count / 2) ? -THUMB_GAP * 2 : THUMB_GAP) : 0;
+			var shift:Float = played ? ((i < count / 2) ? -gap * 2 : gap) : 0;
 			strum.x = left + step * i + shift;
-			strum.y = played ? (FlxG.height - strum.height) * 0.95 - 14 : ((middleY != null) ? middleY - strum.height / 2 : 7);
+			// (at the bottom, or as far from the top with Touch Upscroll)
+			var bottom:Bool = !ClientPrefs.data.touchUpscroll;
+			strum.y = played ? (bottom ? (FlxG.height - strum.height) * 0.95 - 14 : (FlxG.height - strum.height) * 0.05 + 14)
+				: ((middleY != null) ? middleY - strum.height / 2 : 7);
 		}
 	}
 
@@ -151,10 +169,11 @@ class TouchControls
 			note.noteSplashData.disabled = true;
 			return;
 		}
-		note.scale.x *= PLAYER_SCALE;
-		if(!note.isSustainNote) note.scale.y *= PLAYER_SCALE;
+		var scale:Float = playerScale();
+		note.scale.x *= scale;
+		if(!note.isSustainNote) note.scale.y *= scale;
 		note.updateHitbox();
-		note.offsetX *= PLAYER_SCALE;
+		note.offsetX *= scale;
 	}
 
 	/**
@@ -483,7 +502,8 @@ class TouchNotes implements TouchArea
 		var pauseSize:Float = PAUSE_SIZE * scale;
 		pauseButton.width = pauseButton.height = pauseSize;
 		pauseButton.x = width - pauseSize - 24 * scale;
-		pauseButton.y = 24 * scale;
+		// (at the bottom when your arrows are up there, with Touch Upscroll)
+		pauseButton.y = (mode == 'Arrows' && ClientPrefs.data.touchUpscroll) ? height - pauseSize - 24 * scale : 24 * scale;
 
 		var skipGrow:Float = skipPressed ? 0.94 : 1;
 		skipButton.width = SKIP_WIDTH * scale * skipGrow;

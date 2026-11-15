@@ -59,17 +59,6 @@ smoother edges and no shimmering. Heavier on the graphics card.',
 		addOption(option);
 		#end
 
-		#if mobile
-		var option:Option = new Option('Render Resolution',
-			"How many lines of pixels the game is drawn at, stretched to the screen by the phone.
-Lower is faster: 720p is the game's own, Native the screen's (the slowest).",
-			'renderResolution',
-			STRING,
-			backend.MobileGraphics.RESOLUTIONS);
-		option.onChange = backend.MobileGraphics.apply;
-		addOption(option);
-		#end
-
 		var option:Option = new Option('Widescreen',
 			"On screens wider than 16:9 (ultrawide), the stage of a song fills the
 whole screen instead of black bars. The HUD stays in the middle.

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Tested Mods · Vortex Engine</title>
+	<meta name="description" content="V-Slice mods played from start to end on Vortex Engine, song by song, and their known problems.">
+	<meta property="og:title" content="Tested Mods · Vortex Engine">
+	<meta property="og:description" content="V-Slice mods played from start to end on Vortex Engine, and their known problems.">
+	<meta property="og:image" content="img/vortex/logo.png">
+	<meta name="theme-color" content="#0d0d0e">
+	<link rel="icon" href="img/vortex/logo.png">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="assets/style.css?v=3">
+</head>
+<body>
+
+<header class="site-header">
+	<div class="header-inner">
+		<a class="brand" href="index.html"><span class="brand-mark"></span><span>Vortex <em>Engine</em></span></a>
+		<button class="menu-toggle" type="button" aria-expanded="false" aria-label="Menu">Menu</button>
+		<nav class="nav">
+			<a href="index.html">Home</a>
+			<a href="lua.html">Lua API</a>
+			<a href="modding.html">Modding</a>
+			<a href="mods.html" class="active">Tested Mods</a>
+			<a href="https://github.com/VeritonR/Vortex-Engine">GitHub</a>
+			<a href="https://discord.gg/QKjMSpeHW">Discord</a>
+			<a class="nav-cta" href="https://github.com/VeritonR/Vortex-Engine/releases">Download</a>
+		</nav>
+	</div>
+</header>
+
+<main>
+	<section class="container mods-page">
+		<p class="eyebrow">Compatibility</p>
+		<h1>Tested mods</h1>
+		<p class="lead">These V-Slice mods were played on Vortex Engine from the first note to the last: every song, with every variation
+			and difficulty the mod has, on Windows. Script errors found along the way were fixed in the engine, the way V-Slice
+			itself does things, so they help every other mod too.</p>
+
+		<div class="legend">
+			<span><span class="badge ok">Works</span> every song plays to the end with no errors</span>
+			<span><span class="badge warn">Works, with notes</span> playable; read the note</span>
+			<span><span class="badge">Not verified</span> couldn't be tested properly yet</span>
+		</div>
+
+		<div class="table-wrap">
+			<table class="mods-table">
+				<thead>
+					<tr><th>Mod</th><th>Songs</th><th>Status</th><th>Notes</th></tr>
+				</thead>
+				<tbody>
+					<tr><td>Below the Depths</td><td>1</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Boogie Man (The Simpsons port)</td><td>1</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Bopeebo Rumble</td><td>1</td><td><span class="badge warn">Works, with notes</span></td><td>The Erect chart isn't listed by the mod's own metadata, so it doesn't show up (the same happens on V-Slice).</td></tr>
+					<tr><td>Darkness Takeover</td><td>1</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>FNF Spooky Mix</td><td>27</td><td><span class="badge ok">Works</span></td><td>Adds its own versions of the base game's songs: pick its character in Freeplay's Character Select to play them.</td></tr>
+					<tr><td>Fruit Ninja</td><td>7</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Hazier Hiver</td><td>2</td><td><span class="badge ok">Works</span></td><td>Including the Pico songs.</td></tr>
+					<tr><td>Hypno's Lullaby</td><td>24</td><td><span class="badge warn">Works, with notes</span></td><td>Insomnia shows a script error in Bot Play only: the mod's own judgement list has no "perfect", which Bot Play gives (the same happens on V-Slice).</td></tr>
+					<tr><td>MCM Reboot</td><td>6</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>QT Rewired</td><td>4</td><td><span class="badge ok">Works</span></td><td>Including Blissful and Obliterated Erect, the dodge mechanic and the ending cutscenes.</td></tr>
+					<tr><td>Schwiftying on a Friday Night</td><td>6</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>SKYREBORN</td><td>29</td><td><span class="badge ok">Works</span></td><td>Its versions of the base game's songs are played with its character, picked in Character Select.</td></tr>
+					<tr><td>Sonic.exe</td><td>24</td><td><span class="badge warn">Works, with notes</span></td><td>Fatality's Pico variation can't be played: the mod doesn't include its chart.</td></tr>
+					<tr><td>Twinsomnia</td><td>4</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Vs. Digitalizing 2</td><td>1</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Vs Impostor</td><td>62</td><td><span class="badge ok">Works</span></td><td>Every week, with its variations.</td></tr>
+					<tr><td>Vs Kapi</td><td>9</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Vs Oswald</td><td>2</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>Whitty</td><td>5</td><td><span class="badge ok">Works</span></td><td></td></tr>
+					<tr><td>IndieCross</td><td>12</td><td><span class="badge">Not verified</span></td><td>Only the phone version of the mod (images in .astc) was tested, which doesn't run on a computer, and some of its songs showed script errors. The PC version still has to be tested.</td></tr>
+				</tbody>
+			</table>
+		</div>
+
+		<h2 class="mods-sub">About this list</h2>
+		<ul class="feature-list">
+			<li>The base game's songs (all 35 V-Slice songs, Erect and Pico included) are tested the same way after every change.</li>
+			<li>Mods made for <strong>Psych Engine</strong> (1.0, and 0.4 to 0.7.3) aren't on this list: they run on Vortex Engine's own Psych code, so they work like they do on Psych Engine.</li>
+			<li>Mods made for phones (images only in <code>.astc</code>) only work on the Android version. On a computer, the game warns about them in <code>hxc_errors.txt</code>.</li>
+			<li>Whatever goes wrong with a mod's scripts is written to <code>hxc_errors.txt</code>, next to the game (on Android, in <code>Android/media/com.team.vortexengine/</code>).</li>
+		</ul>
+
+		<div class="callout info">
+			<strong>A mod doesn't work, or it's not here?</strong> Report it on GitHub with the
+			<a href="https://github.com/VeritonR/Vortex-Engine/issues/new?template=mod-not-working.yml">"A mod doesn't work"</a> form:
+			say where to download it and send your <code>hxc_errors.txt</code>. Fixes made for one mod help every other mod too.
+		</div>
+	</section>
+</main>
+
+<footer class="site-footer">
+	<div class="container footer-inner">
+		<div>
+			<strong style="color:var(--text)">Vortex Engine</strong> by VeritonR · Psych Engine by ShadowMario · Friday Night Funkin' by ninjamuffin99 and The Funkin' Crew<br>
+			Mods belong to their authors; this page only lists how they run on Vortex Engine.
+		</div>
+		<div class="footer-links">
+			<a href="index.html">Home</a>
+			<a href="lua.html">Lua API</a>
+			<a href="modding.html">Modding</a>
+			<a href="https://github.com/VeritonR/Vortex-Engine">GitHub</a>
+			<a href="https://discord.gg/QKjMSpeHW">Discord</a>
+		</div>
+	</div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

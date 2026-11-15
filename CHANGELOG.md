@@ -172,6 +172,9 @@
 
 ### Touch controls
 
+- Mobile Options (Options > More): the touch controls' settings and Render Resolution in one place.
+- Arrow Size: makes your arrows and their notes bigger (or smaller) in the Arrows mode; big arrows come closer together to fit the screen.
+- Touch Upscroll: your arrows at the top and the notes going up (the pause button moves to the bottom in the Arrows mode).
 - Modes: Arrows (touch your own arrows, V-Slice layout), Hitbox and Buttons, with a pause button and opacity setting. Extra keys supported.
 - Menus: drag to scroll, tap to select, back button, and on-screen pad.
 - Extra buttons for Freeplay and Story Mode (Gameplay Changers, Listen, Favorite).

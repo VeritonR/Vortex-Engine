@@ -35,7 +35,7 @@ class OptionsMenu extends MusicBeatSubstate
 
 	// The tabs, in their order, and what the "More" one lists (each opens a menu of its own)
 	static final TABS:Array<String> = ['Gameplay', 'Graphics', 'Visuals', 'V-Slice', 'Vortex Engine', 'Mods', 'More'];
-	static final MORE:Array<String> = ['Note Colors', 'Controls', 'Extra Keys', 'Adjust Delay and Combo' #if TRANSLATIONS_ALLOWED , 'Language' #end];
+	static final MORE:Array<String> = ['Note Colors', 'Controls', 'Extra Keys', 'Adjust Delay and Combo', 'Mobile Options' #if TRANSLATIONS_ALLOWED , 'Language' #end];
 
 	/**
 	 * Called once it's closed, to the main menu (which it was opened over).
@@ -585,6 +585,8 @@ class OptionsMenu extends MusicBeatSubstate
 			case 'Adjust Delay and Combo':
 				exiting = true;
 				MusicBeatState.switchState(new options.NoteOffsetState());
+			case 'Mobile Options':
+				openSubState(new options.MobileSettingsSubState());
 			case 'Language':
 				openSubState(new options.LanguageSubState());
 		}

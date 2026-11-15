@@ -530,6 +530,25 @@ crash_copied: "O relatório foi copiado."
 
 // Touch controls
 touch_skip: "Pular"
+options_mobile_options: "Opções Mobile"
+mobile_menu: "Opções Mobile"
+setting_touch_controls: "Controles de Toque"
+description_touch_controls: "Como as músicas são jogadas tocando na tela (celulares, telas de toque ou o mouse):
+Arrows: toque nas suas setas. Hitbox: uma faixa da tela para cada seta.
+Buttons: um botão por seta de cada lado. Um botão de pausa fica no canto."
+setting_touch_controls-off: "Desligado"
+setting_touch_controls_opacity: "Opacidade dos Controles de Toque"
+description_touch_controls_opacity: "O quanto os controles de toque aparecem."
+setting_arrow_size: "Tamanho das Setas"
+description_arrow_size: "O tamanho das suas setas (e das notas delas) com os controles de toque.
+Setas maiores ficam mais juntas para caber na tela."
+setting_touch_upscroll: "Upscroll no Toque"
+description_touch_upscroll: "Se marcado, com os controles de toque suas setas ficam no topo
+da tela e as notas sobem (senão elas ficam embaixo)."
+setting_render_resolution: "Resolução de Renderização"
+description_render_resolution: "Quantas linhas de pixels o jogo desenha, esticadas até a tela pelo celular.
+Menor é mais rápido: 720p é a do jogo, Native a da tela (a mais lenta)."
+setting_render_resolution-native: "Nativa"
 
 // Mod compatibility check (mods menu)
 compat_button: "VERIFICAR"

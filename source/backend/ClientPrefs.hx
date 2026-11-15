@@ -45,6 +45,8 @@ import states.TitleState;
 	public var wideScreen:Bool = false; //on a window wider (or taller) than 16:9 the stage of a song fills it instead of black bars (see backend.GameScaleMode)
 	public var touchControls:String = #if mobile 'Arrows' #else 'Off' #end; //how songs are played by touching the screen (see backend.TouchControls)
 	public var touchOpacity:Float = 1;
+	public var touchArrowSize:Float = 1; //how big the player's arrows are with the touch controls (times the size they have, see backend.TouchControls.layoutStrums())
+	public var touchUpscroll:Bool = false; //the touch controls' arrows at the top, the notes going up (they're at the bottom otherwise)
 	public var renderResolution:String = '720p'; //phones: the lines of pixels the game is drawn at (see backend.MobileGraphics)
 	public var camZooms:Bool = true;
 	public var hideHud:Bool = false;
